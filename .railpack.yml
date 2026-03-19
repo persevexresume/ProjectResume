@@ -1,0 +1,6 @@
+language: node
+buildCommand:
+  - npm --prefix client install
+  - npm --prefix client run build
+  - npm --prefix server install
+startCommand: npm --prefix server start
