@@ -13,6 +13,63 @@ export default function StudentChoice() {
     const [savedProfile, setSavedProfile] = useState(null)
     const [loading, setLoading] = useState(true)
 
+    const pickValue = (...values) => {
+        for (const value of values) {
+            if (value === 0) return value
+            if (typeof value === 'string' && value.trim()) return value.trim()
+            if (value) return value
+        }
+        return ''
+    }
+
+    const normalizeResumePreview = (resume) => {
+        const rawData = resume?.data && typeof resume.data === 'object' ? resume.data : {}
+        const personal = rawData.personalInfo && typeof rawData.personalInfo === 'object' ? rawData.personalInfo : {}
+
+        const firstName = pickValue(rawData.firstName, personal.firstName, personal.first_name)
+        const lastName = pickValue(rawData.lastName, personal.lastName, personal.last_name)
+        const composedName = `${firstName || ''} ${lastName || ''}`.trim()
+        const fullName = pickValue(rawData.fullName, personal.fullName, rawData.name, personal.name, composedName)
+
+        const locationFromParts = [pickValue(rawData.city, personal.city), pickValue(rawData.country, personal.country)].filter(Boolean).join(', ')
+        const location = pickValue(rawData.location, personal.location, locationFromParts)
+
+        const rawSkills = rawData.skills ?? personal.skills ?? rawData.skillset ?? personal.skillset
+        let skills = []
+        if (Array.isArray(rawSkills)) {
+            skills = rawSkills
+        } else if (typeof rawSkills === 'string') {
+            skills = rawSkills.split(',').map(skill => skill.trim()).filter(Boolean)
+        }
+
+        const website = pickValue(rawData.website, personal.website)
+        const websiteHref = website && /^https?:\/\//i.test(website) ? website : (website ? `https://${website}` : '')
+
+        const summary = pickValue(rawData.summary, personal.summary, rawData.objective, personal.objective)
+        const title = pickValue(rawData.title, personal.title)
+        const email = pickValue(rawData.email, personal.email)
+        const phone = pickValue(rawData.phone, personal.phone)
+        const linkedin = pickValue(rawData.linkedin, personal.linkedin)
+        const github = pickValue(rawData.github, personal.github)
+
+        return {
+            name: fullName,
+            title,
+            email,
+            phone,
+            location,
+            linkedin,
+            github,
+            website,
+            websiteHref,
+            summary,
+            skills,
+            hasAnyData: Boolean(fullName || title || email || phone || location || linkedin || github || website || summary || skills.length)
+        }
+    }
+
+    const resumePreview = normalizeResumePreview(savedResume)
+
     useEffect(() => {
         if (!user) {
             navigate('/signin')
@@ -38,10 +95,10 @@ export default function StudentChoice() {
                 .limit(1)
                 .maybeSingle()
 
-            if (resumeData && resumeData.data) {
+            if (resumeData) {
                 setSavedResume(resumeData)
                 setLoading(false)
-                return  // Stop here - only show resume if it exists with data
+                return
             }
 
             // Only fetch master profile if NO resume exists
@@ -205,92 +262,92 @@ export default function StudentChoice() {
                                     )}
                                 </div>
 
-                                {/* Display Extracted Resume Data */}
-                                {savedResume.data && (
+                                {/* Display Resume Data (uploaded PDF or manual entry) */}
+                                {resumePreview.hasAnyData && (
                                     <>
                                         <div style={{
                                             display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
                                             gap: '1.25rem', marginBottom: '2rem'
                                         }}>
-                                            {(savedResume.data.firstName || savedResume.data.lastName) && (
+                                            {resumePreview.name && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</p>
                                                     <p style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e1b4b' }}>
-                                                        {`${savedResume.data.firstName || ''} ${savedResume.data.lastName || ''}`.trim()}
+                                                        {resumePreview.name}
                                                     </p>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.title && (
+                                            {resumePreview.title && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{savedResume.data.title}</p>
+                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.title}</p>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.email && (
+                                            {resumePreview.email && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</p>
-                                                    <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e1b4b', wordBreak: 'break-all' }}>{savedResume.data.email}</p>
+                                                    <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e1b4b', wordBreak: 'break-all' }}>{resumePreview.email}</p>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.phone && (
+                                            {resumePreview.phone && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{savedResume.data.phone}</p>
+                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.phone}</p>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.location && (
+                                            {resumePreview.location && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{savedResume.data.location}</p>
+                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.location}</p>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.linkedin && (
+                                            {resumePreview.linkedin && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>LinkedIn</p>
-                                                    <a href={savedResume.data.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
+                                                    <a href={resumePreview.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
                                                         View Profile →
                                                     </a>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.github && (
+                                            {resumePreview.github && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>GitHub</p>
-                                                    <a href={savedResume.data.github} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
+                                                    <a href={resumePreview.github} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
                                                         View Profile →
                                                     </a>
                                                 </div>
                                             )}
 
-                                            {savedResume.data.website && (
+                                            {resumePreview.website && (
                                                 <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
                                                     <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Website</p>
-                                                    <a href={`https://${savedResume.data.website}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
-                                                        {savedResume.data.website} →
+                                                    <a href={resumePreview.websiteHref} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
+                                                        {resumePreview.website} →
                                                     </a>
                                                 </div>
                                             )}
                                         </div>
 
                                         {/* Summary Section */}
-                                        {savedResume.data.summary && (
+                                        {resumePreview.summary && (
                                             <div style={{ padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
                                                 <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Professional Summary</p>
-                                                <p style={{ fontSize: '1rem', lineHeight: 1.7, color: '#334155' }}>{savedResume.data.summary}</p>
+                                                <p style={{ fontSize: '1rem', lineHeight: 1.7, color: '#334155' }}>{resumePreview.summary}</p>
                                             </div>
                                         )}
 
                                         {/* Skills Section */}
-                                        {savedResume.data.skills && Array.isArray(savedResume.data.skills) && savedResume.data.skills.length > 0 && (
+                                        {resumePreview.skills.length > 0 && (
                                             <div style={{ marginBottom: '2rem' }}>
                                                 <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Technical Skills</p>
                                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                                                    {savedResume.data.skills.slice(0, 15).map((skill, idx) => (
+                                                    {resumePreview.skills.slice(0, 15).map((skill, idx) => (
                                                         <span key={idx} style={{
                                                             background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
                                                             color: '#fff',
