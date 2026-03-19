@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, User, MapPin, Phone, Mail, Pin, ArrowRight, Briefcase, GraduationCap, Zap, Trash2, Plus } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
@@ -32,6 +32,14 @@ export default function MasterProfile() {
     const [experience, setLocalExperience] = useState([])
     const [education, setLocalEducation] = useState([])
     const [skills, setLocalSkills] = useState([])
+
+    const handleBack = () => {
+        if (window.history.length > 1) {
+            navigate(-1)
+            return
+        }
+        navigate('/student/choice')
+    }
 
     useEffect(() => {
         const loadProfile = async () => {
@@ -193,12 +201,16 @@ export default function MasterProfile() {
     return (
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ minHeight: '100vh', background: '#f8fafc', padding: 'clamp(1rem, 4vw, 3rem) clamp(0.75rem, 3vw, 1.5rem) 2.5rem', width: '100%', boxSizing: 'border-box' }}
+            style={{ minHeight: '100vh', background: '#f8fafc', padding: '7rem clamp(0.75rem, 3vw, 1.5rem) 2.5rem', width: '100%', boxSizing: 'border-box' }}
         >
             <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                <Link to="/student/choice" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', textDecoration: 'none', marginBottom: '2rem', fontWeight: 700 }}>
+                <button
+                    type="button"
+                    onClick={handleBack}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', textDecoration: 'none', marginBottom: '2rem', fontWeight: 700, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', zIndex: 70 }}
+                >
                     <ArrowLeft size={18} /> Back
-                </Link>
+                </button>
 
                 <div style={{ background: '#fff', padding: 'clamp(1.25rem, 3vw, 2.25rem)', borderRadius: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
                     <h2 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.03em' }}>Create your <span className="text-gradient">Master Profile</span></h2>
