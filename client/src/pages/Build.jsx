@@ -11,10 +11,10 @@ import ATSChecker from '../components/ATSChecker'
 import ATSRealtimePanel from '../components/resume/ATSRealtimePanel'
 
 // Wizard Components
-import PathSelection from '../components/build/PathSelection'
-import WizardStep from '../components/build/WizardStep'
-import SectionIntro from '../components/build/SectionIntro'
-import TemplatePreview from '../components/build/TemplatePreview'
+import PathSelection from '../components/builder/PathSelection'
+import WizardStep from '../components/builder/WizardStep'
+import SectionIntro from '../components/builder/SectionIntro'
+import TemplatePreview from '../components/builder/TemplatePreview'
 import { useToast } from '../context/ToastContext'
 import { Search, Target, FileText as FileIcon } from 'lucide-react'
 
