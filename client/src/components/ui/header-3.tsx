@@ -70,14 +70,13 @@ export function Header() {
 
     const isAdminPage = location.pathname.startsWith('/admin');
     const isStudentPage = location.pathname.startsWith('/student') ||
-        location.pathname === '/master-profile' ||
         location.pathname === '/job-board' ||
         location.pathname === '/templates' ||
         location.pathname === '/build' ||
         location.pathname === '/upload-resume';
     const isStudentChoice = location.pathname === '/student/choice';
     const isBuildPage = location.pathname === '/build' || location.pathname === '/build-demo';
-    const isStandaloneFlowPage = location.pathname === '/upload-resume' || location.pathname === '/master-profile';
+    const isStandaloneFlowPage = location.pathname === '/upload-resume';
 
     // Hide header on student choice and build pages
     if (isStudentChoice || isBuildPage || isStandaloneFlowPage) return null;
@@ -134,13 +133,6 @@ export function Header() {
                                     className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
                                 >
                                     Dashboard
-                                </Link>
-
-                                <Link
-                                    to="/master-profile"
-                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
-                                >
-                                    Master Profile
                                 </Link>
 
                                 <a
@@ -255,10 +247,6 @@ export function Header() {
                             <Link to="/student" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-blue-50">
                                 <FileStack className="size-5 text-blue-600" />
                                 Dashboard
-                            </Link>
-                            <Link to="/master-profile" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
-                                <UserCircle className="size-5 text-violet-600" />
-                                Master Profile
                             </Link>
                             <a href="https://www.persevex.com/job-portal" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform">
                                 <Briefcase className="size-5" />

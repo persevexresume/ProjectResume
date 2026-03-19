@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { useNavigate, Link } from 'react-router-dom'
-import { Upload, UserPlus, ArrowLeft, LogOut, FileText, Edit3, Eye, ChevronRight, Loader } from 'lucide-react'
+import { Upload, ArrowLeft, LogOut, FileText, Edit3, Eye, ChevronRight, Loader } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { useEffect, useState } from 'react'
@@ -10,7 +10,6 @@ export default function StudentChoice() {
     const navigate = useNavigate()
     const { user, clearUser, loadResume } = useStore()
     const [savedResume, setSavedResume] = useState(null)
-    const [savedProfile, setSavedProfile] = useState(null)
     const [loading, setLoading] = useState(true)
 
     const pickValue = (...values) => {
@@ -101,20 +100,6 @@ export default function StudentChoice() {
                 return
             }
 
-            // Only fetch master profile if NO resume exists
-            const candidates = ['profiles', 'master_profiles', 'students']
-            for (const tableName of candidates) {
-                const { data: profileData } = await supabase
-                    .from(tableName)
-                    .select('*')
-                    .eq('user_id', dbUserId)
-                    .maybeSingle()
-
-                if (profileData) {
-                    setSavedProfile(profileData)
-                    break
-                }
-            }
         } catch (err) {
             console.error('Error fetching data:', err)
         } finally {
@@ -405,112 +390,14 @@ export default function StudentChoice() {
                             </motion.div>
                         )}
 
-                        {/* Saved Profile Section */}
-                        {savedProfile && (
-                            <motion.div
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.2 }}
-                                style={{
-                                    background: '#fff',
-                                    borderRadius: '24px',
-                                    padding: '2rem',
-                                    marginBottom: '2rem',
-                                    boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
-                                    border: '2px solid #e5e7eb'
-                                }}
-                            >
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
-                                    <div>
-                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-                                            👤 Master Profile
-                                        </h2>
-                                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
-                                            {savedProfile.first_name || savedProfile.name ? `${savedProfile.first_name || ''} ${savedProfile.last_name || savedProfile.name || ''}`.trim() : 'Your professional profile'}
-                                        </p>
-                                    </div>
-                                </div>
-
-                                <div style={{
-                                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-                                    gap: '1rem', marginBottom: '1.5rem'
-                                }}>
-                                    {savedProfile.title && (
-                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
-                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Title</p>
-                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>{savedProfile.title}</p>
-                                        </div>
-                                    )}
-                                    {(savedProfile.city || savedProfile.country) && (
-                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
-                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Location</p>
-                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>
-                                                {[savedProfile.city, savedProfile.country].filter(Boolean).join(', ')}
-                                            </p>
-                                        </div>
-                                    )}
-                                    {savedProfile.phone && (
-                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
-                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Phone</p>
-                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>{savedProfile.phone}</p>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {savedProfile.summary && (
-                                    <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px', marginBottom: '1.5rem' }}>
-                                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Summary</p>
-                                        <p style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>{savedProfile.summary}</p>
-                                    </div>
-                                )}
-
-                                <div style={{
-                                    display: 'flex', gap: '1rem', flexWrap: 'wrap'
-                                }}>
-                                    <button
-                                        onClick={() => navigate(`/master-profile/view`)}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff',
-                                            border: 'none', padding: '0.85rem 1.75rem',
-                                            borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
-                                            transition: 'all 0.2s',
-                                            fontSize: '1rem',
-                                            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                                        }}
-                                        onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                        onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-                                    >
-                                        <Eye size={18} /> View Profile
-                                    </button>
-
-                                    <button
-                                        onClick={handleEditProfile}
-                                        style={{
-                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            background: '#e2e8f0', color: '#1e1b4b',
-                                            border: 'none', padding: '0.85rem 1.75rem',
-                                            borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
-                                            transition: 'all 0.2s',
-                                            fontSize: '1rem'
-                                        }}
-                                        onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
-                                        onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
-                                    >
-                                        <Edit3 size={18} /> Edit Profile
-                                    </button>
-                                </div>
-                            </motion.div>
-                        )}
-
                         {/* Quick Actions Section */}
-                        {(!savedResume || !savedProfile) && (
+                        {!savedResume && (
                             <>
                                 <h3 style={{
                                     fontSize: '1.3rem', fontWeight: 800, marginTop: '3rem',
                                     marginBottom: '1.5rem', textAlign: 'center', color: 'var(--color-text-primary)'
                                 }}>
-                                    {savedResume && savedProfile ? 'Additional Actions' : 'Get Started'}
+                                    Get Started
                                 </h3>
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
                                     <motion.div
@@ -539,7 +426,7 @@ export default function StudentChoice() {
 
                                     <motion.div
                                         whileHover={{ y: -10, scale: 1.02 }}
-                                        onClick={() => navigate('/master-profile')}
+                                        onClick={() => navigate('/templates')}
                                         style={{
                                             background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
                                             cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
@@ -553,11 +440,11 @@ export default function StudentChoice() {
                                             borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px #10b981'
                                         }}>
-                                            <UserPlus size={28} />
+                                            <FileText size={28} />
                                         </div>
-                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Create Master Profile</h3>
+                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Create Resume Manually</h3>
                                         <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
-                                            Build a master profile from scratch to use in any resume.
+                                            Start from a template and enter details manually.
                                         </p>
                                     </motion.div>
                                 </div>
@@ -565,7 +452,7 @@ export default function StudentChoice() {
                         )}
 
                         {/* Empty State */}
-                        {!savedResume && !savedProfile && (
+                        {!savedResume && (
                             <motion.div
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}

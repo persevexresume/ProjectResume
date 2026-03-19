@@ -4,11 +4,13 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Upload, FileText, ArrowLeft, CheckCircle2, Loader2, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
+import { supabase } from '../supabase'
+import { getDbUserId } from '../lib/userIdentity'
 
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { user, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -261,6 +263,61 @@ export default function UploadResume() {
         }
     }
 
+    const saveParsedResume = async (parsed, selectedFile) => {
+        const dbUserId = getDbUserId(user)
+        if (!dbUserId) {
+            throw new Error('Please sign in again before uploading resume.')
+        }
+
+        const fullName = `${parsed.personalInfo?.firstName || ''} ${parsed.personalInfo?.lastName || ''}`.trim()
+        const fallbackTitle = selectedFile?.name ? selectedFile.name.replace(/\.[^.]+$/, '') : ''
+        const title = parsed.personalInfo?.title || fullName || fallbackTitle || 'Uploaded Resume'
+
+        const resumePayload = {
+            personalInfo: parsed.personalInfo || {},
+            experience: parsed.experience || [],
+            education: parsed.education || [],
+            skills: parsed.skills || [],
+            projects: parsed.projects || [],
+            certifications: parsed.certifications || []
+        }
+
+        const payload = {
+            user_id: dbUserId,
+            title,
+            data: resumePayload,
+            score: 0,
+            updated_at: new Date().toISOString()
+        }
+
+        const attemptPayload = { ...payload }
+
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+            const { error } = await supabase
+                .from('resumes')
+                .insert({
+                    ...attemptPayload,
+                    created_at: new Date().toISOString()
+                })
+
+            if (!error) {
+                return
+            }
+
+            const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
+            const missingColumnMatch = fullMessage.match(/Could not find the '([^']+)' column/i) || fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+            if (missingColumnMatch && attemptPayload[missingColumnMatch[1]] !== undefined) {
+                delete attemptPayload[missingColumnMatch[1]]
+                continue
+            }
+
+            throw error
+        }
+
+        throw new Error('Unable to save uploaded resume due to schema mismatch.')
+    }
+
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0]
         if (selectedFile) {
@@ -286,11 +343,12 @@ export default function UploadResume() {
             setProjects(parsed.projects || [])
             setCertifications(parsed.certifications || [])
 
+            await saveParsedResume(parsed, selectedFile)
+
             setStatus('success')
-            toastSuccess('Resume parsed successfully. Redirecting to templates...')
+            toastSuccess('Resume uploaded and saved successfully. Redirecting to dashboard...')
             setTimeout(() => {
-                // Redirect to templates so user can see their data injected in thumbnails
-                navigate('/templates')
+                navigate('/student/choice')
             }, 1200)
         } catch (error) {
             console.error('Resume parsing failed:', error)

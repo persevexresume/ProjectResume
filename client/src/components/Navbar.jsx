@@ -67,7 +67,6 @@ export default function Navbar() {
     const isAdminPage = location.pathname.startsWith('/admin');
     const isStudentChoice = location.pathname === '/student/choice';
     const isStudentPage = location.pathname.startsWith('/student') ||
-        location.pathname === '/master-profile' ||
         location.pathname === '/job-board' ||
         location.pathname === '/templates' ||
         location.pathname === '/build' ||
@@ -166,17 +165,6 @@ export default function Navbar() {
                                     )}
                                 >
                                     Dashboard
-                                </Link>
-                                <Link
-                                    to="/master-profile"
-                                    className={cn(
-                                        "px-6 py-2 rounded-lg text-sm font-black transition-all",
-                                        location.pathname === '/master-profile'
-                                            ? "bg-white text-violet-600 shadow-sm"
-                                            : "text-slate-600 hover:text-violet-600"
-                                    )}
-                                >
-                                    Master Profile
                                 </Link>
                                 <a
                                     href="https://www.persevex.com/job-portal"
