@@ -14,7 +14,7 @@
   "scripts": {
     "install-all": "npm install --workspaces",
     "dev": "npm run dev --workspaces",
-    "build": "npm --prefix client run build",
+    "build": "npm --prefix client run build && node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.cpSync('client/dist','dist',{recursive:true});\"",
     "start": "npm --prefix server start",
     "build:frontend": "npm --prefix client run build",
     "start:frontend": "npm --prefix client run dev",
