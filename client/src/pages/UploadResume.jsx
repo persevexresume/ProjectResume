@@ -274,6 +274,16 @@ export default function UploadResume() {
         const title = parsed.personalInfo?.title || fullName || fallbackTitle || 'Uploaded Resume'
 
         const resumePayload = {
+            firstName: parsed.personalInfo?.firstName || '',
+            lastName: parsed.personalInfo?.lastName || '',
+            title: parsed.personalInfo?.title || '',
+            email: parsed.personalInfo?.email || '',
+            phone: parsed.personalInfo?.phone || '',
+            location: parsed.personalInfo?.location || '',
+            linkedin: parsed.personalInfo?.linkedin || '',
+            github: parsed.personalInfo?.github || '',
+            website: parsed.personalInfo?.website || '',
+            summary: parsed.personalInfo?.summary || '',
             personalInfo: parsed.personalInfo || {},
             experience: parsed.experience || [],
             education: parsed.education || [],

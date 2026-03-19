@@ -85,6 +85,25 @@ export default function StudentChoice() {
             return
         }
         fetchSavedData()
+
+        const dbUserId = getDbUserId(user)
+        if (!dbUserId) return
+
+        const subscription = supabase
+            .channel(`student_choice_resumes_${dbUserId}`)
+            .on('postgres_changes', {
+                event: '*',
+                schema: 'public',
+                table: 'resumes',
+                filter: `user_id=eq.${dbUserId}`
+            }, () => {
+                fetchSavedData()
+            })
+            .subscribe()
+
+        return () => {
+            subscription.unsubscribe()
+        }
     }, [user, navigate])
 
     const fetchSavedData = async () => {
@@ -95,12 +114,16 @@ export default function StudentChoice() {
                 return
             }
 
-            const { data: resumeRows } = await supabase
+            const { data: resumeRows, error: resumeError } = await supabase
                 .from('resumes')
                 .select('*')
                 .eq('user_id', dbUserId)
                 .order('updated_at', { ascending: false })
                 .limit(25)
+
+            if (resumeError) {
+                throw resumeError
+            }
 
             if (Array.isArray(resumeRows) && resumeRows.length > 0) {
                 const bestResume = resumeRows.find((row) => normalizeResumePreview(row).hasAnyData) || resumeRows[0]

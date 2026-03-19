@@ -4,13 +4,34 @@ import { Mail, Phone, MapPin, Linkedin, Github, Globe, Briefcase, GraduationCap,
 export default function EnhancedTemplateRenderer({ template, resumeData, themeColor }) {
   if (!template || !resumeData) return null;
 
-  const {
-    personalInfo = {},
-    summary = '',
-    experience = [],
-    education = [],
-    skills = [],
-  } = resumeData;
+  const rawPersonalInfo = resumeData.personalInfo || {};
+  const personalInfo = {
+    ...rawPersonalInfo,
+    firstName: rawPersonalInfo.firstName || rawPersonalInfo.first_name || '',
+    lastName: rawPersonalInfo.lastName || rawPersonalInfo.last_name || '',
+    title: rawPersonalInfo.title || '',
+    email: rawPersonalInfo.email || '',
+    phone: rawPersonalInfo.phone || '',
+    location: rawPersonalInfo.location || [rawPersonalInfo.city, rawPersonalInfo.country].filter(Boolean).join(', '),
+    website: rawPersonalInfo.website || '',
+    profilePhoto: rawPersonalInfo.profilePhoto || ''
+  };
+
+  const summary = resumeData.summary || personalInfo.summary || '';
+  const experience = Array.isArray(resumeData.experience) ? resumeData.experience.map((exp) => ({
+    ...exp,
+    role: exp?.role || exp?.position || '',
+    company: exp?.company || exp?.organization || '',
+    startDate: exp?.startDate || exp?.start || '',
+    endDate: exp?.endDate || exp?.end || ''
+  })) : [];
+  const education = Array.isArray(resumeData.education) ? resumeData.education.map((edu) => ({
+    ...edu,
+    degree: edu?.degree || edu?.course || '',
+    institution: edu?.institution || edu?.school || '',
+    year: edu?.year || [edu?.startDate, edu?.endDate].filter(Boolean).join(' - ')
+  })) : [];
+  const skills = Array.isArray(resumeData.skills) ? resumeData.skills : [];
 
   const { bg, primary: primaryCol, accent: accentCol } = template.colors || { bg: '#fff', primary: '#1a1a2e', accent: '#3b82f6' };
   const fonts = template.fonts || { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' };
