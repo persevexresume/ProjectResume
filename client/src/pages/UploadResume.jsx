@@ -286,6 +286,8 @@ export default function UploadResume() {
             user_id: dbUserId,
             title,
             data: resumePayload,
+            template_id: 't01',
+            template: 't01',
             score: 0,
             updated_at: new Date().toISOString()
         }

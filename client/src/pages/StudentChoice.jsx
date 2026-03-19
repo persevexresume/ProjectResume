@@ -22,7 +22,15 @@ export default function StudentChoice() {
     }
 
     const normalizeResumePreview = (resume) => {
-        const rawData = resume?.data && typeof resume.data === 'object' ? resume.data : {}
+        let parsedData = resume?.data
+        if (typeof parsedData === 'string') {
+            try {
+                parsedData = JSON.parse(parsedData)
+            } catch {
+                parsedData = {}
+            }
+        }
+        const rawData = parsedData && typeof parsedData === 'object' ? parsedData : {}
         const personal = rawData.personalInfo && typeof rawData.personalInfo === 'object' ? rawData.personalInfo : {}
 
         const firstName = pickValue(rawData.firstName, personal.firstName, personal.first_name)
@@ -48,8 +56,10 @@ export default function StudentChoice() {
         const title = pickValue(rawData.title, personal.title)
         const email = pickValue(rawData.email, personal.email)
         const phone = pickValue(rawData.phone, personal.phone)
-        const linkedin = pickValue(rawData.linkedin, personal.linkedin)
-        const github = pickValue(rawData.github, personal.github)
+        const linkedinValue = pickValue(rawData.linkedin, personal.linkedin)
+        const githubValue = pickValue(rawData.github, personal.github)
+        const linkedin = linkedinValue && /^https?:\/\//i.test(linkedinValue) ? linkedinValue : (linkedinValue ? `https://${linkedinValue}` : '')
+        const github = githubValue && /^https?:\/\//i.test(githubValue) ? githubValue : (githubValue ? `https://${githubValue}` : '')
 
         return {
             name: fullName,
@@ -85,17 +95,16 @@ export default function StudentChoice() {
                 return
             }
 
-            // Fetch most recent resume - THIS SHOULD BE THE PRIORITY
-            const { data: resumeData } = await supabase
+            const { data: resumeRows } = await supabase
                 .from('resumes')
                 .select('*')
                 .eq('user_id', dbUserId)
-                .order('created_at', { ascending: false })
-                .limit(1)
-                .maybeSingle()
+                .order('updated_at', { ascending: false })
+                .limit(25)
 
-            if (resumeData) {
-                setSavedResume(resumeData)
+            if (Array.isArray(resumeRows) && resumeRows.length > 0) {
+                const bestResume = resumeRows.find((row) => normalizeResumePreview(row).hasAnyData) || resumeRows[0]
+                setSavedResume(bestResume)
                 setLoading(false)
                 return
             }
@@ -118,10 +127,6 @@ export default function StudentChoice() {
             loadResume(savedResume)
             navigate('/build')
         }
-    }
-
-    const handleEditProfile = () => {
-        navigate('/master-profile')
     }
 
     const handleViewAllResumes = () => {
@@ -220,7 +225,7 @@ export default function StudentChoice() {
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    📥 Uploaded PDF
+                                    Saved Resume
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', marginTop: '0.5rem' }}>
