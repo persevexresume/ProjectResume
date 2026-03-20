@@ -21,7 +21,7 @@ import AdminDashboard from './pages/AdminDashboard'
 import StudentDashboard from './pages/StudentDashboard'
 import StudentChoice from './pages/StudentChoice'
 import ViewResumes from './pages/ViewResumes'
-// MasterProfile import removed
+import MasterProfile from './pages/MasterProfile'
 import UploadResume from './pages/UploadResume'
 import CoverLetterBuilder from './pages/CoverLetterBuilder'
 import Placeholder from './pages/Placeholder'
@@ -113,7 +113,7 @@ function AnimatedRoutes() {
           path="/master-profile"
           element={
             <ProtectedRoute role="student">
-              <StudentChoice />
+              <MasterProfile />
             </ProtectedRoute>
           }
         />
