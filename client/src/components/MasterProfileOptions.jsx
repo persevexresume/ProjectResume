@@ -68,7 +68,7 @@ export default function MasterProfileOptions({ onSelectOption, user }) {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '2rem'
+            padding: '8rem 2rem 4rem 2rem'
         }}>
             <motion.div
                 initial={{ opacity: 0, y: 20 }}

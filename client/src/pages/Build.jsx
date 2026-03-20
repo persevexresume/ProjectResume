@@ -43,30 +43,34 @@ export default function Build() {
     const [previewUpdateTrigger, setPreviewUpdateTrigger] = useState(0) // Force preview re-render on photo upload
 
     const handleImportFromProfile = async () => {
-        if (!user) {
-            toastError('Please sign in to import your profile')
-            return
-        }
-
-        setIsImporting(true)
+        if (!user) return;
+        setIsImporting(true);
         try {
-            const dbUserId = getDbUserId(user)
-            const { data, error } = await supabase
-                .from('master_profiles')
-                .select('*')
-                .eq('user_id', dbUserId)
-                .maybeSingle()
+            const dbUserId = getDbUserId(user);
+            const tableCandidates = ['master_profiles', 'profiles'];
+            let profileData = null;
 
-            if (error) throw error
+            for (const tableName of tableCandidates) {
+                const { data, error } = await supabase
+                    .from(tableName)
+                    .select('*')
+                    .eq('user_id', dbUserId)
+                    .maybeSingle();
 
-            if (data) {
-                // Update basic info
+                if (data) {
+                    profileData = data;
+                    break;
+                }
+            }
+
+            if (profileData) {
+                const data = profileData;
                 updatePersonalInfo({
                     firstName: data.first_name || '',
                     lastName: data.last_name || '',
-                    email: data.email || user.email || '',
+                    email: data.email || user?.email || '',
                     phone: data.phone || '',
-                    location: data.location || '',
+                    location: data.location || `${data.city || ''}, ${data.country || ''}`.replace(/^, /, '') || '',
                     title: data.title || '',
                     summary: data.summary || '',
                     profilePhoto: data.profile_photo || ''

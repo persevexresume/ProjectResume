@@ -26,14 +26,15 @@ export default function ProfileDetailsView({
                 return;
             }
 
-            const payload = {
+            // Prepare payload for master_profiles (has all fields including profile_photo)
+            const masterPayload = {
                 user_id: dbUserId,
                 first_name: editData.personalInfo.firstName,
                 last_name: editData.personalInfo.lastName,
                 title: editData.personalInfo.title,
                 email: editData.personalInfo.email,
                 phone: editData.personalInfo.phone,
-                city: editData.personalInfo.location,
+                location: editData.personalInfo.location,
                 country: editData.personalInfo.country,
                 summary: editData.personalInfo.summary,
                 profile_photo: editData.personalInfo.profilePhoto,
@@ -44,24 +45,46 @@ export default function ProfileDetailsView({
                 created_at: new Date().toISOString()
             };
 
-            // Try saving to multiple possible table names
-            const tableCandidates = ['master_profiles', 'profiles'];
-            let lastError = null;
+            // Try master_profiles first (preferred table)
+            const { error: masterError } = await supabase
+                .from('master_profiles')
+                .upsert(masterPayload, { onConflict: 'user_id' });
 
-            for (const tableName of tableCandidates) {
-                const { error } = await supabase
-                    .from(tableName)
-                    .upsert(payload, { onConflict: 'user_id' });
-
-                if (!error) {
-                    toastSuccess(`Profile saved successfully!`);
-                    if (onSave) onSave(editData);
-                    return;
-                }
-                lastError = error;
+            if (!masterError) {
+                toastSuccess(`Profile saved successfully!`);
+                if (onSave) onSave(editData);
+                return;
             }
 
-            throw lastError;
+            // Fallback: profiles table (without profile_photo column)
+            const profilePayload = {
+                user_id: dbUserId,
+                first_name: editData.personalInfo.firstName,
+                last_name: editData.personalInfo.lastName,
+                title: editData.personalInfo.title,
+                email: editData.personalInfo.email,
+                phone: editData.personalInfo.phone,
+                city: editData.personalInfo.location,
+                country: editData.personalInfo.country,
+                summary: editData.personalInfo.summary,
+                experience_data: editData.experience,
+                education_data: editData.education,
+                skills_data: editData.skills,
+                source: source,
+                created_at: new Date().toISOString()
+            };
+
+            const { error: profileError } = await supabase
+                .from('profiles')
+                .upsert(profilePayload, { onConflict: 'user_id' });
+
+            if (!profileError) {
+                toastSuccess(`Profile saved successfully!`);
+                if (onSave) onSave(editData);
+                return;
+            }
+
+            throw profileError || masterError;
         } catch (error) {
             toastError(`Error saving profile: ${error.message}`);
         } finally {
@@ -122,7 +145,7 @@ export default function ProfileDetailsView({
             minHeight: '100vh',
             background: '#f8fafc',
             padding: '2rem',
-            paddingTop: '6rem'
+            paddingTop: '8rem'
         }}>
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
