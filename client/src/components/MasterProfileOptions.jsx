@@ -1,8 +1,8 @@
 import { motion } from 'framer-motion';
 import { Upload, PenTool, ArrowLeft, Loader } from 'lucide-react';
 import { useState } from 'react';
-import { extractResumeFromPDF, validateResumeData } from '../../lib/geminiExtractor';
-import { useToast } from '../../context/ToastContext';
+import { extractResumeFromPDF, validateResumeData } from '../lib/geminiExtractor';
+import { useToast } from '../context/ToastContext';
 
 export default function MasterProfileOptions({ onSelectOption, user }) {
     const { success: toastSuccess, error: toastError, info: toastInfo } = useToast();
@@ -64,7 +64,7 @@ export default function MasterProfileOptions({ onSelectOption, user }) {
     return (
         <div style={{
             minHeight: '100vh',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: '#ffffff',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -80,7 +80,7 @@ export default function MasterProfileOptions({ onSelectOption, user }) {
                 }}
             >
                 {/* Header */}
-                <div style={{ textAlign: 'center', marginBottom: '3rem', color: '#fff' }}>
+                <div style={{ textAlign: 'center', marginBottom: '3rem', color: '#0f172a' }}>
                     <motion.h1
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}

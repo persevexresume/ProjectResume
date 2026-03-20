@@ -1,9 +1,9 @@
 import { motion } from 'framer-motion';
 import { ChevronDown, ChevronUp, ArrowLeft, Save, Loader } from 'lucide-react';
 import { useState } from 'react';
-import { useToast } from '../../context/ToastContext';
-import { supabase } from '../../supabase';
-import { getDbUserId } from '../../lib/userIdentity';
+import { useToast } from '../context/ToastContext';
+import { supabase } from '../supabase';
+import { getDbUserId } from '../lib/userIdentity';
 
 export default function ProfileDetailsView({
     profileData,
@@ -26,33 +26,42 @@ export default function ProfileDetailsView({
                 return;
             }
 
-            // Save to database
-            const { error } = await supabase
-                .from('master_profiles')
-                .upsert({
-                    user_id: dbUserId,
-                    first_name: editData.personalInfo.firstName,
-                    last_name: editData.personalInfo.lastName,
-                    title: editData.personalInfo.title,
-                    email: editData.personalInfo.email,
-                    phone: editData.personalInfo.phone,
-                    city: editData.personalInfo.location,
-                    country: editData.personalInfo.country,
-                    summary: editData.personalInfo.summary,
-                    profile_photo: editData.personalInfo.profilePhoto,
-                    experience_data: editData.experience,
-                    education_data: editData.education,
-                    skills_data: editData.skills,
-                    source: source,
-                    created_at: new Date().toISOString()
-                }, {
-                    onConflict: 'user_id'
-                });
+            const payload = {
+                user_id: dbUserId,
+                first_name: editData.personalInfo.firstName,
+                last_name: editData.personalInfo.lastName,
+                title: editData.personalInfo.title,
+                email: editData.personalInfo.email,
+                phone: editData.personalInfo.phone,
+                city: editData.personalInfo.location,
+                country: editData.personalInfo.country,
+                summary: editData.personalInfo.summary,
+                profile_photo: editData.personalInfo.profilePhoto,
+                experience_data: editData.experience,
+                education_data: editData.education,
+                skills_data: editData.skills,
+                source: source,
+                created_at: new Date().toISOString()
+            };
 
-            if (error) throw error;
+            // Try saving to multiple possible table names
+            const tableCandidates = ['master_profiles', 'profiles'];
+            let lastError = null;
 
-            toastSuccess('Profile saved successfully!');
-            if (onSave) onSave(editData);
+            for (const tableName of tableCandidates) {
+                const { error } = await supabase
+                    .from(tableName)
+                    .upsert(payload, { onConflict: 'user_id' });
+
+                if (!error) {
+                    toastSuccess(`Profile saved successfully!`);
+                    if (onSave) onSave(editData);
+                    return;
+                }
+                lastError = error;
+            }
+
+            throw lastError;
         } catch (error) {
             toastError(`Error saving profile: ${error.message}`);
         } finally {
