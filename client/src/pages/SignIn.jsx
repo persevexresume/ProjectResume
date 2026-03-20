@@ -109,7 +109,7 @@ export default function SignIn() {
                         updatePersonalInfo({ email: result.user.email || '' })
                     }
 
-                    navigate('/master-profile')
+                    navigate('/student')
                 }
             } else {
                 setError(result.error || 'Invalid credentials. Please try again.')
