@@ -226,14 +226,6 @@ export default function CoverLetterBuilder() {
                         <div style={{ marginBottom: '2.5rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                             <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>Cover Letter Builder</h2>
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button onClick={handleImportFromProfile} style={{ padding: '0.6rem 1rem', background: '#ecfdf5', color: '#059669', border: '1px solid #10b981', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer' }}>
-                                    <Sparkles size={14} /> Import Profile
-                                </button>
-                                <button onClick={handleReset} style={{ padding: '0.6rem 1rem', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '10px', fontSize: '0.8rem', fontWeight: 800, cursor: 'pointer' }}>
-                                    Reset
-                                </button>
-                            </div>
                         </div>
                         <p style={{ color: '#64748b', fontWeight: 500 }}>Create a professional cover letter that gets you hired.</p>
                     </div>

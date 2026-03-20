@@ -5,6 +5,7 @@ import useStore from '../../store/useStore';
 import { resumeTemplates } from '../../data/templates';
 
 import EnhancedTemplateRenderer from '../templates/EnhancedTemplateRenderer';
+import MultiPageResumeWrapper from './MultiPageResumeWrapper';
 
 /**
  * CORE RENDERING ENGINE
@@ -21,11 +22,13 @@ export default function ResumeRenderer({ data, templateId, customization: custom
     const newTemplate = resumeTemplates.find(t => t.id === finalTemplateId);
     if (newTemplate) {
         return (
-            <EnhancedTemplateRenderer 
-                template={newTemplate} 
-                resumeData={finalData} 
-                themeColor={finalCustomization?.themeColor || newTemplate.colors?.accent || '#3b82f6'} 
-            />
+            <MultiPageResumeWrapper>
+                <EnhancedTemplateRenderer 
+                    template={newTemplate} 
+                    resumeData={finalData} 
+                    themeColor={finalCustomization?.themeColor || newTemplate.colors?.accent || '#3b82f6'} 
+                />
+            </MultiPageResumeWrapper>
         );
     }
 
@@ -51,18 +54,20 @@ export default function ResumeRenderer({ data, templateId, customization: custom
     };
 
     return (
-        <div id="resume-content" style={{
-            fontFamily: finalCustomization.font || 'Inter, sans-serif',
-            fontSize: finalCustomization.fontSize || '14px',
-            color: '#1e293b',
-            lineHeight: 1.6,
-            width: '100%',
-            minHeight: '297mm',
-            background: '#fff',
-            padding: '0'
-        }}>
-            {getTemplate()}
-        </div>
+        <MultiPageResumeWrapper>
+            <div id="resume-content" style={{
+                fontFamily: finalCustomization.font || 'Inter, sans-serif',
+                fontSize: finalCustomization.fontSize || '14px',
+                color: '#1e293b',
+                lineHeight: 1.6,
+                width: '100%',
+                minHeight: '297mm',
+                background: '#fff',
+                padding: '0'
+            }}>
+                {getTemplate()}
+            </div>
+        </MultiPageResumeWrapper>
     );
 }
 

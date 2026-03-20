@@ -6,11 +6,23 @@ import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
 import { useToast } from '../context/ToastContext'
+import Navbar from '../components/Navbar'
+import MasterProfileOptions from '../components/MasterProfileOptions'
+import ProfileDetailsView from '../components/ProfileDetailsView'
+
+// Form Section Components
+import ExperienceSection from '../components/builder/ExperienceSection'
+import EducationSection from '../components/builder/EducationSection'
+import SkillsSection from '../components/builder/SkillsSection'
 
 export default function MasterProfile() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
     const { user, updatePersonalInfo, setExperience, setEducation, setSkills } = useStore()
+    const [step, setStep] = useState('options') // 'options', 'details', 'legacy'
+    const [profileData, setProfileData] = useState(null)
+    const [dataSource, setDataSource] = useState(null) // 'upload' or 'create'
+    
     const [loading, setLoading] = useState(false)
     const [success, setSuccess] = useState(false)
     const [statusMessage, setStatusMessage] = useState('')
@@ -29,18 +41,36 @@ export default function MasterProfile() {
         profilePhoto: ''
     })
 
-    const [experience, setLocalExperience] = useState([])
-    const [education, setLocalEducation] = useState([])
-    const [skills, setLocalSkills] = useState([])
+    const [experienceLocal, setExperienceLocal] = useState([])
+    const [educationLocal, setEducationLocal] = useState([])
+    const [skillsLocal, setSkillsLocal] = useState([])
 
     const handleBack = () => {
-        if (window.history.length > 1) {
+        if (step === 'details') {
+            setStep('options')
+            setProfileData(null)
+            setDataSource(null)
+        } else if (window.history.length > 1) {
             navigate(-1)
             return
         }
         navigate('/student/choice')
     }
 
+    const handleSelectOption = (option, data, file) => {
+        setDataSource(option)
+        setProfileData(data)
+        setStep('details')
+    }
+
+    const handleSaveProfile = (data) => {
+        // After saving, go back to options
+        setStep('options')
+        setProfileData(null)
+        setDataSource(null)
+    }
+
+    // Legacy code - kept for backward compatibility
     useEffect(() => {
         const loadProfile = async () => {
             if (!user) return
@@ -74,9 +104,9 @@ export default function MasterProfile() {
                         profilePhoto: data.profile_photo || data.photo_url || ''
                     })
 
-                    setLocalExperience(Array.isArray(data.experience_data) ? data.experience_data : [])
-                    setLocalEducation(Array.isArray(data.education_data) ? data.education_data : [])
-                    setLocalSkills(Array.isArray(data.skills_data) ? data.skills_data : [])
+                    setExperienceLocal(Array.isArray(data.experience_data) ? data.experience_data : [])
+                    setEducationLocal(Array.isArray(data.education_data) ? data.education_data : [])
+                    setSkillsLocal(Array.isArray(data.skills_data) ? data.skills_data : [])
                     return
                 }
 
@@ -119,9 +149,9 @@ export default function MasterProfile() {
                 summary: personal.summary,
                 location: `${personal.city}, ${personal.country}`,
                 profile_photo: personal.profilePhoto,
-                experience_data: experience,
-                education_data: education,
-                skills_data: skills,
+                experience_data: experienceLocal,
+                education_data: educationLocal,
+                skills_data: skillsLocal,
                 updated_at: new Date().toISOString()
             }
 
@@ -173,9 +203,9 @@ export default function MasterProfile() {
                     summary: personal.summary,
                     profilePhoto: personal.profilePhoto
                 })
-                setExperience(experience)
-                setEducation(education)
-                setSkills(skills)
+                setExperience(experienceLocal)
+                setEducation(educationLocal)
+                setSkills(skillsLocal)
 
                 setSuccess(true)
                 const message = `Profile saved successfully${tableName ? ` (${tableName})` : ''}. Redirecting...`
@@ -199,11 +229,236 @@ export default function MasterProfile() {
     }
 
     return (
-        <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ minHeight: '100vh', background: '#f8fafc', padding: '7rem clamp(0.75rem, 3vw, 1.5rem) 2.5rem', width: '100%', boxSizing: 'border-box' }}
-        >
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+        <>
+            {step === 'options' && (
+                <MasterProfileOptions onSelectOption={handleSelectOption} user={user} />
+            )}
+            {step === 'details' && (
+                <ProfileDetailsView 
+                    profileData={profileData}
+                    source={dataSource}
+                    user={user}
+                    onBack={handleBack}
+                    onSave={handleSaveProfile}
+                />
+            )}
+            {step === 'legacy' && (
+                <>
+                    <Navbar />
+                    <motion.div
+                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                        style={{ minHeight: '100vh', background: '#f8fafc', padding: '7rem clamp(0.75rem, 3vw, 1.5rem) 2.5rem', width: '100%', boxSizing: 'border-box' }}
+                    >
+                    <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                        <button
+                            type="button"
+                            onClick={handleBack}
+                            style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', textDecoration: 'none', marginBottom: '2rem', fontWeight: 700, background: 'transparent', border: 'none', cursor: 'pointer', padding: 0, position: 'relative', zIndex: 70 }}
+                        >
+                            <ArrowLeft size={18} /> Back
+                        </button>
+
+                        <div style={{ background: '#fff', padding: 'clamp(1.25rem, 3vw, 2.25rem)', borderRadius: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
+                            <h2 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.03em' }}>Create your <span className="text-gradient">Master Profile</span></h2>
+                            <p style={{ color: 'var(--color-text-secondary)', marginBottom: '3rem', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>This information will be used as the default for all your future resumes.</p>
+
+                            {statusMessage && (
+                                <div style={{
+                                    marginBottom: '1.5rem',
+                                    borderRadius: '12px',
+                                    padding: '0.85rem 1rem',
+                                    fontWeight: 700,
+                                    fontSize: '0.9rem',
+                                    border: statusType === 'success' ? '1px solid #86efac' : '1px solid #fca5a5',
+                                    background: statusType === 'success' ? '#f0fdf4' : '#fef2f2',
+                                    color: statusType === 'success' ? '#166534' : '#991b1b'
+                                }}>
+                                    {statusMessage}
+                                </div>
+                            )}
+
+                            <div style={{ marginBottom: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                                <div style={{ position: 'relative' }}>
+                                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', border: '4px solid #fff', boxShadow: '0 10px 25px rgba(0,0,0,0.1)' }}>
+                                        {personal.profilePhoto ? (
+                                            <img src={personal.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        ) : (
+                                            <User size={60} color="#cbd5e1" />
+                                        )}
+                                    </div>
+                                    <label style={{ position: 'absolute', bottom: '0', right: '0', background: '#3b82f6', color: '#fff', width: '36px', height: '36px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', border: '3px solid #fff', boxShadow: '0 5px 15px rgba(59, 130, 246, 0.4)' }}>
+                                        <Plus size={20} />
+                                        <input 
+                                            type="file" 
+                                            accept="image/*" 
+                                            className="hidden" 
+                                            onChange={async (e) => {
+                                                const file = e.target.files[0]
+                                                if (file && user) {
+                                                    const reader = new FileReader()
+                                                    reader.onloadend = async () => {
+                                                        try {
+                                                            const response = await fetch('/api/upload-photo', {
+                                                                method: 'POST',
+                                                                headers: {
+                                                                    'Content-Type': 'application/json'
+                                                                },
+                                                                body: JSON.stringify({
+                                                                    userId: user?.uid || user?.id,
+                                                                    fileData: reader.result,
+                                                                    fileName: file.name
+                                                                })
+                                                            })
+
+                                                            if (!response.ok) {
+                                                                const errorData = await response.json()
+                                                                throw new Error(errorData.error || 'Photo upload failed')
+                                                            }
+
+                                                            const result = await response.json()
+                                                            if (result.success && result.url) {
+                                                                setPersonal({ ...personal, profilePhoto: result.url })
+                                                            }
+                                                        } catch (error) {
+                                                            console.error('Error uploading photo:', error)
+                                                            toastError(`Upload failed: ${error.message}`)
+                                                        }
+                                                    }
+                                                    reader.readAsDataURL(file)
+                                                }
+                                            }} 
+                                        />
+                                    </label>
+                                </div>
+                                <p style={{ fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Professional Photo</p>
+                            </div>
+
+                            <form onSubmit={handleSave} className="form-grid-2col">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>First Name</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <User size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+                                        <input
+                                            required value={personal.firstName} onChange={e => setPersonal({ ...personal, firstName: e.target.value })}
+                                            style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Surname / Last Name</label>
+                                    <input
+                                        required value={personal.lastName} onChange={e => setPersonal({ ...personal, lastName: e.target.value })}
+                                        style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>City</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <MapPin size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+                                        <input
+                                            required value={personal.city} onChange={e => setPersonal({ ...personal, city: e.target.value })}
+                                            style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Country</label>
+                                    <input
+                                        required value={personal.country} onChange={e => setPersonal({ ...personal, country: e.target.value })}
+                                        style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                    />
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Pin Code</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <Pin size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+                                        <input
+                                            required value={personal.pinCode} onChange={e => setPersonal({ ...personal, pinCode: e.target.value })}
+                                            style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Phone</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <Phone size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+                                        <input
+                                            required value={personal.phone} onChange={e => setPersonal({ ...personal, phone: e.target.value })}
+                                            style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Email Address</label>
+                                    <div style={{ position: 'relative' }}>
+                                        <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
+                                        <input
+                                            required value={personal.email} readOnly
+                                            style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', opacity: 0.7 }}
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem', marginTop: '2.5rem' }}>
+                                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '2.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                            <div style={{ width: '40px', height: '40px', background: '#fef3c7', color: '#d97706', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Briefcase size={20} />
+                                            </div>
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Work Experience</h3>
+                                        </div>
+                                        <ExperienceSection experience={experienceLocal} setExp={setExperienceLocal} />
+                                    </div>
+
+                                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '2.5rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                            <div style={{ width: '40px', height: '40px', background: '#dbeafe', color: '#2563eb', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <GraduationCap size={20} />
+                                            </div>
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Education</h3>
+                                        </div>
+                                        <EducationSection education={educationLocal} setEdu={setEducationLocal} />
+                                    </div>
+
+                                    <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '2.5rem', marginBottom: '1rem' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                            <div style={{ width: '40px', height: '40px', background: '#f5f3ff', color: '#7c3aed', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                <Zap size={20} />
+                                            </div>
+                                            <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Skills & Expertise</h3>
+                                        </div>
+                                        <SkillsSection skills={skillsLocal} setSkills={setSkillsLocal} />
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit" disabled={loading}
+                                    className="span-2"
+                                    style={{
+                                        padding: '1.2rem', background: success ? '#10b981' : 'var(--color-accent-primary)',
+                                        color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 900, fontSize: '1rem',
+                                        cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                        transition: 'all 0.3s', marginTop: '2rem',
+                                        boxShadow: '0 10px 30px -5px rgba(37, 99, 235, 0.4)'
+                                    }}
+                                >
+                                    {loading ? 'Saving Your Profile...' : (success ? 'Profile Saved! Redirecting...' : 'Save Master Profile')}
+                                    {!loading && !success && <ArrowRight size={20} />}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </motion.div>
+                </>
+            )}
+        </>
+    )
                 <button
                     type="button"
                     onClick={handleBack}
@@ -246,11 +501,38 @@ export default function MasterProfile() {
                                     type="file" 
                                     accept="image/*" 
                                     className="hidden" 
-                                    onChange={(e) => {
+                                    onChange={async (e) => {
                                         const file = e.target.files[0]
-                                        if (file) {
+                                        if (file && user) {
                                             const reader = new FileReader()
-                                            reader.onloadend = () => setPersonal({ ...personal, profilePhoto: reader.result })
+                                            reader.onloadend = async () => {
+                                                try {
+                                                    const response = await fetch('/api/upload-photo', {
+                                                        method: 'POST',
+                                                        headers: {
+                                                            'Content-Type': 'application/json'
+                                                        },
+                                                        body: JSON.stringify({
+                                                            userId: user?.uid || user?.id,
+                                                            fileData: reader.result,
+                                                            fileName: file.name
+                                                        })
+                                                    })
+
+                                                    if (!response.ok) {
+                                                        const errorData = await response.json()
+                                                        throw new Error(errorData.error || 'Photo upload failed')
+                                                    }
+
+                                                    const result = await response.json()
+                                                    if (result.success && result.url) {
+                                                        setPersonal({ ...personal, profilePhoto: result.url })
+                                                    }
+                                                } catch (error) {
+                                                    console.error('Error uploading photo:', error)
+                                                    toastError(`Upload failed: ${error.message}`)
+                                                }
+                                            }
                                             reader.readAsDataURL(file)
                                         }
                                     }} 
@@ -340,7 +622,7 @@ export default function MasterProfile() {
                                     </div>
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Work Experience</h3>
                                 </div>
-                                <ExperienceSection experience={experience} setExp={setLocalExperience} />
+                                <ExperienceSection experience={experienceLocal} setExp={setExperienceLocal} />
                             </div>
 
                             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '2.5rem' }}>
@@ -350,7 +632,7 @@ export default function MasterProfile() {
                                     </div>
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Education</h3>
                                 </div>
-                                <EducationSection education={education} setEdu={setLocalEducation} />
+                                <EducationSection education={educationLocal} setEdu={setEducationLocal} />
                             </div>
 
                             <div style={{ borderTop: '1px solid #f1f5f9', paddingTop: '2.5rem', marginBottom: '1rem' }}>
@@ -360,7 +642,7 @@ export default function MasterProfile() {
                                     </div>
                                     <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#0f172a' }}>Skills & Expertise</h3>
                                 </div>
-                                <SkillsSection skills={skills} setSkills={setLocalSkills} />
+                                <SkillsSection skills={skillsLocal} setSkills={setSkillsLocal} />
                             </div>
                         </div>
 
@@ -382,6 +664,7 @@ export default function MasterProfile() {
                 </div>
             </div>
         </motion.div>
+      </>
     )
 }
 

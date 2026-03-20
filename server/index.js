@@ -219,7 +219,7 @@ Job Description:
 ${jobDescription}`;
 
         const message = await client.messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-3-5-haiku-20241022',
             max_tokens: 2048,
             messages: [
                 {
@@ -270,6 +270,51 @@ cron.schedule('0 * * * *', async () => {
         }
     } catch (error) {
         console.error('Scheduler error:', error);
+    }
+});
+
+// ==================== FILE UPLOAD ====================
+
+// Upload profile photo - Store as Base64 in database
+app.post('/api/upload-photo', async (req, res) => {
+    try {
+        const { userId, fileData, fileName } = req.body;
+
+        if (!userId || !fileData || !fileName) {
+            return res.status(400).json({ error: 'Missing required fields: userId, fileData, fileName' });
+        }
+
+        // Validate file size (max 5MB for images)
+        const base64Data = fileData.split(',')[1] || fileData;
+        const buffer = Buffer.from(base64Data, 'base64');
+        const fileSizeInMB = buffer.length / (1024 * 1024);
+        
+        if (fileSizeInMB > 5) {
+            return res.status(400).json({ error: 'File size exceeds 5MB limit' });
+        }
+
+        // Detect MIME type from file extension or data
+        const fileExtension = fileName.split('.').pop().toLowerCase();
+        let mimeType = 'image/jpeg';
+        
+        if (fileExtension === 'png') mimeType = 'image/png';
+        else if (fileExtension === 'webp') mimeType = 'image/webp';
+        else if (fileExtension === 'gif') mimeType = 'image/gif';
+        else if (fileExtension === 'svg') mimeType = 'image/svg+xml';
+
+        // Return the Base64 data URL directly - it can be used as img src
+        const photoUrl = `data:${mimeType};base64,${base64Data}`;
+
+        res.json({ 
+            success: true, 
+            url: photoUrl,
+            fileName: fileName,
+            size: fileSizeInMB,
+            mimeType: mimeType
+        });
+    } catch (error) {
+        console.error('Error processing photo:', error);
+        res.status(500).json({ error: error.message || 'Failed to process photo' });
     }
 });
 

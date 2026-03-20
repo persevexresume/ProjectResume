@@ -380,7 +380,7 @@ export default function StudentChoice() {
                                 )}
 
                                 <div style={{
-                                    display: 'flex', gap: '1rem', flexWrap: 'wrap'
+                                    display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: resumePreview.hasAnyData ? '2rem' : '0'
                                 }}>
                                     <button
                                         onClick={handleEditResume}

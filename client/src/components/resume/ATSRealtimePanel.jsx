@@ -18,7 +18,20 @@ const COMMON_KEYWORDS = [
 ];
 
 export default function ATSRealtimePanel({ resumeData }) {
-  const { personalInfo, experience, education, skills, projects, certifications, jobDescription } = resumeData;
+  // Safely destructure with fallbacks
+  const data = resumeData || {};
+  const personalInfo = data.personalInfo || {};
+  const experience = Array.isArray(data.experience) ? data.experience : [];
+  const education = Array.isArray(data.education) ? data.education : [];
+  const skills = Array.isArray(data.skills) ? data.skills : [];
+  const projects = data.projects || [];
+  const certifications = data.certifications || [];
+  const jobDescription = data.jobDescription || '';
+
+  // Debug logging
+  if (process.env.NODE_ENV === 'development') {
+    console.log('ATSRealtimePanel received data:', { personalInfo, experience, education, skills, jobDescription });
+  }
 
   const analysis = useMemo(() => {
     const issues = [];
@@ -34,12 +47,16 @@ export default function ATSRealtimePanel({ resumeData }) {
 
     // 1. Contact Info (10%)
     let contactScore = 0;
-    if (personalInfo.firstName && personalInfo.lastName) contactScore += 30;
-    if (personalInfo.email) contactScore += 30;
-    if (personalInfo.phone) contactScore += 20;
-    if (personalInfo.location) contactScore += 20;
-    sections.contact = contactScore;
-    if (contactScore < 100) issues.push({ id: 'contact', type: 'warning', text: 'Contact information is incomplete.' });
+    if (personalInfo?.firstName && personalInfo?.firstName?.trim()) contactScore += 30;
+    if (personalInfo?.lastName && personalInfo?.lastName?.trim()) contactScore += 30;
+    if (personalInfo?.email && personalInfo?.email?.trim()) contactScore += 20;
+    if (personalInfo?.phone && personalInfo?.phone?.trim()) contactScore += 20;
+    if (personalInfo?.location && personalInfo?.location?.trim()) contactScore += 20;
+    const hasContactIssue = contactScore < 100;
+    if (hasContactIssue) {
+      issues.push({ id: 'contact', type: 'warning', text: 'Complete contact information (name, email, phone).' });
+    }
+    sections.contact = Math.min(contactScore, 100);
 
     // 2. Experience (25%)
     let expScore = 0;
@@ -95,7 +112,19 @@ export default function ATSRealtimePanel({ resumeData }) {
       const jdLower = jobDescription.toLowerCase();
       const resumeContent = JSON.stringify(resumeData).toLowerCase();
       
-      const targetKeywords = COMMON_KEYWORDS.filter(k => jdLower.includes(k));
+      // Dynamic Keyword Extraction:
+      // Look for significant words in the JD that might be skills
+      const jdWords = jobDescription.split(/\W+/)
+        .filter(word => word.length > 3)
+        .filter(word => !['this', 'that', 'with', 'from', 'your', 'will', 'have', 'experience', 'knowledge', 'requirements', 'years'].includes(word.toLowerCase()));
+      
+      const uniqueJdWords = [...new Set(jdWords.map(w => w.toLowerCase()))];
+      
+      // Combine common keywords found in JD with dynamically extracted ones
+      const targetKeywords = Array.from(new Set([
+        ...COMMON_KEYWORDS.filter(k => jdLower.includes(k.toLowerCase())),
+        ...uniqueJdWords.filter(w => w.length > 5 && (jobDescription.includes(w.charAt(0).toUpperCase() + w.slice(1)) || COMMON_KEYWORDS.some(ck => ck.includes(w))))
+      ])).slice(0, 15); // Cap at 15 for UI clarity
       
       targetKeywords.forEach(k => {
         if (resumeContent.includes(k)) {
@@ -134,7 +163,7 @@ export default function ATSRealtimePanel({ resumeData }) {
       matchedKeywords,
       missingKeywords
     };
-  }, [resumeData]);
+  }, [personalInfo, experience, education, skills, projects, certifications, jobDescription]);
 
   const getStatusColor = (score) => {
     if (score >= 80) return '#10b981';

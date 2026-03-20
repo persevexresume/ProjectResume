@@ -40,6 +40,7 @@ export default function Build() {
     const [showBigPreview, setShowBigPreview] = useState(false)
     const [rightSidebarTab, setRightSidebarTab] = useState('preview') // 'preview', 'ats'
     const [isImporting, setIsImporting] = useState(false)
+    const [previewUpdateTrigger, setPreviewUpdateTrigger] = useState(0) // Force preview re-render on photo upload
 
     const handleImportFromProfile = async () => {
         if (!user) {
@@ -67,7 +68,8 @@ export default function Build() {
                     phone: data.phone || '',
                     location: data.location || '',
                     title: data.title || '',
-                    summary: data.summary || ''
+                    summary: data.summary || '',
+                    profilePhoto: data.profile_photo || ''
                 })
 
                 // Load Experience if resume is empty or user confirms
@@ -507,18 +509,6 @@ export default function Build() {
                     </div>
                 ))}
 
-                <button
-                    onClick={() => {
-                        setRightSidebarTab('ats')
-                        if (!showPreviewPanel) setShowATSChecker(true)
-                    }}
-                    className={`mt-6 w-full flex items-center gap-2 p-3 ${rightSidebarTab === 'ats' ? 'bg-indigo-600 text-white shadow-lg' : 'bg-slate-50 text-slate-500 hover:bg-slate-100'} rounded-xl font-bold text-xs uppercase tracking-widest transition-all`}
-                    style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '1rem' }}
-                    title="Analyze your resume with AI-powered ATS checker"
-                >
-                    <Zap size={14} className={rightSidebarTab === 'ats' ? 'text-amber-400' : ''} />
-                    {!isCompactRail && 'ATS Score'}
-                </button>
 
                 <button
                     onClick={() => navigate('/student')}
@@ -569,7 +559,7 @@ export default function Build() {
                         nextLabel={activeStep === steps.length ? 'Finalize Resume' : 'Continue'}
                     >
                         <div className="bg-white p-2">
-                            {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} onImport={handleImportFromProfile} isImporting={isImporting} supportsPhoto={currentTemplate?.supportsPhoto !== false} />}
+                            {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} onImport={handleImportFromProfile} isImporting={isImporting} supportsPhoto={currentTemplate?.supportsPhoto !== false} user={user} onPhotoUpload={() => setPreviewUpdateTrigger(prev => prev + 1)} />}
                             {activeStep === 2 && <ExperienceSection experience={resumeData.experience} setExp={setExperience} />}
                             {activeStep === 3 && <EducationSection education={resumeData.education} setEdu={setEducation} />}
                             {activeStep === 4 && <SkillsSection skills={resumeData.skills} setSkills={setSkills} />}
@@ -631,7 +621,7 @@ export default function Build() {
                                 left: 0
                             }}>
                                 {activeTemplateId && (
-                                    <ResumeRenderer data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
+                                    <ResumeRenderer key={`${activeTemplateId}-${previewUpdateTrigger}`} data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
                                 )}
                             </div>
                             
@@ -674,46 +664,38 @@ export default function Build() {
                              <p className="mt-2 text-[10px] font-bold text-slate-400 px-1">Keywords are automatically extracted from this text.</p>
                          </div>
 
-                         {/* ATS Panel */}
+                         {/* AI Scan Trigger */}
+                         <div className="bg-indigo-600 p-6 rounded-[2rem] shadow-xl shadow-indigo-100 text-white group">
+                             <div className="flex items-center gap-3 mb-4">
+                               <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-sm group-hover:scale-110 transition-transform">
+                                   <Sparkles size={20} className="text-amber-300" />
+                               </div>
+                               <div>
+                                   <h4 className="font-black text-xs uppercase tracking-tight">AI Deep Analysis</h4>
+                                   <p className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Premium Engine</p>
+                               </div>
+                             </div>
+                             <p className="text-[11px] font-bold text-indigo-100 leading-relaxed mb-6">
+                                Get a comprehensive AI report with line-by-line feedback and precise formatting checks.
+                             </p>
+                             <button 
+                                onClick={() => setShowATSChecker(true)}
+                                className="w-full py-3 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg active:scale-95"
+                             >
+                                Run Deep AI Scan
+                             </button>
+                         </div>
+
+                         {/* Real-time Insights */}
                          <ATSRealtimePanel resumeData={resumeData} />
                     </div>
                 )}
             </div>
             )}
 
-            {/* ATS Checker Modal (Fallback for narrow screens) */}
+            {/* ATS Deep Analysis Modal */}
             {showATSChecker && (
-                <div className="fixed inset-0 z-[100] bg-slate-100 overflow-y-auto">
-                    <div className="max-w-[1400px] mx-auto p-4 md:p-8">
-                        <div className="flex items-center justify-between mb-8">
-                            <button onClick={() => setShowATSChecker(false)} className="flex items-center gap-2 font-black uppercase text-xs tracking-widest text-slate-500 hover:text-slate-900 transition-colors">
-                                <ArrowLeft size={16} /> Back to Builder
-                            </button>
-                            <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Full ATS Report</h2>
-                            <div className="w-20" />
-                        </div>
-                        
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                             <div className="lg:col-span-1 space-y-6">
-                                <div className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <Target size={20} className="text-indigo-600" />
-                                        <h3 className="font-black text-sm uppercase tracking-tight">Job Requirements</h3>
-                                    </div>
-                                    <textarea 
-                                        value={resumeData.jobDescription || ''}
-                                        onChange={(e) => setJobDescription(e.target.value)}
-                                        placeholder="Paste the job description here..."
-                                        className="w-full h-64 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-sm font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-600 transition-all resize-none"
-                                    />
-                                </div>
-                             </div>
-                             <div className="lg:col-span-2">
-                                <ATSRealtimePanel resumeData={resumeData} />
-                             </div>
-                        </div>
-                    </div>
-                </div>
+                <ATSChecker onClose={() => setShowATSChecker(false)} />
             )}
 
             {/* Big Preview Modal */}
@@ -749,7 +731,7 @@ export default function Build() {
                                     transform: viewportWidth < 1000 ? `scale(${(viewportWidth - 100) / 794})` : 'scale(1)'
                                 }}>
                                     {activeTemplateId && (
-                                        <ResumeRenderer data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
+                                        <ResumeRenderer key={`${activeTemplateId}-${previewUpdateTrigger}`} data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
                                     )}
                                 </div>
                             </div>
@@ -761,17 +743,58 @@ export default function Build() {
     )
 }
 
-const HeaderSection = ({ data, update, supportsPhoto = true, onImport, isImporting }) => {
+const HeaderSection = ({ data, update, supportsPhoto = true, onImport, isImporting, user, onPhotoUpload }) => {
+    const { error: toastError } = useToast()
+    const [photoUploading, setPhotoUploading] = useState(false)
+    
     const handleChange = (field, value) => update({ ...data, [field]: value })
 
-    const handlePhotoChange = (e) => {
+    const handlePhotoChange = async (e) => {
         const file = e.target.files[0]
-        if (file) {
+        if (!file) return
+
+        setPhotoUploading(true)
+        try {
             const reader = new FileReader()
-            reader.onloadend = () => {
-                handleChange('profilePhoto', reader.result)
+            reader.onloadend = async () => {
+                try {
+                    // Upload to server
+                    const response = await fetch('/api/upload-photo', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            userId: user?.uid || user?.id,
+                            fileData: reader.result,
+                            fileName: file.name
+                        })
+                    })
+
+                    if (!response.ok) {
+                        const errorData = await response.json()
+                        throw new Error(errorData.error || 'Photo upload failed')
+                    }
+
+                    const result = await response.json()
+                    if (result.success && result.url) {
+                        // Update store directly - don't rely on stale 'data' closure
+                        update({ profilePhoto: result.url })
+                        // Force preview to re-render
+                        if (onPhotoUpload) onPhotoUpload()
+                    }
+                } catch (error) {
+                    console.error('Error uploading photo:', error)
+                    toastError(`Upload failed: ${error.message}`)
+                } finally {
+                    setPhotoUploading(false)
+                }
             }
             reader.readAsDataURL(file)
+        } catch (error) {
+            console.error('Error reading file:', error)
+            toastError('Failed to read file')
+            setPhotoUploading(false)
         }
     }
 
@@ -796,8 +819,13 @@ const HeaderSection = ({ data, update, supportsPhoto = true, onImport, isImporti
             {supportsPhoto && (
                 <div className="mb-6 flex items-center gap-6 p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
                     <div className="relative group">
-                        <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
-                            {data.profilePhoto ? (
+                        <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg relative">
+                            {photoUploading && (
+                                <div className="absolute inset-0 flex items-center justify-center bg-slate-400/50">
+                                    <div className="w-6 h-6 border-3 border-white border-t-transparent animate-spin rounded-full"></div>
+                                </div>
+                            )}
+                            {data.profilePhoto && !photoUploading ? (
                                 <img src={data.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-slate-400">
@@ -805,14 +833,14 @@ const HeaderSection = ({ data, update, supportsPhoto = true, onImport, isImporti
                                 </div>
                             )}
                         </div>
-                        <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                        <label className={`absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full ${photoUploading ? 'cursor-not-allowed' : ''}`}>
                             <PenTool size={20} />
-                            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+                            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} disabled={photoUploading} />
                         </label>
                     </div>
                     <div>
                         <h4 className="text-sm font-black text-slate-900 mb-1">Profile Photo</h4>
-                        <p className="text-[10px] font-medium text-slate-500 max-w-[200px]">Add a professional photo to increase your chances of being hired.</p>
+                        <p className="text-[10px] font-medium text-slate-500 max-w-[200px]">{photoUploading ? 'Uploading...' : 'Add a professional photo to increase your chances of being hired.'}</p>
                     </div>
                 </div>
             )}
