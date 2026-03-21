@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { cn } from '../lib/utils'
 import { supabase, isMock } from '../supabase'
 import Papa from 'papaparse'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 export default function AdminDashboard() {
     const { user, setUser } = useStore()
@@ -19,7 +20,16 @@ export default function AdminDashboard() {
     const [isImporting, setIsImporting] = useState(false)
     const [isCreating, setIsCreating] = useState(false)
     const [importProgress, setImportProgress] = useState({ current: 0, total: 0 })
+    const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null })
     const fileInputRef = useRef(null)
+
+    const openConfirmDialog = (message, onConfirm) => {
+        setConfirmDialog({ open: true, message, onConfirm })
+    }
+
+    const closeConfirmDialog = () => {
+        setConfirmDialog({ open: false, message: '', onConfirm: null })
+    }
 
     // Refetch students function that can be called from anywhere
     const refetchStudents = async () => {
@@ -189,7 +199,8 @@ export default function AdminDashboard() {
     }
 
     const handleDeleteStudent = async (studentId) => {
-        if (!window.confirm(`Permanently remove access for student ID: ${studentId}?`)) return
+        openConfirmDialog(`Permanently remove access for student ID: ${studentId}?`, async () => {
+            closeConfirmDialog()
         try {
             const { error } = await supabase
                 .from('students')
@@ -207,6 +218,7 @@ export default function AdminDashboard() {
             console.error("Database Delete Error:", err)
             showError('Failed to delete student.')
         }
+        })
     }
 
     const handleSyncAdmin = async () => {
@@ -635,6 +647,17 @@ export default function AdminDashboard() {
                     </div>
                 </div>
             </div>
+
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title="Delete Student"
+                message={confirmDialog.message}
+                danger={true}
+                confirmLabel="Yes, Delete"
+                cancelLabel="Cancel"
+                onCancel={closeConfirmDialog}
+                onConfirm={() => confirmDialog.onConfirm?.()}
+            />
         </motion.div>
     )
 }

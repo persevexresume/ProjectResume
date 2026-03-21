@@ -5,6 +5,7 @@ import { Copy, Trash2, Edit, ArrowLeft, LogOut, FileText } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { listUserResumes, deleteResume, duplicateResume } from '../lib/resumeDB'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 export default function ViewResumes() {
     const navigate = useNavigate()
@@ -12,6 +13,15 @@ export default function ViewResumes() {
     const [resumes, setResumes] = useState([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState(null)
+    const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', onConfirm: null })
+
+    const openConfirmDialog = (message, onConfirm) => {
+        setConfirmDialog({ open: true, message, onConfirm })
+    }
+
+    const closeConfirmDialog = () => {
+        setConfirmDialog({ open: false, message: '', onConfirm: null })
+    }
 
     useEffect(() => {
         if (!user) {
@@ -49,15 +59,16 @@ export default function ViewResumes() {
     }
 
     const handleDelete = async (resumeId) => {
-        if (window.confirm('Are you sure you want to delete this resume?')) {
+        openConfirmDialog('Are you sure you want to delete this resume?', async () => {
+            closeConfirmDialog()
             try {
                 await deleteResume(resumeId)
                 setResumes(resumes.filter(r => r.id !== resumeId))
             } catch (err) {
-                alert('Failed to delete resume')
+                setError('Failed to delete resume')
                 console.error(err)
             }
-        }
+        })
     }
 
     const handleDuplicate = async (resume) => {
@@ -65,7 +76,7 @@ export default function ViewResumes() {
             const newResume = await duplicateResume(user, resume.id, `${resume.title} (Copy)`)
             setResumes([newResume, ...resumes])
         } catch (err) {
-            alert('Failed to duplicate resume')
+            setError('Failed to duplicate resume')
             console.error(err)
         }
     }
@@ -316,6 +327,17 @@ export default function ViewResumes() {
                     </div>
                 )}
             </div>
+
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title="Delete Resume"
+                message={confirmDialog.message}
+                danger={true}
+                confirmLabel="Yes, Delete"
+                cancelLabel="Cancel"
+                onCancel={closeConfirmDialog}
+                onConfirm={() => confirmDialog.onConfirm?.()}
+            />
         </motion.div>
     )
 }

@@ -4,9 +4,11 @@ import useResumeStore from '../../store/useResumeStore'
 import { resumeTemplates } from '../../data/templates'
 import DynamicTemplateRenderer from './DynamicTemplateRenderer'
 import { exportElementToPaginatedPdf } from '../../lib/pdfExport'
+import { useToast } from '../../context/ToastContext'
 
 export default function ResumeEditor({ templateId = 'neo-minimal' }) {
   const { resume, setResume, updatePersonalInfo, setSummary, addExperience, updateExperience, removeExperience, addEducation, removeEducation, updateEducation, setSkills, toggleSection } = useResumeStore()
+  const { error: toastError } = useToast()
   const [activeTab, setActiveTab] = useState('personal')
   const template = resumeTemplates.find(t => t.id === templateId) || resumeTemplates[0]
 
@@ -24,7 +26,7 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
       await exportElementToPaginatedPdf(element, 'resume.pdf')
     } catch (error) {
       console.error('PDF export error:', error)
-      alert('Error exporting PDF')
+      toastError('Error exporting PDF')
     }
   }
 

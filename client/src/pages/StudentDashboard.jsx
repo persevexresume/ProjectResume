@@ -15,6 +15,7 @@ import { getDbUserId } from '../lib/userIdentity'
 import { downloadDocxResume } from '../lib/docxExport'
 import { exportElementToPaginatedPdf } from '../lib/pdfExport'
 import { useToast } from '../context/ToastContext'
+import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 const getResumeTemplateId = (resume) => resume?.template_id || resume?.template || resume?.templateId || 'prof-sebastian'
 
@@ -104,7 +105,30 @@ export default function StudentDashboard() {
     const [newTitle, setNewTitle] = useState('')
     const [previewResume, setPreviewResume] = useState(null)
     const [previewCoverLetter, setPreviewCoverLetter] = useState(null)
+    const [confirmDialog, setConfirmDialog] = useState({
+        open: false,
+        title: 'Please Confirm',
+        message: '',
+        danger: false,
+        confirmLabel: 'Confirm',
+        onConfirm: null
+    })
     const navigate = useNavigate()
+
+    const openConfirmDialog = ({ title, message, danger = false, confirmLabel = 'Confirm', onConfirm }) => {
+        setConfirmDialog({
+            open: true,
+            title: title || 'Please Confirm',
+            message,
+            danger,
+            confirmLabel,
+            onConfirm
+        })
+    }
+
+    const closeConfirmDialog = () => {
+        setConfirmDialog((prev) => ({ ...prev, open: false, onConfirm: null }))
+    }
 
     // Unlock templates and fetch resumes
     useEffect(() => {
@@ -245,49 +269,67 @@ export default function StudentDashboard() {
     }
 
     const handleDelete = async (resumeId) => {
-        if (!window.confirm("Are you sure you want to delete this resume? This action cannot be undone.")) return
-        
-        setIsDeleting(resumeId)
-        try {
-            const { error } = await supabase
-                .from('resumes')
-                .delete()
-                .eq('id', resumeId)
+        openConfirmDialog({
+            title: 'Delete Resume',
+            message: 'Are you sure you want to delete this resume? This action cannot be undone.',
+            danger: true,
+            confirmLabel: 'Yes, Delete',
+            onConfirm: async () => {
+                closeConfirmDialog()
+                setIsDeleting(resumeId)
+                try {
+                    const { error } = await supabase
+                        .from('resumes')
+                        .delete()
+                        .eq('id', resumeId)
 
-            if (!error) {
-                setResumes(prev => prev.filter(r => r.id !== resumeId))
-                if (previewResume && previewResume.id === resumeId) setPreviewResume(null)
-            } else {
-                alert("Failed to delete resume: " + error.message)
+                    if (!error) {
+                        setResumes(prev => prev.filter(r => r.id !== resumeId))
+                        if (previewResume && previewResume.id === resumeId) setPreviewResume(null)
+                        success('Resume deleted successfully!')
+                    } else {
+                        showError("Failed to delete resume: " + error.message)
+                    }
+                } catch (error) {
+                    console.error("Delete Error:", error)
+                    showError('Failed to delete resume. Please try again.')
+                } finally {
+                    setIsDeleting(null)
+                }
             }
-        } catch (error) {
-            console.error("Delete Error:", error)
-        } finally {
-            setIsDeleting(null)
-        }
+        })
     }
 
     const handleDeleteCoverLetter = async (clId) => {
-        if (!window.confirm("Are you sure you want to delete this cover letter? This action cannot be undone.")) return
-        
-        setIsDeleting(clId)
-        try {
-            const { error } = await supabase
-                .from('cover_letters')
-                .delete()
-                .eq('id', clId)
+        openConfirmDialog({
+            title: 'Delete Cover Letter',
+            message: 'Are you sure you want to delete this cover letter? This action cannot be undone.',
+            danger: true,
+            confirmLabel: 'Yes, Delete',
+            onConfirm: async () => {
+                closeConfirmDialog()
+                setIsDeleting(clId)
+                try {
+                    const { error } = await supabase
+                        .from('cover_letters')
+                        .delete()
+                        .eq('id', clId)
 
-            if (!error) {
-                setCoverLetters(prev => prev.filter(cl => cl.id !== clId))
-                if (previewCoverLetter && previewCoverLetter.id === clId) setPreviewCoverLetter(null)
-            } else {
-                alert("Failed to delete cover letter: " + error.message)
+                    if (!error) {
+                        setCoverLetters(prev => prev.filter(cl => cl.id !== clId))
+                        if (previewCoverLetter && previewCoverLetter.id === clId) setPreviewCoverLetter(null)
+                        success('Cover letter deleted successfully!')
+                    } else {
+                        showError("Failed to delete cover letter: " + error.message)
+                    }
+                } catch (error) {
+                    console.error("Delete Error:", error)
+                    showError('Failed to delete cover letter. Please try again.')
+                } finally {
+                    setIsDeleting(null)
+                }
             }
-        } catch (error) {
-            console.error("Delete Error:", error)
-        } finally {
-            setIsDeleting(null)
-        }
+        })
     }
 
     const handleStartEditTitle = (id, currentTitle, type) => {
@@ -773,6 +815,17 @@ export default function StudentDashboard() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={confirmDialog.open}
+                title={confirmDialog.title}
+                message={confirmDialog.message}
+                danger={confirmDialog.danger}
+                confirmLabel={confirmDialog.confirmLabel}
+                cancelLabel="Cancel"
+                onCancel={closeConfirmDialog}
+                onConfirm={() => confirmDialog.onConfirm?.()}
+            />
         </div>
     )
 }
