@@ -9,10 +9,10 @@ import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRe
 import ATSChecker from '../components/ATSChecker'
 
 // Wizard Components
-import PathSelection from '../components/build/PathSelection'
-import WizardStep from '../components/build/WizardStep'
-import SectionIntro from '../components/build/SectionIntro'
-import TemplatePreview from '../components/build/TemplatePreview'
+import PathSelection from '../components/builder/PathSelection'
+import WizardStep from '../components/builder/WizardStep'
+import SectionIntro from '../components/builder/SectionIntro'
+import TemplatePreview from '../components/builder/TemplatePreview'
 import { useToast } from '../context/ToastContext'
 
 export default function Build() {
