@@ -8,7 +8,8 @@ require('dotenv').config();
 // Initialize Express App
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Initialize Supabase
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -172,6 +173,112 @@ app.get('/api/users/:userId', async (req, res) => {
 });
 
 // ==================== ATS CHECKER ====================
+
+// Resume parse API route (Gemini)
+app.post('/api/parse-resume', async (req, res) => {
+        try {
+                const { resumeText } = req.body;
+
+                if (!resumeText || typeof resumeText !== 'string') {
+                        return res.status(400).json({ error: 'resumeText is required' });
+                }
+
+                const geminiApiKey = process.env.GEMINI_API_KEY;
+                if (!geminiApiKey) {
+                        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured' });
+                }
+
+                const prompt = `Extract structured resume data from the provided text. Return ONLY valid JSON (no markdown, no explanation) with this schema:
+{
+    "personalInfo": {
+        "firstName": "",
+        "lastName": "",
+        "email": "",
+        "phone": "",
+        "location": "",
+        "title": "",
+        "summary": "",
+        "linkedin": "",
+        "github": "",
+        "website": ""
+    },
+    "experience": [
+        {
+            "role": "",
+            "company": "",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        }
+    ],
+    "education": [
+        {
+            "degree": "",
+            "school": "",
+            "location": "",
+            "startDate": "",
+            "endDate": "",
+            "description": ""
+        }
+    ],
+    "skills": [{ "name": "", "level": "Advanced" }],
+    "projects": [{ "name": "", "description": "", "link": "" }],
+    "certifications": [{ "name": "", "issuer": "", "issueDate": "", "expiryDate": "", "credentialId": "", "link": "" }]
+}
+
+Rules:
+- Keep unknown fields as empty strings.
+- Keep arrays empty if missing.
+- Do not invent fake details.
+
+Resume Text:
+${resumeText}`;
+
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
+                const geminiResponse = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                                generationConfig: {
+                                        temperature: 0.2,
+                                        maxOutputTokens: 2048,
+                                        responseMimeType: 'application/json'
+                                }
+                        })
+                });
+
+                const geminiData = await geminiResponse.json();
+
+                if (!geminiResponse.ok) {
+                        const message = geminiData?.error?.message || 'Gemini API request failed';
+                        return res.status(500).json({ error: message });
+                }
+
+                const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+                // Handle both plain JSON and accidental fenced JSON.
+                const cleaned = rawText
+                        .replace(/^```json\s*/i, '')
+                        .replace(/^```\s*/i, '')
+                        .replace(/```$/i, '')
+                        .trim();
+
+                let parsed;
+                try {
+                        parsed = JSON.parse(cleaned);
+                } catch (parseError) {
+                        console.error('Gemini parse JSON error:', parseError, cleaned);
+                        return res.status(500).json({ error: 'Failed to parse Gemini response JSON' });
+                }
+
+                res.json({ success: true, data: parsed });
+        } catch (error) {
+                console.error('Resume parse error:', error);
+                res.status(500).json({ error: 'Resume parse failed', details: error.message });
+        }
+});
 
 // ATS Check API route
 app.post('/api/ats-check', async (req, res) => {

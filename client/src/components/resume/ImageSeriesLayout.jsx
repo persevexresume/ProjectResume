@@ -16,18 +16,12 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
                 {/* Left Sidebar */}
                 <div className="image-baxter-sidebar" style={{ background: dark, color: '#fff' }}>
                     {/* Yellow slanted top */}
-                    <svg width="100%" height="240" viewBox="0 0 300 240" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0, zIndex: 1 }}>
-                        <path d="M0 0 H300 V120 L0 240 Z" fill={yellow} />
-                    </svg>
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '240px', background: yellow, clipPath: 'polygon(0 0, 100% 0, 100% 50%, 0 100%)', zIndex: 1 }}></div>
                     
                     <div className="image-baxter-sidebar-padding" style={{ position: 'relative', zIndex: 2, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {/* Profile Icon */}
-                        <div className="image-baxter-profile-photo" style={{ marginBottom: '2rem', width: '150px', height: '150px', borderRadius: '50%', backgroundColor: '#fff', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', border: `4px solid ${yellow}` }}>
-                            {personalInfo.profilePhoto ? (
-                                <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                <User size={80} color={dark} />
-                            )}
+                        <div className="image-baxter-profile-photo" style={{ marginBottom: '2rem' }}>
+                            <User size={80} color={dark} />
                         </div>
                     </div>
 
@@ -82,7 +76,7 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
                                 <h3 className="image-baxter-section-h3" style={{ color: dark, marginBottom: '1rem' }}>
                                     <div style={{ backgroundColor: yellow, borderRadius: '50%', padding: '6px', display: 'flex' }}><User size={16} color={dark} /></div> ABOUT ME
                                 </h3>
-                                <p style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#555', textAlign: 'justify' }}>
+                                <p style={{ fontSize: '0.9rem', lineHeight: 1.8, color: '#555' }}>
                                     {personalInfo.summary}
                                 </p>
                             </div>
@@ -143,11 +137,7 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', height: '1120px' }}>
                     <div style={{ position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                         <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(30,41,59,0.9), transparent)' }} />
-                        {personalInfo.profilePhoto ? (
-                            <img src={personalInfo.profilePhoto} alt="Profile" style={{ position: 'relative', zIndex: 1, width: '300px', height: '300px', borderRadius: '50%', objectFit: 'cover', border: '8px solid rgba(255,255,255,0.2)' }} />
-                        ) : (
-                            <User size={200} color="white" style={{ position: 'relative', zIndex: 1, opacity: 0.8 }} />
-                        )}
+                        <User size={200} color="white" style={{ position: 'relative', zIndex: 1, opacity: 0.8 }} />
                         <div style={{ position: 'absolute', bottom: '10%', left: '10%', right: '10%' }}>
                             <h1 style={{ color: '#fff', fontSize: '4rem', fontWeight: 900, marginBottom: '0.5rem' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
                             <p style={{ color: accent, fontSize: '1.5rem', fontWeight: 700, letterSpacing: '4px' }}>{personalInfo.title?.toUpperCase()}</p>
@@ -203,11 +193,7 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
             <div style={{ background: primary, color: '#fff', minHeight: '1120px', padding: '0' }}>
                 <div style={{ height: '400px', width: '100%', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }}>
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to right, rgba(15,23,42,0.9), transparent)' }} />
-                    {personalInfo.profilePhoto ? (
-                        <img src={personalInfo.profilePhoto} alt="Profile" style={{ position: 'absolute', left: '15%', width: '300px', height: '300px', borderRadius: '50%', objectFit: 'cover', border: '12px solid rgba(255,255,255,0.1)', opacity: 0.4 }} />
-                    ) : (
-                        <User size={200} color="white" style={{ position: 'absolute', left: '20%', opacity: 0.5, zIndex: 1 }} />
-                    )}
+                    <User size={200} color="white" style={{ position: 'absolute', left: '20%', opacity: 0.5, zIndex: 1 }} />
                     <div style={{ position: 'absolute', top: '50%', left: '10%', transform: 'translateY(-50%)', zIndex: 2 }}>
                         <h1 style={{ fontSize: '5rem', fontWeight: 900, margin: 0, letterSpacing: '-0.02em' }}>{personalInfo.firstName}</h1>
                         <h1 style={{ fontSize: '5rem', fontWeight: 900, margin: 0, color: accent }}>{personalInfo.lastName}</h1>
@@ -282,11 +268,7 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
                 <div style={{ display: 'grid', gridTemplateColumns: 'minmax(350px, 35%) 1fr', minHeight: '1120px' }}>
                     <div style={{ background: dark, color: '#fff', padding: '5rem 3rem' }}>
                         <div style={{ width: '220px', height: '220px', borderRadius: '50%', overflow: 'hidden', border: `8px solid ${brand}`, margin: '0 auto 4rem', boxShadow: `0 0 50px rgba(0,0,0,0.5)`, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#2a2d3a' }}>
-                            {personalInfo.profilePhoto ? (
-                                <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                <User size={120} color={brand} />
-                            )}
+                            <User size={120} color={brand} />
                         </div>
                         <h3 style={{ fontSize: '0.8rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '3px', color: brand, marginBottom: '2.5rem', textAlign: 'center' }}>Contact Me</h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
@@ -353,11 +335,7 @@ export const ImageSeriesLayout = ({ data, templateId, customization }) => {
                 <div style={{ width: '30%', background: dark, color: '#fff', padding: '3rem 2rem' }}>
                     <div style={{ paddingBottom: '2rem', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                         <div style={{ width: '120px', height: '120px', borderRadius: '50%', backgroundColor: '#eaeaea', overflow: 'hidden', margin: '0 auto', border: '5px solid #4a4a4a', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {personalInfo.profilePhoto ? (
-                                <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                                <User size={60} color={dark} />
-                            )}
+                            <User size={60} color={dark} />
                         </div>
                     </div>
                 

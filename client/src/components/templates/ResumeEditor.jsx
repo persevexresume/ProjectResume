@@ -3,8 +3,7 @@ import { Plus, Trash2, Eye, EyeOff, Download, Share2 } from 'lucide-react'
 import useResumeStore from '../../store/useResumeStore'
 import { resumeTemplates } from '../../data/templates'
 import DynamicTemplateRenderer from './DynamicTemplateRenderer'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
+import { exportElementToPaginatedPdf } from '../../lib/pdfExport'
 
 export default function ResumeEditor({ templateId = 'neo-minimal' }) {
   const { resume, setResume, updatePersonalInfo, setSummary, addExperience, updateExperience, removeExperience, addEducation, removeEducation, updateEducation, setSkills, toggleSection } = useResumeStore()
@@ -18,23 +17,11 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
 
   // Handle export to PDF
   const handleExportPDF = async () => {
-    const element = document.getElementById('resume-preview')
+    const element = document.getElementById('resume-preview-download')
     if (!element) return
 
     try {
-      const canvas = await html2canvas(element, {
-        scale: 2,
-        backgroundColor: '#ffffff',
-        useCORS: true
-      })
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      })
-      pdf.addImage(imgData, 'PNG', 0, 0, 210, 297)
-      pdf.save('resume.pdf')
+      await exportElementToPaginatedPdf(element, 'resume.pdf')
     } catch (error) {
       console.error('PDF export error:', error)
       alert('Error exporting PDF')
@@ -292,9 +279,34 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
             className="bg-white mx-auto shadow-lg"
             style={{
               width: '794px',
+              maxWidth: '794px',
               minHeight: '1123px',
-              aspectRatio: '8.5 / 11',
-              fontSize: `14px`
+              aspectRatio: '210 / 297',
+              fontSize: `14px`,
+              boxSizing: 'border-box',
+              overflow: 'visible'
+            }}
+          >
+            <DynamicTemplateRenderer template={{ id: templateId }} resumeData={resume} />
+          </div>
+
+          <div
+            id="resume-preview-download"
+            style={{
+              position: 'fixed',
+              top: '-10000px',
+              left: '-10000px',
+              opacity: 0,
+              pointerEvents: 'none',
+              zIndex: -1,
+              width: '794px',
+              maxWidth: '794px',
+              height: 'auto',
+              minHeight: 0,
+              aspectRatio: 'auto',
+              background: '#ffffff',
+              boxSizing: 'border-box',
+              overflow: 'visible'
             }}
           >
             <DynamicTemplateRenderer template={{ id: templateId }} resumeData={resume} />

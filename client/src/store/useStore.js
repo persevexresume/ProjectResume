@@ -10,8 +10,7 @@ const initialResumeData = {
   education: [],
   skills: [],
   projects: [],
-  certifications: [],
-  jobDescription: ''
+  certifications: []
 };
 
 const useStore = create(
@@ -110,10 +109,6 @@ const useStore = create(
 
       setCertifications: (certifications) => set((state) => ({
         resumeData: { ...state.resumeData, certifications }
-      })),
-
-      setJobDescription: (jobDescription) => set((state) => ({
-        resumeData: { ...state.resumeData, jobDescription }
       })),
 
       resetResume: () => set({

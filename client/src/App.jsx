@@ -49,7 +49,6 @@ const ProtectedRoute = ({ children, role }) => {
 
 function AnimatedRoutes() {
   const location = useLocation()
-  const { user } = useStore()
   return (
     <AnimatePresence mode="wait">
       <Routes location={location} key={location.pathname}>
@@ -148,7 +147,6 @@ function AnimatedRoutes() {
 
 function App() {
   const [loading, setLoading] = useState(true)
-  const [progress, setProgress] = useState(0)
   const theme = useStore((state) => state.theme)
   const hasHydrated = useStore((state) => state.hasHydrated)
   const user = useStore((state) => state.user)
@@ -164,18 +162,10 @@ function App() {
   }, [theme])
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setProgress(p => {
-        const nav = p + (Math.random() * 8 + 4)
-        if (nav >= 100) {
-          clearInterval(interval)
-          setTimeout(() => setLoading(false), 200)
-          return 100
-        }
-        return nav
-      })
-    }, 50)
-    return () => clearInterval(interval)
+    const timer = setTimeout(() => {
+      setLoading(false)
+    }, 2800)
+    return () => clearTimeout(timer)
   }, [])
 
   useEffect(() => {
@@ -184,7 +174,7 @@ function App() {
     }
   }, [hasHydrated, user, restoreUserFromFallback])
 
-  if (loading) return <SplashLoader progress={progress} />
+  if (loading) return <SplashLoader />
 
   return (
     <ErrorBoundary>

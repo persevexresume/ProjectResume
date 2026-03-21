@@ -1,16 +1,67 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { Layout, Zap, Sparkles, Briefcase, Award } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import useStore from '../store/useStore'
 import { resumeTemplates } from '../data/templates'
 import EnhancedTemplateCard from '../components/templates/EnhancedTemplateCard'
+import { supabase } from '../supabase'
+import { getDbUserId } from '../lib/userIdentity'
 
 export default function Templates() {
   const navigate = useNavigate()
-  const { setSelectedTemplate } = useStore()
+  const { user, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
   const [filter, setFilter] = useState('all')
   const [styleFilter, setStyleFilter] = useState('All')
+
+  useEffect(() => {
+    const hydrateFromMasterProfile = async () => {
+      if (!user) return
+
+      const dbUserId = getDbUserId(user)
+      if (!dbUserId) return
+
+      const tableCandidates = ['profiles', 'master_profiles']
+      for (const tableName of tableCandidates) {
+        const { data, error } = await supabase
+          .from(tableName)
+          .select('*')
+          .eq('user_id', dbUserId)
+          .maybeSingle()
+
+        if (data) {
+          const city = data.city || data.location?.split(',')[0]?.trim() || ''
+          const country = data.country || data.location?.split(',')[1]?.trim() || ''
+
+          updatePersonalInfo({
+            firstName: data.first_name || '',
+            lastName: data.last_name || '',
+            email: data.email || user.email || '',
+            phone: data.phone || '',
+            location: data.location || [city, country].filter(Boolean).join(', '),
+            title: data.title || '',
+            summary: data.summary || ''
+          })
+
+          setExperience(Array.isArray(data.experience_data) ? data.experience_data : [])
+          setEducation(Array.isArray(data.education_data) ? data.education_data : [])
+          setSkills(Array.isArray(data.skills_data) ? data.skills_data : [])
+          setProjects(Array.isArray(data.projects_data) ? data.projects_data : [])
+          setCertifications(Array.isArray(data.certifications_data) ? data.certifications_data : [])
+          return
+        }
+
+        if (!error) continue
+
+        const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
+        const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
+        const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
+        if (relationMissing || noRows) continue
+      }
+    }
+
+    hydrateFromMasterProfile()
+  }, [user, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
 
   // Derive categories and counts from the templates data
   const categories = useMemo(() => {
@@ -43,6 +94,8 @@ export default function Templates() {
   }, [filter, styleFilter])
 
   const handleSelectTemplate = (templateId) => {
+    // Selecting from template gallery is always a new resume flow.
+    setEditingResumeId(null)
     setSelectedTemplate(templateId)
     navigate(`/build?template=${encodeURIComponent(templateId)}`)
   }

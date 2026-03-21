@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { Link, useNavigate } from 'react-router-dom'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useMemo, useState, useRef } from 'react'
 import useStore from '../store/useStore'
 import {
     LayoutDashboard, FileText, Pickaxe, Clock, Star,
@@ -9,15 +9,86 @@ import {
     User, Settings, LogOut, ChevronRight, Zap, Briefcase
 } from 'lucide-react'
 import { supabase } from '../supabase'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
-import ResumeRenderer from '../components/resume/ResumeRenderer'
+import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer';
 import { cn } from '../lib/utils'
 import { getDbUserId } from '../lib/userIdentity'
 import { downloadDocxResume } from '../lib/docxExport'
+import { exportElementToPaginatedPdf } from '../lib/pdfExport'
 import { useToast } from '../context/ToastContext'
 
 const getResumeTemplateId = (resume) => resume?.template_id || resume?.template || resume?.templateId || 'prof-sebastian'
+
+const getObject = (value) => {
+    if (!value) return {}
+    if (typeof value === 'object') return value
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value)
+            return parsed && typeof parsed === 'object' ? parsed : {}
+        } catch {
+            return {}
+        }
+    }
+    return {}
+}
+
+const ensureArray = (value) => {
+    if (Array.isArray(value)) return value
+    return []
+}
+
+const normalizeSkills = (skills) => {
+    const list = ensureArray(skills)
+    return list
+        .map((skill, index) => {
+            if (typeof skill === 'string') {
+                return { id: Date.now() + index, name: skill, level: 'Advanced' }
+            }
+            return {
+                id: skill?.id || Date.now() + index,
+                name: skill?.name || '',
+                level: skill?.level || 'Advanced'
+            }
+        })
+        .filter((skill) => skill.name)
+}
+
+const normalizeResumeData = (rawData) => {
+    const source = getObject(rawData)
+    const nested = getObject(source.resumeData)
+    const data = Object.keys(nested).length ? nested : source
+    const personalInfoSource = getObject(data.personalInfo || data.personal_info || data.profile)
+
+    const personalInfo = {
+        firstName: personalInfoSource.firstName || personalInfoSource.first_name || '',
+        lastName: personalInfoSource.lastName || personalInfoSource.last_name || '',
+        email: personalInfoSource.email || '',
+        title: personalInfoSource.title || personalInfoSource.headline || '',
+        phone: personalInfoSource.phone || personalInfoSource.phoneNumber || personalInfoSource.mobile || '',
+        summary: personalInfoSource.summary || personalInfoSource.about || personalInfoSource.objective || '',
+        location: personalInfoSource.location || personalInfoSource.address || '',
+        github: personalInfoSource.github || '',
+        linkedin: personalInfoSource.linkedin || personalInfoSource.linkedIn || '',
+        website: personalInfoSource.website || personalInfoSource.portfolio || '',
+        profilePhoto: personalInfoSource.profilePhoto || personalInfoSource.photo || ''
+    }
+
+    const normalized = {
+        personalInfo,
+        experience: ensureArray(data.experience || data.workExperience || data.work_experience),
+        education: ensureArray(data.education),
+        skills: normalizeSkills(data.skills),
+        projects: ensureArray(data.projects),
+        certifications: ensureArray(data.certifications)
+    }
+
+    return normalized
+}
+
+const getResumeATSScore = (resume) => {
+    const computed = calculateATSScore(resume.normalizedData || resume.data)
+    return Number.isFinite(computed) ? computed : 0
+}
 
 export default function StudentDashboard() {
     const { user, clearUser, setTemplatesLocked, loadResume, resetResume } = useStore()
@@ -141,27 +212,18 @@ export default function StudentDashboard() {
         setDownloadTarget(resume)
         setIsGenerating(true)
         
+        const elementId = `resume-preview-download`
+        
         try {
             // Short delay to ensure React has rendered the printable version
-            await new Promise(resolve => setTimeout(resolve, 800))
-            const element = document.getElementById('resume-preview-download')
-            if (!element) throw new Error("Capture element not found")
+            await new Promise(resolve => setTimeout(resolve, 600))
+            const element = document.getElementById(elementId)
+            
+            if (!element) {
+                throw new Error("Could not find render element")
+            }
 
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            })
-
-            const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a4')
-            const pdfWidth = pdf.internal.pageSize.getWidth()
-            const imgProps = pdf.getImageProperties(imgData)
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-            pdf.save(`${resume.title || 'resume'}.pdf`)
+            await exportElementToPaginatedPdf(element, `${resume.title || 'resume'}.pdf`)
             success('Resume downloaded as PDF!')
         } catch (err) {
             console.error("PDF Download Error:", err)
@@ -277,40 +339,35 @@ export default function StudentDashboard() {
     }
 
     const handleDownloadCoverLetterPDF = async (coverLetter) => {
-        setDownloadTarget(coverLetter)
         setIsGenerating(true)
         try {
-            // Wait for hidden capture div to render
-            await new Promise(resolve => setTimeout(resolve, 800))
-            const element = document.getElementById('cover-letter-preview-download')
-            if (!element) throw new Error("Capture element not found")
+            const element = document.getElementById(`cover-letter-capture-${coverLetter.id}`)
+            if (!element) throw new Error('Could not find cover letter render element')
 
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            })
-
-            const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a4')
-            const pdfWidth = pdf.internal.pageSize.getWidth()
-            const imgProps = pdf.getImageProperties(imgData)
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-            pdf.save(`${coverLetter.title || 'cover-letter'}.pdf`)
+            await exportElementToPaginatedPdf(element, `${coverLetter.title || 'cover-letter'}.pdf`)
             success('Cover letter downloaded as PDF!')
         } catch (err) {
             console.error("PDF Download Error:", err)
             showError("Failed to download PDF. Please try again.")
         } finally {
             setIsGenerating(false)
-            setDownloadTarget(null)
         }
     }
 
-    const filteredResumes = resumes.filter(r =>
+    const preparedResumes = useMemo(() => {
+        return resumes.map((resume) => {
+            const normalizedData = normalizeResumeData(resume.data)
+            return {
+                ...resume,
+                data: normalizedData,
+                customization: getObject(resume.customization),
+                dynamicScore: calculateATSScore(normalizedData),
+                normalizedData
+            }
+        })
+    }, [resumes])
+
+    const filteredResumes = preparedResumes.filter(r =>
         (r.title || '').toLowerCase().includes(searchQuery.toLowerCase())
     )
 
@@ -319,11 +376,11 @@ export default function StudentDashboard() {
     )
 
     const stats = {
-        total: resumes.length,
-        avgScore: resumes.length > 0
-            ? Math.round(resumes.reduce((acc, curr) => acc + (curr.score || 0), 0) / resumes.length)
+        total: preparedResumes.length,
+        avgScore: preparedResumes.length > 0
+            ? Math.round(preparedResumes.reduce((acc, curr) => acc + getResumeATSScore(curr), 0) / preparedResumes.length)
             : 0,
-        recentCount: resumes.filter(r => {
+        recentCount: preparedResumes.filter(r => {
             const d = new Date(r.created_at)
             const now = new Date()
             return (now - d) < (7 * 24 * 60 * 60 * 1000)
@@ -634,8 +691,44 @@ export default function StudentDashboard() {
                                 </div>
                             </div>
                             <div className="flex-1 overflow-auto p-4 sm:p-8 md:p-12 bg-slate-50 flex justify-center">
-                                <div className="bg-white shadow-2xl w-full">
-                                    <CoverLetterContent data={previewCoverLetter.data} />
+                                <div className="bg-white shadow-2xl w-full p-12" id={`cover-letter-capture-${previewCoverLetter.id}`} style={{ fontFamily: 'Georgia, serif', fontSize: '12pt', lineHeight: 1.6 }}>
+                                    {/* Sender Header */}
+                                    <div style={{ marginBottom: '40px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
+                                        <div style={{ fontSize: '18pt', fontWeight: 900 }}>{previewCoverLetter.data.senderFirstName} {previewCoverLetter.data.senderLastName}</div>
+                                        <div style={{ color: '#666', fontSize: '10pt', marginTop: '5px' }}>
+                                            {previewCoverLetter.data.senderEmail} {previewCoverLetter.data.senderPhone && `| ${previewCoverLetter.data.senderPhone}`}
+                                        </div>
+                                    </div>
+
+                                    {/* Date */}
+                                    <div style={{ marginBottom: '30px', fontWeight: 600 }}>
+                                        {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </div>
+
+                                    {/* Recipient */}
+                                    <div style={{ marginBottom: '40px' }}>
+                                        <div style={{ fontWeight: 700 }}>{previewCoverLetter.data.recipientName}</div>
+                                        <div>{previewCoverLetter.data.recipientTitle}</div>
+                                        <div style={{ fontWeight: 700 }}>{previewCoverLetter.data.companyName}</div>
+                                    </div>
+
+                                    {/* Salutation */}
+                                    <div style={{ marginBottom: '20px' }}>Dear {previewCoverLetter.data.recipientName || 'Hiring Manager'},</div>
+
+                                    {/* Content */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'justify' }}>
+                                        {previewCoverLetter.data.openingParagraph && <p style={{ margin: 0 }}>{previewCoverLetter.data.openingParagraph}</p>}
+                                        {previewCoverLetter.data.bodyParagraphs?.map((para, idx) => (
+                                            para && <p key={idx} style={{ margin: 0 }}>{para}</p>
+                                        ))}
+                                        {previewCoverLetter.data.closingParagraph && <p style={{ margin: 0 }}>{previewCoverLetter.data.closingParagraph}</p>}
+                                    </div>
+
+                                    {/* Sign-off */}
+                                    <div style={{ marginTop: '60px' }}>
+                                        <div style={{ marginBottom: '40px' }}>Sincerely,</div>
+                                        <div style={{ fontWeight: 900, fontSize: '14pt' }}>{previewCoverLetter.data.senderFirstName} {previewCoverLetter.data.senderLastName}</div>
+                                    </div>
                                 </div>
                             </div>
                         </motion.div>
@@ -643,24 +736,29 @@ export default function StudentDashboard() {
                 )}
             </AnimatePresence>
 
-            {/* Hidden Render Engine for PDFs */}
-            {isGenerating && downloadTarget && (
+            {/* Hidden Render Engine for PDFs - Only active when downloading */}
+            {isGenerating && (downloadTarget || previewResume) && (
                 <div style={{ position: 'fixed', top: '-10000px', left: '-10000px', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-                    {/* Resume Capture */}
-                    {(downloadTarget.template_id || downloadTarget.template) ? (
-                        <div id="resume-preview-download" className="a4-paper" style={{ background: '#fff' }}>
-                            <ResumeRenderer
-                                data={downloadTarget.data}
-                                templateId={getResumeTemplateId(downloadTarget)}
-                                customization={downloadTarget.customization || {}}
-                            />
-                        </div>
-                    ) : (
-                        /* Cover Letter Capture */
-                        <div id="cover-letter-preview-download" className="a4-paper" style={{ background: '#fff' }}>
-                            <CoverLetterContent data={downloadTarget.data} />
-                        </div>
-                    )}
+                    <div
+                        id="resume-preview-download"
+                        style={{
+                            background: '#fff',
+                            width: '794px',
+                            maxWidth: '794px',
+                            height: 'auto',
+                            minHeight: 0,
+                            aspectRatio: 'auto',
+                            margin: 0,
+                            padding: 0,
+                            overflow: 'visible'
+                        }}
+                    >
+                        <ResumeRenderer
+                            data={downloadTarget?.data || previewResume?.data}
+                            templateId={getResumeTemplateId(downloadTarget || previewResume)}
+                            customization={downloadTarget?.customization || previewResume?.customization}
+                        />
+                    </div>
                 </div>
             )}
 
@@ -677,51 +775,6 @@ export default function StudentDashboard() {
             )}
         </div>
     )
-}
-
-function CoverLetterContent({ data }) {
-    if (!data) return null;
-    return (
-        <div style={{ padding: '20mm', fontFamily: 'Georgia, serif', fontSize: '12pt', lineHeight: 1.6, background: '#fff', color: '#000', textAlign: 'left' }}>
-            {/* Sender Header */}
-            <div style={{ marginBottom: '40px', borderBottom: '1px solid #000', paddingBottom: '20px' }}>
-                <div style={{ fontSize: '18pt', fontWeight: 900 }}>{data.senderFirstName} {data.senderLastName}</div>
-                <div style={{ color: '#000', fontSize: '10pt', marginTop: '5px' }}>
-                    {data.senderEmail} {data.senderPhone && `| ${data.senderPhone}`}
-                </div>
-            </div>
-
-            {/* Date */}
-            <div style={{ marginBottom: '30px', fontWeight: 600 }}>
-                {new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
-            </div>
-
-            {/* Recipient */}
-            <div style={{ marginBottom: '40px' }}>
-                <div style={{ fontWeight: 700 }}>{data.recipientName}</div>
-                <div>{data.recipientTitle}</div>
-                <div style={{ fontWeight: 700 }}>{data.companyName}</div>
-            </div>
-
-            {/* Salutation */}
-            <div style={{ marginBottom: '20px' }}>Dear {data.recipientName || 'Hiring Manager'},</div>
-
-            {/* Content */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', textAlign: 'justify' }}>
-                {data.openingParagraph && <p style={{ margin: 0 }}>{data.openingParagraph}</p>}
-                {data.bodyParagraphs?.map((para, idx) => (
-                    para && <p key={idx} style={{ margin: 0 }}>{para}</p>
-                ))}
-                {data.closingParagraph && <p style={{ margin: 0 }}>{data.closingParagraph}</p>}
-            </div>
-
-            {/* Sign-off */}
-            <div style={{ marginTop: '60px' }}>
-                <div style={{ marginBottom: '40px' }}>Sincerely,</div>
-                <div style={{ fontWeight: 900, fontSize: '14pt' }}>{data.senderFirstName} {data.senderLastName}</div>
-            </div>
-        </div>
-    );
 }
 
 function StatCard({ icon, label, value, sub, color }) {
@@ -744,7 +797,93 @@ function StatCard({ icon, label, value, sub, color }) {
     )
 }
 
+function LazyResumeThumbnail({ resume }) {
+    const containerRef = useRef(null)
+    const viewportRef = useRef(null)
+    const [shouldRender, setShouldRender] = useState(false)
+    const [scale, setScale] = useState(0.22)
+
+    useEffect(() => {
+        const node = viewportRef.current
+        if (!node) return
+
+        const updateScale = () => {
+            const maxWidth = node.clientWidth
+            const maxHeight = node.clientHeight
+            if (!maxWidth || !maxHeight) return
+
+            const widthScale = maxWidth / 794
+            const heightScale = maxHeight / 1123
+            const nextScale = Math.max(0.2, Math.min(widthScale, heightScale) * 0.96)
+            setScale(nextScale)
+        }
+
+        updateScale()
+
+        const resizeObserver = new ResizeObserver(() => updateScale())
+        resizeObserver.observe(node)
+
+        return () => resizeObserver.disconnect()
+    }, [])
+
+    useEffect(() => {
+        const node = containerRef.current
+        if (!node) return
+
+        const observer = new IntersectionObserver(
+            (entries) => {
+                const [entry] = entries
+                if (entry?.isIntersecting) {
+                    setShouldRender(true)
+                    observer.disconnect()
+                }
+            },
+            {
+                root: null,
+                rootMargin: '250px',
+                threshold: 0.05
+            }
+        )
+
+        observer.observe(node)
+        return () => observer.disconnect()
+    }, [])
+
+    return (
+        <div ref={containerRef} className="absolute inset-0 p-3">
+            <div ref={viewportRef} className="w-full h-full rounded-lg overflow-hidden bg-white border border-slate-100 shadow-sm relative">
+                {shouldRender ? (
+                    <div
+                        className="absolute"
+                        style={{
+                            width: '794px',
+                            height: '1123px',
+                            top: '50%',
+                            left: '50%',
+                            transform: `translate(-50%, -50%) scale(${scale})`,
+                            transformOrigin: 'center center',
+                            pointerEvents: 'none'
+                        }}
+                    >
+                        <ResumeRenderer
+                            data={resume.data}
+                            templateId={getResumeTemplateId(resume)}
+                            customization={resume.customization}
+                        />
+                    </div>
+                ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-slate-50 text-slate-300">
+                        <FileText size={52} />
+                    </div>
+                )}
+            </div>
+        </div>
+    )
+}
+
 function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange }) {
+    const dynamicScore = getResumeATSScore(resume)
+
     return (
         <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -754,54 +893,20 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
             className="group relative bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:border-indigo-100 h-full flex flex-col"
         >
             <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden group-hover:bg-indigo-50 transition-colors cursor-pointer border-b border-slate-50" onClick={onPreview}>
-                {/* Resume Preview Thumbnail */}
-                <div className="absolute inset-0 p-4 transition-opacity duration-300 group-hover:opacity-40">
-                    {resume.data ? (
-                        <div 
-                            className="origin-top-left shadow-2xl" 
-                            style={{ 
-                                width: '816px', 
-                                height: '1056px', 
-                                transform: 'scale(0.34)', 
-                                pointerEvents: 'none',
-                                background: '#fff',
-                                borderRadius: '4px'
-                            }}
-                        >
-                            <ResumeRenderer 
-                                data={resume.data} 
-                                templateId={getResumeTemplateId(resume)}
-                                customization={resume.customization || {}}
-                            />
-                        </div>
-                    ) : (
-                        <div className="w-full h-full flex items-center justify-center opacity-20">
-                            <FileText size={80} className="text-slate-300" />
-                        </div>
-                    )}
+                <LazyResumeThumbnail resume={resume} />
+
+                <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-0 transition-all pointer-events-none">
+                    <FileText size={80} className="text-slate-200" />
                 </div>
 
                 {/* Score Badge */}
                 <div className="absolute top-4 right-4 z-10">
                     <div className={cn(
                         "px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg",
-                        (resume.score || 0) > 80 ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
+                        dynamicScore > 80 ? "bg-emerald-500 text-white" : "bg-amber-500 text-white"
                     )}>
-                        ATS Score: {resume.score || 0}%
+                        ATS Score: {dynamicScore}%
                     </div>
-                </div>
-
-                {/* Quick Actions Overlay */}
-                <div className="absolute inset-0 bg-indigo-900/60 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-[2px]">
-                    <button onClick={(e) => { e.stopPropagation(); onEdit(); }} className="w-12 h-12 bg-white text-indigo-600 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
-                        <Edit3 size={20} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
-                        <DownloadIcon size={20} />
-                    </button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="w-12 h-12 bg-rose-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
-                        <Trash2 size={20} />
-                    </button>
                 </div>
             </div>
 
@@ -848,21 +953,46 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
                         </button>
                     </div>
                 ) : (
-                    <div className="mt-4 pt-3 border-t border-slate-50 flex items-center justify-between">
-                        <button
-                            onClick={onPreview}
-                            className="text-[10px] font-black text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider"
-                        >
-                            Preview Draft
-                        </button>
-                        <div className="flex items-center gap-2">
-                            {isDeleting ? (
-                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
-                                    <Clock size={16} className="text-slate-300" />
-                                </motion.div>
-                            ) : (
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Active</span>
-                            )}
+                    <div className="mt-4 pt-3 border-t border-slate-50">
+                        <div className="flex items-center justify-center gap-3 mb-3">
+                            <button
+                                onClick={onEdit}
+                                className="w-11 h-11 bg-white text-indigo-600 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg border border-indigo-100"
+                                title="Edit resume"
+                            >
+                                <Edit3 size={18} />
+                            </button>
+                            <button
+                                onClick={onDownload}
+                                className="w-11 h-11 bg-indigo-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg"
+                                title="Download resume"
+                            >
+                                <DownloadIcon size={18} />
+                            </button>
+                            <button
+                                onClick={onDelete}
+                                disabled={isDeleting}
+                                className="w-11 h-11 bg-rose-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
+                                title="Delete resume"
+                            >
+                                {isDeleting ? (
+                                    <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}>
+                                        <Clock size={16} />
+                                    </motion.div>
+                                ) : (
+                                    <Trash2 size={18} />
+                                )}
+                            </button>
+                        </div>
+
+                        <div className="flex items-center justify-between">
+                            <button
+                                onClick={onPreview}
+                                className="text-[10px] font-black text-slate-600 hover:text-indigo-600 transition-colors uppercase tracking-wider"
+                            >
+                                Preview Draft
+                            </button>
+                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Active</span>
                         </div>
                     </div>
                 )}

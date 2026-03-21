@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
     CheckCircle2,
@@ -40,15 +40,7 @@ const FloatingCard = ({ children, style, delay = 0 }) => (
 )
 
 export default function Home() {
-    const [openFaq, setOpenFaq] = useState(null)
-
-    useEffect(() => {
-        document.title = "Persevex | Engineering the Future of Digital Careers"
-        const metaDesc = document.querySelector('meta[name="description"]')
-        if (metaDesc) {
-            metaDesc.setAttribute("content", "Only 2% of resumes win. We make sure yours is one of them. Engineered with Neural Precision and ATS-optimized architectures for elite roles.")
-        }
-    }, [])
+    const [openFaq, setOpenFaq] = useState(null);
 
     return (
         <motion.div

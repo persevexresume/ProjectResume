@@ -5,7 +5,6 @@ import useStore from '../../store/useStore';
 import { resumeTemplates } from '../../data/templates';
 
 import EnhancedTemplateRenderer from '../templates/EnhancedTemplateRenderer';
-import MultiPageResumeWrapper from './MultiPageResumeWrapper';
 
 /**
  * CORE RENDERING ENGINE
@@ -22,13 +21,11 @@ export default function ResumeRenderer({ data, templateId, customization: custom
     const newTemplate = resumeTemplates.find(t => t.id === finalTemplateId);
     if (newTemplate) {
         return (
-            <MultiPageResumeWrapper>
-                <EnhancedTemplateRenderer 
-                    template={newTemplate} 
-                    resumeData={finalData} 
-                    themeColor={finalCustomization?.themeColor || newTemplate.colors?.accent || '#3b82f6'} 
-                />
-            </MultiPageResumeWrapper>
+            <EnhancedTemplateRenderer 
+                template={newTemplate} 
+                resumeData={finalData} 
+                themeColor={finalCustomization?.themeColor || newTemplate.colors?.accent || '#3b82f6'} 
+            />
         );
     }
 
@@ -54,20 +51,21 @@ export default function ResumeRenderer({ data, templateId, customization: custom
     };
 
     return (
-        <MultiPageResumeWrapper>
-            <div id="resume-content" style={{
-                fontFamily: finalCustomization.font || 'Inter, sans-serif',
-                fontSize: finalCustomization.fontSize || '14px',
-                color: '#1e293b',
-                lineHeight: 1.6,
-                width: '100%',
-                minHeight: '297mm',
-                background: '#fff',
-                padding: '0'
-            }}>
-                {getTemplate()}
-            </div>
-        </MultiPageResumeWrapper>
+        <div id="resume-content" style={{
+            fontFamily: finalCustomization.font || 'Inter, sans-serif',
+            fontSize: finalCustomization.fontSize || '14px',
+            color: '#1e293b',
+            lineHeight: 1.6,
+            width: '210mm',
+            maxWidth: '210mm',
+            minHeight: '297mm',
+            background: '#fff',
+            margin: '0 auto',
+            padding: '0',
+            boxSizing: 'border-box'
+        }}>
+            {getTemplate()}
+        </div>
     );
 }
 
@@ -119,16 +117,6 @@ const ContactItem = ({ icon, text }) => text ? (
 // -----------------------------------------------------------------------------
 // ELITE SERIES - HIGH FIDELITY DESIGNS
 // -----------------------------------------------------------------------------
-const getContrastText = (hexcolor) => {
-    if (!hexcolor || hexcolor === 'transparent') return '#1e293b';
-    const hex = hexcolor.replace('#', '');
-    const r = parseInt(hex.substr(0, 2), 16);
-    const g = parseInt(hex.substr(2, 2), 16);
-    const b = parseInt(hex.substr(4, 2), 16);
-    const yiq = ((r * 299) + (g * 587) + (b * 114)) / 1000;
-    return (yiq >= 128) ? '#1e293b' : '#ffffff';
-};
-
 const EliteLayout = ({ data, templateId, customization }) => {
     const { personalInfo, experience, skills, education, projects } = data;
     const themeColor = customization.themeColor || '#4f46e5';
@@ -140,12 +128,8 @@ const EliteLayout = ({ data, templateId, customization }) => {
         return (
             <div style={{ display: 'grid', gridTemplateColumns: '32% 1fr', minHeight: '1120px' }}>
                 <div style={{ background: dark, color: '#fff', padding: '5rem 3rem' }}>
-                    <div style={{ width: '120px', height: '120px', background: yellow, borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', fontWeight: 900, marginBottom: '3rem', color: dark, overflow: 'hidden' }}>
-                        {personalInfo.profilePhoto ? (
-                            <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ) : (
-                            personalInfo.firstName?.charAt(0)
-                        )}
+                    <div style={{ width: '120px', height: '120px', background: yellow, borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', fontWeight: 900, marginBottom: '3rem', color: dark }}>
+                        {personalInfo.firstName?.charAt(0)}
                     </div>
                     <h1 style={{ fontSize: '2.8rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.5rem' }}>{personalInfo.firstName}<br/><span style={{ color: yellow }}>{personalInfo.lastName}</span></h1>
                     <p style={{ fontSize: '0.9rem', fontWeight: 700, letterSpacing: '3px', color: '#94a3b8', marginBottom: '5rem' }}>{personalInfo.title?.toUpperCase()}</p>
@@ -165,7 +149,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
                         ))}
                     </SidebarSection>
                 </div>
-                <div style={{ padding: '6rem 4rem', background: '#fff' }}>
+                <div style={{ padding: '6rem 4rem' }}>
                     <Section title="PROFILE" color={dark}><p style={{ fontSize: '1.1rem', lineHeight: 1.8, color: '#475569' }}>{personalInfo.summary}</p></Section>
                     <Section title="EXPERIENCE" color={dark}>
                         {experience.map((exp, i) => (
@@ -188,17 +172,10 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-watson') {
         return (
             <div style={{ padding: '6rem 12%', minHeight: '1120px', fontFamily: '"Playfair Display", serif' }}>
-                <header style={{ textAlign: 'center', marginBottom: '6rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
-                    {personalInfo.profilePhoto && (
-                        <div style={{ width: '150px', height: '150px', borderRadius: '50%', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                            <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                    )}
-                    <div>
-                        <h1 style={{ fontSize: '4.5rem', fontWeight: 400, margin: 0, letterSpacing: '-0.02em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
-                        <div style={{ height: '1px', width: '100px', background: '#e2e8f0', margin: '2rem auto' }}></div>
-                        <p style={{ fontSize: '1.2rem', fontStyle: 'italic', color: '#64748b' }}>{personalInfo.title}</p>
-                    </div>
+                <header style={{ textAlign: 'center', marginBottom: '6rem' }}>
+                    <h1 style={{ fontSize: '4.5rem', fontWeight: 400, margin: 0, letterSpacing: '-0.02em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+                    <div style={{ height: '1px', width: '100px', background: '#e2e8f0', margin: '2rem auto' }}></div>
+                    <p style={{ fontSize: '1.2rem', fontStyle: 'italic', color: '#64748b' }}>{personalInfo.title}</p>
                 </header>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6rem', marginBottom: '6rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -210,7 +187,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
                         <ContactItem icon={<MapPin size={16} />} text={personalInfo.location} />
                     </div>
                 </div>
-                <Section title="Biography" color="#0f172a"><p style={{ fontSize: '1.15rem', lineHeight: 2, textAlign: 'justify' }}>{personalInfo.summary}</p></Section>
+                <Section title="Biography" color="#0f172a"><p style={{ fontSize: '1.15rem', lineHeight: 2 }}>{personalInfo.summary}</p></Section>
                 <Section title="Tenure" color="#0f172a">
                     {experience.map((exp, i) => (
                         <div key={i} style={{ marginBottom: '4rem' }}>
@@ -233,16 +210,9 @@ const EliteLayout = ({ data, templateId, customization }) => {
         return (
             <div style={{ background: '#0a0a0a', color: '#fff', minHeight: '1120px', display: 'grid', gridTemplateColumns: '350px 1fr' }}>
                 <div style={{ borderRight: '1px solid #1f2937', padding: '5rem 3rem' }}>
-                    <div style={{ marginBottom: '5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-                        {personalInfo.profilePhoto && (
-                            <div style={{ width: '100px', height: '100px', border: `2px solid ${neon}`, padding: '4px' }}>
-                                <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                        )}
-                        <div>
-                            <h1 style={{ fontSize: '3.5rem', fontWeight: 900, color: neon, margin: 0 }}>{personalInfo.firstName?.charAt(0)}</h1>
-                            <p style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: '1rem' }}>{personalInfo.firstName} {personalInfo.lastName}</p>
-                        </div>
+                    <div style={{ marginBottom: '5rem' }}>
+                        <h1 style={{ fontSize: '3.5rem', fontWeight: 900, color: neon, margin: 0 }}>{personalInfo.firstName?.charAt(0)}</h1>
+                        <p style={{ fontSize: '1.5rem', fontWeight: 900, marginTop: '1rem' }}>{personalInfo.firstName} {personalInfo.lastName}</p>
                     </div>
                     <SidebarSection title="CHANNELS" color={neon}>
                          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', opacity: 0.6 }}>
@@ -337,25 +307,20 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-mariana') {
         const primary = '#1e3a8a';
         return (
-            <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', minHeight: '1120px', background: '#fff' }}>
-                <div style={{ position: 'relative', width: '400px', height: '100%' }}>
-                    <svg width="100%" height="100%" viewBox="0 0 400 1120" preserveAspectRatio="none" style={{ position: 'absolute', top: 0, left: 0 }}>
-                        <path d="M0 0 H400 L340 1120 H0 Z" fill={primary} />
-                    </svg>
-                    <div style={{ position: 'relative', zIndex: 1, padding: '6rem 3rem', color: '#fff' }}>
-                        <h1 style={{ fontSize: '3.5rem', fontWeight: 900, marginBottom: '1rem' }}>{personalInfo.firstName}</h1>
-                        <h1 style={{ fontSize: '3.5rem', fontWeight: 300, marginBottom: '4rem' }}>{personalInfo.lastName}</h1>
-                        <SidebarSection title="INFRASTRUCTURE" color="#60a5fa">
-                            <div style={{ display: 'grid', gap: '1rem' }}>
-                                {skills.map((s, i) => <div key={i} style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '0.9rem' }}>{s.name}</div>)}
-                            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', minHeight: '1120px' }}>
+                <div style={{ background: primary, color: '#fff', padding: '6rem 3rem', clipPath: 'polygon(0 0, 100% 0, 85% 100%, 0 100%)' }}>
+                    <h1 style={{ fontSize: '3.5rem', fontWeight: 900, marginBottom: '1rem' }}>{personalInfo.firstName}</h1>
+                    <h1 style={{ fontSize: '3.5rem', fontWeight: 300, marginBottom: '4rem' }}>{personalInfo.lastName}</h1>
+                    <SidebarSection title="INFRASTRUCTURE" color="#60a5fa">
+                        <div style={{ display: 'grid', gap: '1rem' }}>
+                            {skills.map((s, i) => <div key={i} style={{ padding: '0.8rem', background: 'rgba(255,255,255,0.05)', borderRadius: '8px', fontSize: '0.9rem' }}>{s.name}</div>)}
+                        </div>
+                    </SidebarSection>
+                    {education.length > 0 && (
+                        <SidebarSection title="CERTIFICATION" color="#60a5fa">
+                            {education.map((edu, i) => <div key={i} style={{ marginBottom: '1.5rem', opacity: 0.8 }}><strong>{edu.degree}</strong><br/>{edu.school}</div>)}
                         </SidebarSection>
-                        {education.length > 0 && (
-                            <SidebarSection title="CERTIFICATION" color="#60a5fa">
-                                {education.map((edu, i) => <div key={i} style={{ marginBottom: '1.5rem', opacity: 0.8 }}><strong>{edu.degree}</strong><br/>{edu.school}</div>)}
-                            </SidebarSection>
-                        )}
-                    </div>
+                    )}
                 </div>
                 <div style={{ padding: '8rem 6rem 8rem 2rem' }}>
                     <Section title="Executive Summary" color={primary}><p style={{ fontSize: '1.2rem', lineHeight: 1.9, color: '#334155' }}>{personalInfo.summary}</p></Section>
@@ -382,17 +347,12 @@ const EliteLayout = ({ data, templateId, customization }) => {
         return (
             <div style={{ padding: '6rem', minHeight: '1120px', background: '#f5f5f5', color: '#1a1a1a' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '2rem' }}>
-                    <div style={{ gridColumn: 'span 8', borderBottom: '4px solid #1a1a1a', paddingBottom: '4rem', display: 'flex', gap: '3rem', alignItems: 'flex-end' }}>
-                        {personalInfo.profilePhoto && (
-                            <div style={{ width: '140px', height: '140px', filter: 'grayscale(1)', border: '2px solid #1a1a1a' }}>
-                                <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                        )}
+                    <div style={{ gridColumn: 'span 8', borderBottom: '4px solid #1a1a1a', paddingBottom: '4rem' }}>
                         <h1 style={{ fontSize: '5rem', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 0.8 }}>{personalInfo.firstName}<br/>{personalInfo.lastName}</h1>
                     </div>
                     <div style={{ gridColumn: 'span 4', borderBottom: '4px solid #1a1a1a', paddingBottom: '4rem', textAlign: 'right' }}>
                         <p style={{ fontSize: '1.2rem', fontWeight: 900 }}>{personalInfo.title?.toUpperCase()}</p>
-                        <p style={{ marginTop: '2rem', opacity: 1, fontWeight: 700 }}>{personalInfo.email}<br/>{personalInfo.phone}</p>
+                        <p style={{ marginTop: '2rem', opacity: 0.6 }}>{personalInfo.email}<br/>{personalInfo.phone}</p>
                     </div>
                     <div style={{ gridColumn: 'span 4', marginTop: '4rem' }}>
                         <SidebarSection title="01 CONTACT" color={accent}>
@@ -447,21 +407,14 @@ const ModernLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#4f46e5';
     return (
         <div style={{ padding: '4rem' }}>
-            <header style={{ marginBottom: '4rem', borderBottom: `4px solid ${color}`, paddingBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: '3.5rem', fontWeight: 900, margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
-                    <p style={{ fontSize: '1.2rem', fontWeight: 700, color, marginTop: '0.5rem' }}>{personalInfo.title}</p>
-                    <div style={{ display: 'flex', gap: '2rem', marginTop: '1.5rem', opacity: 0.6, fontSize: '0.9rem' }}>
-                        <span>{personalInfo.email}</span>
-                        <span>{personalInfo.phone}</span>
-                        <span>{personalInfo.location}</span>
-                    </div>
+            <header style={{ marginBottom: '4rem', borderBottom: `4px solid ${color}`, paddingBottom: '2rem' }}>
+                <h1 style={{ fontSize: '3.5rem', fontWeight: 900, margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+                <p style={{ fontSize: '1.2rem', fontWeight: 700, color, marginTop: '0.5rem' }}>{personalInfo.title}</p>
+                <div style={{ display: 'flex', gap: '2rem', marginTop: '1.5rem', opacity: 0.6, fontSize: '0.9rem' }}>
+                    <span>{personalInfo.email}</span>
+                    <span>{personalInfo.phone}</span>
+                    <span>{personalInfo.location}</span>
                 </div>
-                {personalInfo.profilePhoto && (
-                    <div style={{ width: '160px', height: '160px', borderRadius: '16px', overflow: 'hidden', border: `4px solid ${color}20` }}>
-                        <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                )}
             </header>
             <Section title="Summary" color={color} variant={variant}><p>{personalInfo.summary}</p></Section>
             <Section title="Experience" color={color} variant={variant}>
@@ -494,13 +447,8 @@ const ExecutiveLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#1e293b';
     return (
         <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr' }}>
-            <div style={{ background: '#f8fafc', padding: '4rem 2rem', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                {data.personalInfo.profilePhoto && (
-                    <div style={{ width: '150px', height: '150px', borderRadius: '50%', overflow: 'hidden', border: `4px solid ${color}`, marginBottom: '3rem' }}>
-                        <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                )}
-                <h1 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '4rem', textAlign: 'center' }}>{data.personalInfo.firstName}<br/>{data.personalInfo.lastName}</h1>
+            <div style={{ background: '#f8fafc', padding: '4rem 2rem', borderRight: '1px solid #e2e8f0' }}>
+                <h1 style={{ fontSize: '2rem', fontWeight: 900, marginBottom: '4rem' }}>{data.personalInfo.firstName}<br/>{data.personalInfo.lastName}</h1>
                 <SidebarSection title="SKILLS" color={color}>
                     {data.skills.map((s, i) => <div key={i} style={{ marginBottom: '0.5rem', fontWeight: 600 }}>{s.name}</div>)}
                 </SidebarSection>
@@ -526,19 +474,12 @@ const StartupLayout = ({ data, variant, customization }) => {
     return (
         <div style={{ background: '#f8fafc', padding: '4rem', minHeight: '1120px' }}>
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)' }}>
-                <div style={{ background: color, color: '#fff', padding: '4rem 3rem', display: 'flex', alignItems: 'center', gap: '3rem' }}>
-                    {data.personalInfo.profilePhoto && (
-                        <div style={{ width: '130px', height: '130px', borderRadius: '50%', border: '6px solid rgba(255,255,255,0.2)', overflow: 'hidden' }}>
-                            <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                    )}
-                    <div>
-                        <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
-                        <p style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.9 }}>{data.personalInfo.title}</p>
-                        <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8 }}>
-                            <ContactItem icon={<Mail size={14} color="#fff" />} text={data.personalInfo.email} />
-                            <ContactItem icon={<Phone size={14} color="#fff" />} text={data.personalInfo.phone} />
-                        </div>
+                <div style={{ background: color, color: '#fff', padding: '4rem 3rem' }}>
+                    <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
+                    <p style={{ fontSize: '1.25rem', fontWeight: 600, opacity: 0.9 }}>{data.personalInfo.title}</p>
+                    <div style={{ display: 'flex', gap: '2rem', marginTop: '2rem', fontSize: '0.9rem', opacity: 0.8 }}>
+                        <ContactItem icon={<Mail size={14} color="#fff" />} text={data.personalInfo.email} />
+                        <ContactItem icon={<Phone size={14} color="#fff" />} text={data.personalInfo.phone} />
                     </div>
                 </div>
                 <div style={{ padding: '4rem 3rem', display: 'grid', gridTemplateColumns: '1fr 300px', gap: '4rem' }}>
@@ -581,12 +522,7 @@ const CreativeLayout = ({ data, variant, customization }) => {
     return (
         <div style={{ minHeight: '1120px', background: '#fff', color: '#111' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', height: '400px', background: '#fecdd3' }}>
-                <div style={{ padding: '5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative' }}>
-                    {data.personalInfo.profilePhoto && (
-                        <div style={{ position: 'absolute', top: '2rem', right: '2rem', width: '120px', height: '120px', borderRadius: '40px', overflow: 'hidden', border: '5px solid #fff', transform: 'rotate(-5deg)' }}>
-                            <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        </div>
-                    )}
+                <div style={{ padding: '5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <h1 style={{ fontSize: '5rem', fontWeight: 900, lineHeight: 0.8, color: '#fb7185' }}>{data.personalInfo.firstName}</h1>
                     <h1 style={{ fontSize: '5rem', fontWeight: 900, lineHeight: 0.8 }}>{data.personalInfo.lastName}</h1>
                     <p style={{ fontSize: '1.5rem', fontWeight: 800, marginTop: '2rem', color }}>{data.personalInfo.title?.toUpperCase()}</p>
@@ -635,16 +571,9 @@ const CreativeLayout = ({ data, variant, customization }) => {
 const AcademicLayout = ({ data, variant, customization }) => {
     return (
         <div style={{ padding: '8rem', minHeight: '1120px', fontFamily: '"Times New Roman", serif', background: '#fff' }}>
-            <div style={{ textAlign: 'center', marginBottom: '6rem', borderBottom: '2px double #000', paddingBottom: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
-                {data.personalInfo.profilePhoto && (
-                    <div style={{ width: '130px', height: '160px', border: '1px solid #000', padding: '5px', background: '#fff' }}>
-                        <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                )}
-                <div>
-                    <h1 style={{ fontSize: '3.5rem', fontWeight: 400, margin: '0 0 1rem 0' }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
-                    <p style={{ fontSize: '1.1rem', letterSpacing: '1px', fontWeight: 600 }}>{data.personalInfo.email} • {data.personalInfo.phone} • {data.personalInfo.location}</p>
-                </div>
+            <div style={{ textAlign: 'center', marginBottom: '6rem', borderBottom: '2px double #000', paddingBottom: '3rem' }}>
+                <h1 style={{ fontSize: '3.5rem', fontWeight: 400, margin: '0 0 1rem 0' }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
+                <p style={{ fontSize: '1.1rem', letterSpacing: '1px' }}>{data.personalInfo.email} • {data.personalInfo.phone} • {data.personalInfo.location}</p>
             </div>
             <Section title="Educational Qualifications" color="#000">
                 {data.education.map((edu, i) => (
@@ -680,15 +609,10 @@ const FunctionalLayout = ({ data, variant, customization }) => {
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 30%) 1fr', gap: '5rem' }}>
                 <aside>
                     <div style={{ background: color, color: '#fff', padding: '3rem 2rem', borderRadius: '16px' }}>
-                        {data.personalInfo.profilePhoto && (
-                            <div style={{ width: '100%', aspectRatio: '1/1', borderRadius: '12px', overflow: 'hidden', marginBottom: '2rem', border: '3px solid rgba(255,255,255,0.2)' }}>
-                                <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                        )}
                         <h1 style={{ fontSize: '2rem', fontWeight: 900, lineHeight: 1 }}>{data.personalInfo.firstName}</h1>
                         <h1 style={{ fontSize: '2rem', fontWeight: 300, marginBottom: '2rem' }}>{data.personalInfo.lastName}</h1>
-                        <p style={{ opacity: 1, fontSize: '0.85rem', fontWeight: 700 }}>{data.personalInfo.email}</p>
-                        <p style={{ opacity: 1, fontSize: '0.85rem', marginTop: '0.5rem', fontWeight: 700 }}>{data.personalInfo.phone}</p>
+                        <p style={{ opacity: 0.8, fontSize: '0.85rem' }}>{data.personalInfo.email}</p>
+                        <p style={{ opacity: 0.8, fontSize: '0.85rem', marginTop: '0.5rem' }}>{data.personalInfo.phone}</p>
                     </div>
                     <div style={{ marginTop: '4rem' }}>
                         <h3 style={{ fontSize: '0.9rem', fontWeight: 900, marginBottom: '1.5rem', color }}>EXPERT_SKILLS</h3>
@@ -729,17 +653,10 @@ const ClassicLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#1a1a1a';
     return (
         <div style={{ padding: '5rem 4rem', minHeight: '1120px' }}>
-            <div style={{ textAlign: 'center', marginBottom: '4rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2rem' }}>
-                {data.personalInfo.profilePhoto && (
-                    <div style={{ width: '120px', height: '120px', borderRadius: '50%', border: `4px solid ${color}`, padding: '4px' }}>
-                        <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                    </div>
-                )}
-                <div>
-                    <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
-                    <p style={{ fontSize: '1.1rem', marginTop: '1rem', fontStyle: 'italic', fontWeight: 600 }}>{data.personalInfo.location} | {data.personalInfo.phone} | {data.personalInfo.email}</p>
-                </div>
-                <div style={{ borderBottom: '2px solid #000', marginTop: '1rem', width: '100%' }}></div>
+            <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+                <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
+                <p style={{ fontSize: '1.1rem', marginTop: '1rem', fontStyle: 'italic' }}>{data.personalInfo.location} | {data.personalInfo.phone} | {data.personalInfo.email}</p>
+                <div style={{ borderBottom: '2px solid #000', marginTop: '3rem' }}></div>
             </div>
             <Section title="PROFESSIONAL PROFILE" color={color} variant={variant} textAlign="center"><p style={{ maxWidth: '800px', margin: '0 auto' }}>{data.personalInfo.summary}</p></Section>
             <Section title="EXPERIENCE" color={color} variant={variant}>
@@ -802,22 +719,15 @@ const DynamicFreepikLayout = ({ data, templateId, customization }) => {
         const currentHeaderStyle = headerStyles[headerStyle] || headerStyles.left;
 
         return (
-            <header style={{ ...currentHeaderStyle, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '2rem' }}>
-                <div style={{ flex: 1 }}>
-                    <h1 style={{ fontSize: '3rem', fontWeight: 950, textTransform: 'uppercase', letterSpacing: '-1px', margin: 0 }}>
-                        {data.personalInfo.firstName} <span style={{ fontWeight: 300 }}>{data.personalInfo.lastName}</span>
-                    </h1>
-                    <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: headerStyle === 'centered' ? 'center' : 'flex-start', fontSize: '0.9rem', opacity: 1, fontWeight: 700 }}>
-                        <span>{data.personalInfo.email}</span>
-                        <span>{data.personalInfo.phone}</span>
-                        <span>{data.personalInfo.location}</span>
-                    </div>
+            <header style={currentHeaderStyle}>
+                <h1 style={{ fontSize: '3rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-1px', margin: 0 }}>
+                    {data.personalInfo.firstName} <span style={{ fontWeight: 300 }}>{data.personalInfo.lastName}</span>
+                </h1>
+                <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', flexWrap: 'wrap', justifyContent: headerStyle === 'centered' ? 'center' : 'flex-start', fontSize: '0.9rem', opacity: 0.8 }}>
+                    <span>{data.personalInfo.email}</span>
+                    <span>{data.personalInfo.phone}</span>
+                    <span>{data.personalInfo.location}</span>
                 </div>
-                {data.personalInfo.profilePhoto && (
-                    <div style={{ width: '150px', height: '150px', borderRadius: '12px', overflow: 'hidden', border: `4px solid ${primaryColor}22` }}>
-                        <img src={data.personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    </div>
-                )}
             </header>
         );
     };

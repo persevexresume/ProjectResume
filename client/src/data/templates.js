@@ -1,855 +1,199 @@
-// Resume Templates perfectly mapped from resume-templates-showcase.html
-// There are exactly 50 unique templates.
+// Curated set of 22 truly unique resume templates with distinct layouts
+// Each template has a fundamentally different structural or visual approach
 
 export const resumeTemplates = [
   {
-    "id": "b01",
-    "name": "Modern Slate",
-    "category": "Modern",
-    "description": "Two-Col style template with unique Modern Slate design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f8f9fc",
-      "primary": "#1a1a2e",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't01',
+    name: 'Diagonal Hero',
+    category: 'Creative',
+    description: 'Unique diagonal split header with bold accents.',
+    style: 't01',
+    colors: { bg: '#ffffff', primary: '#1a1a2e', accent: '#e63946' },
+    fonts: { heading: 'Syne, sans-serif', body: 'DM Sans, sans-serif' }
   },
   {
-    "id": "b02",
-    "name": "Crimson Elegance",
-    "category": "Executive",
-    "description": "Corporate style template with unique Crimson Elegance design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a0000",
-      "accent": "#8b0000"
-    },
-    "fonts": {
-      "heading": "Cormorant Garamond, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't02',
+    name: 'Left Sidebar Panel',
+    category: 'Modern',
+    description: 'Professional two-column layout with left sidebar.',
+    style: 't02',
+    colors: { bg: '#f7f7f7', primary: '#2d2d3a', accent: '#4ecdc4' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b03",
-    "name": "Teal Geometric",
-    "category": "Tech",
-    "description": "Dark style template with unique Teal Geometric design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0d3d3d",
-      "primary": "#4dd9ac",
-      "accent": "#80e8c8"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't03',
+    name: 'Photo Banner Top',
+    category: 'Creative',
+    description: 'Bold banner with centered photo placeholder.',
+    style: 't03',
+    colors: { bg: '#ffffff', primary: '#1c1c1c', accent: '#f0c040' },
+    fonts: { heading: 'Syne, sans-serif', body: 'DM Sans, sans-serif' }
   },
   {
-    "id": "b04",
-    "name": "Bold Blocks",
-    "category": "Creative",
-    "description": "Creative style template with unique Bold Blocks design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Raleway, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't04',
+    name: 'Pure Typography',
+    category: 'Minimalist',
+    description: 'Focused on typographic hierarchy and white space.',
+    style: 't04',
+    colors: { bg: '#fafafa', primary: '#111111', accent: '#111111' },
+    fonts: { heading: 'DM Sans, sans-serif', body: 'DM Sans, sans-serif' }
   },
   {
-    "id": "b05",
-    "name": "Soft Pastel",
-    "category": "Creative",
-    "description": "Creative style template with unique Soft Pastel design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fef6f0",
-      "primary": "#4a1942",
-      "accent": "#e879a0"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't05',
+    name: 'Hexagon Design',
+    category: 'Creative',
+    description: 'Clean aesthetic with hexagon visual motifs.',
+    style: 't05',
+    colors: { bg: '#f0fafa', primary: '#00838f', accent: '#b2ebf2' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b06",
-    "name": "Midnight Corporate",
-    "category": "Tech",
-    "description": "Dark style template with unique Midnight Corporate design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0c0e1a",
-      "primary": "#fff",
-      "accent": "#4a90d9"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't06',
+    name: 'Neon Terminal',
+    category: 'Tech',
+    description: 'Dark terminal-inspired layout with monospace font.',
+    style: 't06',
+    colors: { bg: '#0a0a0f', primary: '#00ff88', accent: '#00ff88' },
+    fonts: { heading: 'Space Mono, monospace', body: 'Space Mono, monospace' }
   },
   {
-    "id": "b07",
-    "name": "Newspaper Classic",
-    "category": "Academic",
-    "description": "Academic style template with unique Newspaper Classic design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fffef8",
-      "primary": "#1a1a1a",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Source Serif 4, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't07',
+    name: 'Magazine Editorial',
+    category: 'Creative',
+    description: 'Sophisticated magazine-style with serif fonts.',
+    style: 't07',
+    colors: { bg: '#fffff8', primary: '#111111', accent: '#c0392b' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Lora, serif' }
   },
   {
-    "id": "b08",
-    "name": "Neon Cyber",
-    "category": "Tech",
-    "description": "Dark style template with unique Neon Cyber design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#050510",
-      "primary": "#1a1a2e",
-      "accent": "#0ff"
-    },
-    "fonts": {
-      "heading": "Space Mono, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't08',
+    name: 'Skill Bar Infographic',
+    category: 'Infographic',
+    description: 'Data-driven with prominent skill visualization.',
+    style: 't08',
+    colors: { bg: '#ffffff', primary: '#283593', accent: '#ffa000' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b09",
-    "name": "Terracotta Warm",
-    "category": "Creative",
-    "description": "Creative style template with unique Terracotta Warm design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#faf4ee",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Lora, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't09',
+    name: 'Three Column Layout',
+    category: 'Modern',
+    description: 'Advanced three-column structural design.',
+    style: 't09',
+    colors: { bg: '#ffffff', primary: '#37474f', accent: '#ff7043' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b10",
-    "name": "Clean Minimal",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Clean Minimal design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#000",
-      "accent": "#999"
-    },
-    "fonts": {
-      "heading": "Josefin Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't11',
+    name: 'Dark Prestige',
+    category: 'Executive',
+    description: 'Full dark background with gold accents.',
+    style: 't11',
+    colors: { bg: '#0d1b2a', primary: '#c5a028', accent: '#f0e6cc' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b11",
-    "name": "Forest Executive",
-    "category": "Executive",
-    "description": "Corporate style template with unique Forest Executive design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#d8f3dc",
-      "accent": "#74c69d"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't13',
+    name: 'Centered Formal',
+    category: 'Classic',
+    description: 'Strictly centered formal traditional layout.',
+    style: 't13',
+    colors: { bg: '#fafafa', primary: '#1a237e', accent: '#1a237e' },
+    fonts: { heading: 'Garamond, serif', body: 'Garamond, serif' }
   },
   {
-    "id": "b12",
-    "name": "Purple Gradient",
-    "category": "Tech",
-    "description": "Dark style template with unique Purple Gradient design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#1a0533",
-      "primary": "#fff",
-      "accent": "#c77dff"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't14',
+    name: 'Geometric Sidebar',
+    category: 'Creative',
+    description: 'Sidebar with geometric polygon decorations.',
+    style: 't14',
+    colors: { bg: '#ffffff', primary: '#6200ea', accent: '#ffd740' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b13",
-    "name": "Swiss Grid",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Swiss Grid design.",
-    "style": "b13",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#000",
-      "accent": "#000"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't15',
+    name: 'Center Timeline',
+    category: 'Infographic',
+    description: 'Central vertical timeline for career progression.',
+    style: 't15',
+    colors: { bg: '#f9fafb', primary: '#0f172a', accent: '#3b82f6' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b14",
-    "name": "Warm Beige Classic",
-    "category": "Academic",
-    "description": "Academic style template with unique Warm Beige Classic design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f9f4ef",
-      "primary": "#3d2b1f",
-      "accent": "#8c6a52"
-    },
-    "fonts": {
-      "heading": "Playfair Display, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't17',
+    name: 'Blueprint Grid',
+    category: 'Tech',
+    description: 'Engineering layout with grid patterns.',
+    style: 't17',
+    colors: { bg: '#1565c0', primary: '#0d47a1', accent: '#64b5f6' },
+    fonts: { heading: 'Roboto Mono, monospace', body: 'Roboto Mono, monospace' }
   },
   {
-    "id": "b15",
-    "name": "Orange Accent",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Orange Accent design.",
-    "style": "timeline",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#111",
-      "accent": "#ff6b35"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't19',
+    name: 'Card Grid Sections',
+    category: 'Modern',
+    description: 'Modular card-based dashboard layout.',
+    style: 't19',
+    colors: { bg: '#f8f9fa', primary: '#212121', accent: '#00bcd4' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
   },
   {
-    "id": "b16",
-    "name": "Academic Blue",
-    "category": "Academic",
-    "description": "Academic style template with unique Academic Blue design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#003087",
-      "accent": "#666"
-    },
-    "fonts": {
-      "heading": "Source Serif 4, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't20',
+    name: 'Gradient Mesh',
+    category: 'Creative',
+    description: 'Futuristic gradient mesh background design.',
+    style: 't20',
+    colors: { bg: '#ffffff', primary: '#7c3aed', accent: '#db2777' },
+    fonts: { heading: 'Syne, sans-serif', body: 'DM Sans, sans-serif' }
   },
   {
-    "id": "b17",
-    "name": "Lavender Soft",
-    "category": "Creative",
-    "description": "Creative style template with unique Lavender Soft design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f5f0ff",
-      "primary": "#2d1b69",
-      "accent": "#7c3aed"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't21',
+    name: 'Brutalist Bold',
+    category: 'Creative',
+    description: 'Radical brutalist design with thick borders.',
+    style: 't21',
+    colors: { bg: '#f5f500', primary: '#000000', accent: '#ff0000' },
+    fonts: { heading: 'Space Mono, monospace', body: 'Space Mono, monospace' }
   },
   {
-    "id": "b18",
-    "name": "Black Luxe",
-    "category": "Tech",
-    "description": "Dark style template with unique Black Luxe design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0a0a0a",
-      "primary": "#fff",
-      "accent": "#c9a84c"
-    },
-    "fonts": {
-      "heading": "Playfair Display, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't22',
+    name: 'Data Analytics',
+    category: 'Tech',
+    description: 'Cyberpunk analytics theme with cyan accents.',
+    style: 't22',
+    colors: { bg: '#0a1628', primary: '#0d2137', accent: '#26c6da' },
+    fonts: { heading: 'Roboto Mono, monospace', body: 'Roboto Mono, monospace' }
   },
   {
-    "id": "b19",
-    "name": "Blueprint Tech",
-    "category": "Tech",
-    "description": "Dark style template with unique Blueprint Tech design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0a1628",
-      "primary": "#4a90d9",
-      "accent": "#6ba8d9"
-    },
-    "fonts": {
-      "heading": "Space Mono, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't26',
+    name: 'Vintage Newspaper',
+    category: 'Creative',
+    description: 'Classic newspaper editorial style layout.',
+    style: 'news',
+    colors: { bg: '#f5e6d0', primary: '#2c1810', accent: '#8b4513' }
   },
   {
-    "id": "b20",
-    "name": "Colorful Cards",
-    "category": "Creative",
-    "description": "Creative style template with unique Colorful Cards design.",
-    "style": "mosaic",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't32',
+    name: 'Legal Double Rule',
+    category: 'Legal',
+    description: 'Strict legal aesthetic with ruled lines.',
+    style: 'legal',
+    colors: { bg: '#fafafa', primary: '#1a1a3a', accent: '#8b0000' }
   },
   {
-    "id": "b21",
-    "name": "Sage Green",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Sage Green design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a2e1a",
-      "accent": "#4a7c59"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't44',
+    name: 'Creative Director',
+    category: 'Creative',
+    description: 'Asymmetric layout for high-end creatives.',
+    style: 'director',
+    colors: { bg: '#111111', primary: '#ffffff', accent: '#ff4500' }
   },
   {
-    "id": "b22",
-    "name": "Ink Sketch",
-    "category": "Academic",
-    "description": "Academic style template with unique Ink Sketch design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fdfcf9",
-      "primary": "#1a1a1a",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Fraunces, sans-serif",
-      "body": "Inter, sans-serif"
-    }
+    id: 't51',
+    name: 'Studio Portfolio',
+    category: 'Creative',
+    description: 'Bold neon-on-black studio aesthetic.',
+    style: 'studio',
+    colors: { bg: '#111111', primary: '#111111', accent: '#c6f135' }
   },
-  {
-    "id": "b23",
-    "name": "Sky Blue",
-    "category": "Executive",
-    "description": "Corporate style template with unique Sky Blue design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f0f8ff",
-      "primary": "#fff",
-      "accent": "#7ec8e3"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b24",
-    "name": "Retro Orange",
-    "category": "Creative",
-    "description": "Creative style template with unique Retro Orange design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fffdf5",
-      "primary": "#1a1a1a",
-      "accent": "#e8501c"
-    },
-    "fonts": {
-      "heading": "Raleway, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b25",
-    "name": "Carbon Pro",
-    "category": "Tech",
-    "description": "Dark style template with unique Carbon Pro design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#111",
-      "primary": "#fff",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b26",
-    "name": "Mosaic Tiles",
-    "category": "Creative",
-    "description": "Creative style template with unique Mosaic Tiles design.",
-    "style": "mosaic",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#fff",
-      "accent": "#8697c4"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b27",
-    "name": "Monochrome Print",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Monochrome Print design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a1a1a",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Crimson Pro, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b28",
-    "name": "Gradient Horizon",
-    "category": "Tech",
-    "description": "Dark style template with unique Gradient Horizon design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0f0c29",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b29",
-    "name": "Timeline Left",
-    "category": "Modern",
-    "description": "Two-Col style template with unique Timeline Left design.",
-    "style": "timeline",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fafafa",
-      "primary": "#1a1a1a",
-      "accent": "#6366f1"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b30",
-    "name": "Copper Metallic",
-    "category": "Tech",
-    "description": "Dark style template with unique Copper Metallic design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#1c1310",
-      "primary": "#e8c49a",
-      "accent": "#b8845a"
-    },
-    "fonts": {
-      "heading": "Raleway, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b31",
-    "name": "Aquamarine",
-    "category": "Executive",
-    "description": "Corporate style template with unique Aquamarine design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f0fffe",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Josefin Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b32",
-    "name": "Sans Bold",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Sans Bold design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#000",
-      "accent": "#00b4d8"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b33",
-    "name": "Dusty Rose",
-    "category": "Academic",
-    "description": "Academic style template with unique Dusty Rose design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff5f5",
-      "primary": "#1a1a2e",
-      "accent": "#c96a7a"
-    },
-    "fonts": {
-      "heading": "Lora, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b34",
-    "name": "Navy Split",
-    "category": "Tech",
-    "description": "Dark style template with unique Navy Split design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a1a2e",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b35",
-    "name": "Chartreuse Punch",
-    "category": "Tech",
-    "description": "Dark style template with unique Chartreuse Punch design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0a0a0a",
-      "primary": "#d4ff00",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Bebas Neue, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b36",
-    "name": "Mint Fresh",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Mint Fresh design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f0fff8",
-      "primary": "#003d2b",
-      "accent": "#00a878"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b37",
-    "name": "Deep Ocean",
-    "category": "Tech",
-    "description": "Dark style template with unique Deep Ocean design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#001a33",
-      "primary": "#e0f4ff",
-      "accent": "#4dc8ff"
-    },
-    "fonts": {
-      "heading": "Raleway, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b38",
-    "name": "Elegant Script",
-    "category": "Academic",
-    "description": "Academic style template with unique Elegant Script design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a1a2e",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Cormorant Garamond, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b39",
-    "name": "Volcanic Dark",
-    "category": "Tech",
-    "description": "Dark style template with unique Volcanic Dark design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0f0800",
-      "primary": "#ff6b35",
-      "accent": "#ff9f6b"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b40",
-    "name": "Rainbow Lateral",
-    "category": "Creative",
-    "description": "Creative style template with unique Rainbow Lateral design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a1a1a",
-      "accent": "#888"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b41",
-    "name": "Light Grey Corp",
-    "category": "Executive",
-    "description": "Corporate style template with unique Light Grey Corp design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f7f7f9",
-      "primary": "#1a1a2e",
-      "accent": "#6e7191"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b42",
-    "name": "Photo Side",
-    "category": "Creative",
-    "description": "Creative style template with unique Photo Side design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#2b2d42",
-      "accent": "#ef233c"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b43",
-    "name": "Indigo Sidebar",
-    "category": "Modern",
-    "description": "Two-Col style template with unique Indigo Sidebar design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#fff",
-      "accent": "#a5b4fc"
-    },
-    "fonts": {
-      "heading": "Outfit, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b44",
-    "name": "Monogram Luxe",
-    "category": "Tech",
-    "description": "Dark style template with unique Monogram Luxe design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#0c0c0c",
-      "primary": "#fff",
-      "accent": "#c9a84c"
-    },
-    "fonts": {
-      "heading": "Playfair Display, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b45",
-    "name": "Handwritten Warm",
-    "category": "Academic",
-    "description": "Academic style template with unique Handwritten Warm design.",
-    "style": "magazine",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fffef0",
-      "primary": "#2d1b00",
-      "accent": "#8b5e3c"
-    },
-    "fonts": {
-      "heading": "Fraunces, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b46",
-    "name": "Ice White Cards",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Ice White Cards design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#f0f4f8",
-      "primary": "#1a2a3a",
-      "accent": "#5b8db8"
-    },
-    "fonts": {
-      "heading": "IBM Plex Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b47",
-    "name": "Sunrise Gradient",
-    "category": "Creative",
-    "description": "Creative style template with unique Sunrise Gradient design.",
-    "style": "diagonal",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#fff",
-      "accent": "#3b82f6"
-    },
-    "fonts": {
-      "heading": "Nunito, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b48",
-    "name": "Slate Professional",
-    "category": "Executive",
-    "description": "Corporate style template with unique Slate Professional design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a202c",
-      "accent": "#718096"
-    },
-    "fonts": {
-      "heading": "Source Serif 4, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b49",
-    "name": "Galaxy Speckle",
-    "category": "Tech",
-    "description": "Dark style template with unique Galaxy Speckle design.",
-    "style": "tech",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#04040e",
-      "primary": "#e8e0ff",
-      "accent": "#9d78ff"
-    },
-    "fonts": {
-      "heading": "Space Mono, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  },
-  {
-    "id": "b50",
-    "name": "Clean Executive",
-    "category": "Minimalist",
-    "description": "Minimal style template with unique Clean Executive design.",
-    "style": "executive",
-    "supportsPhoto": true,
-    "colors": {
-      "bg": "#fff",
-      "primary": "#1a1a2e",
-      "accent": "#6b7280"
-    },
-    "fonts": {
-      "heading": "DM Sans, sans-serif",
-      "body": "Inter, sans-serif"
-    }
-  }
 ];

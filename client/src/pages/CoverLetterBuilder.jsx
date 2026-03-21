@@ -1,13 +1,12 @@
 import { motion } from 'framer-motion'
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Download, Plus, Trash2, Sparkles, RefreshCcw } from 'lucide-react'
+import { ArrowLeft, Save, Download, Plus, Trash2 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
+import { exportElementToPaginatedPdf } from '../lib/pdfExport'
 
 export default function CoverLetterBuilder() {
     const navigate = useNavigate()
@@ -105,90 +104,22 @@ export default function CoverLetterBuilder() {
 
     const handleDownloadPDF = async () => {
         setIsGenerating(true)
+        const element = document.getElementById('cover-letter-capture')
         try {
-            const element = document.getElementById('cover-letter-capture')
             if (!element) throw new Error('Could not find document element')
 
             // Force visibility for capture then hide
             element.style.display = 'block'
-            
-            const canvas = await html2canvas(element, {
-                scale: 2,
-                useCORS: true,
-                logging: false,
-                backgroundColor: '#ffffff'
-            })
 
-            element.style.display = 'none'
+            await exportElementToPaginatedPdf(element, `CoverLabel-${coverLetter.companyName || 'Response'}.pdf`)
 
-            const imgData = canvas.toDataURL('image/png')
-            const pdf = new jsPDF('p', 'mm', 'a4')
-            const pdfWidth = pdf.internal.pageSize.getWidth()
-            const imgProps = pdf.getImageProperties(imgData)
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width
-
-            pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight)
-            pdf.save(`CoverLetter-${coverLetter.companyName || 'Response'}.pdf`)
             success('Cover letter downloaded as PDF!')
         } catch (err) {
             showError('Failed to generate PDF: ' + err.message)
         } finally {
+            if (element) element.style.display = 'none'
             setIsGenerating(false)
         }
-    }
-
-    const handleImportFromProfile = async () => {
-        if (!user) {
-            showError('Please sign in to import your profile')
-            return
-        }
-        
-        setLoading(true)
-        try {
-            const dbUserId = getDbUserId(user)
-            const { data, error } = await supabase
-                .from('master_profiles')
-                .select('*')
-                .eq('user_id', dbUserId)
-                .maybeSingle()
-            
-            if (error) throw error
-            
-            if (data) {
-                setCoverLetter(prev => ({
-                    ...prev,
-                    senderFirstName: data.first_name || '',
-                    senderLastName: data.last_name || '',
-                    senderEmail: data.email || user.email || '',
-                    senderPhone: data.phone || ''
-                }))
-                success('Profile data imported successfully!')
-            } else {
-                showError('No master profile found. Please create one first.')
-            }
-        } catch (err) {
-            showError('Failed to import profile: ' + err.message)
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    const handleReset = () => {
-        setCoverLetter({
-            recipientName: '',
-            recipientTitle: '',
-            companyName: '',
-            hireDate: new Date().toISOString().split('T')[0],
-            senderFirstName: '',
-            senderLastName: '',
-            senderEmail: '',
-            senderPhone: '',
-            openingParagraph: '',
-            bodyParagraphs: ['', ''],
-            closingParagraph: '',
-        })
-        setTitle('')
-        success('Form cleared')
     }
 
     return (
@@ -224,11 +155,9 @@ export default function CoverLetterBuilder() {
                     {/* Form Editor */}
                     <div style={{ background: '#fff', padding: '2.5rem', borderRadius: '24px', boxShadow: '0 10px 25px rgba(0,0,0,0.02)', border: '1px solid #f1f5f9' }}>
                         <div style={{ marginBottom: '2.5rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                            <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em' }}>Cover Letter Builder</h2>
+                            <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Cover Letter Builder</h2>
+                            <p style={{ color: '#64748b', fontWeight: 500 }}>Create a professional cover letter that gets you hired.</p>
                         </div>
-                        <p style={{ color: '#64748b', fontWeight: 500 }}>Create a professional cover letter that gets you hired.</p>
-                    </div>
 
                         {/* Title Section */}
                         <SectionTitle title="Document Title" />

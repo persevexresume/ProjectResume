@@ -1,83 +1,32 @@
 import { motion } from 'framer-motion'
 import { useNavigate, Link } from 'react-router-dom'
-import { Upload, ArrowLeft, LogOut, FileText, Edit3, Eye, ChevronRight, Loader } from 'lucide-react'
+import { Upload, UserPlus, ArrowLeft, LogOut, FileText, Edit3, Eye, ChevronRight, Loader } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { useEffect, useState } from 'react'
 import { getDbUserId } from '../lib/userIdentity'
+import { calculateATSScore } from '../components/resume/ResumeRenderer'
+
+const getParsedResumeData = (rawData) => {
+    if (!rawData) return null
+    if (typeof rawData === 'object') return rawData.resumeData || rawData
+    if (typeof rawData === 'string') {
+        try {
+            const parsed = JSON.parse(rawData)
+            return parsed?.resumeData || parsed
+        } catch {
+            return null
+        }
+    }
+    return null
+}
 
 export default function StudentChoice() {
     const navigate = useNavigate()
     const { user, clearUser, loadResume } = useStore()
     const [savedResume, setSavedResume] = useState(null)
+    const [savedProfile, setSavedProfile] = useState(null)
     const [loading, setLoading] = useState(true)
-
-    const pickValue = (...values) => {
-        for (const value of values) {
-            if (value === 0) return value
-            if (typeof value === 'string' && value.trim()) return value.trim()
-            if (value) return value
-        }
-        return ''
-    }
-
-    const normalizeResumePreview = (resume) => {
-        let parsedData = resume?.data
-        if (typeof parsedData === 'string') {
-            try {
-                parsedData = JSON.parse(parsedData)
-            } catch {
-                parsedData = {}
-            }
-        }
-        const rawData = parsedData && typeof parsedData === 'object' ? parsedData : {}
-        const personal = rawData.personalInfo && typeof rawData.personalInfo === 'object' ? rawData.personalInfo : {}
-
-        const firstName = pickValue(rawData.firstName, personal.firstName, personal.first_name)
-        const lastName = pickValue(rawData.lastName, personal.lastName, personal.last_name)
-        const composedName = `${firstName || ''} ${lastName || ''}`.trim()
-        const fullName = pickValue(rawData.fullName, personal.fullName, rawData.name, personal.name, composedName)
-
-        const locationFromParts = [pickValue(rawData.city, personal.city), pickValue(rawData.country, personal.country)].filter(Boolean).join(', ')
-        const location = pickValue(rawData.location, personal.location, locationFromParts)
-
-        const rawSkills = rawData.skills ?? personal.skills ?? rawData.skillset ?? personal.skillset
-        let skills = []
-        if (Array.isArray(rawSkills)) {
-            skills = rawSkills
-        } else if (typeof rawSkills === 'string') {
-            skills = rawSkills.split(',').map(skill => skill.trim()).filter(Boolean)
-        }
-
-        const website = pickValue(rawData.website, personal.website)
-        const websiteHref = website && /^https?:\/\//i.test(website) ? website : (website ? `https://${website}` : '')
-
-        const summary = pickValue(rawData.summary, personal.summary, rawData.objective, personal.objective)
-        const title = pickValue(rawData.title, personal.title)
-        const email = pickValue(rawData.email, personal.email)
-        const phone = pickValue(rawData.phone, personal.phone)
-        const linkedinValue = pickValue(rawData.linkedin, personal.linkedin)
-        const githubValue = pickValue(rawData.github, personal.github)
-        const linkedin = linkedinValue && /^https?:\/\//i.test(linkedinValue) ? linkedinValue : (linkedinValue ? `https://${linkedinValue}` : '')
-        const github = githubValue && /^https?:\/\//i.test(githubValue) ? githubValue : (githubValue ? `https://${githubValue}` : '')
-
-        return {
-            name: fullName,
-            title,
-            email,
-            phone,
-            location,
-            linkedin,
-            github,
-            website,
-            websiteHref,
-            summary,
-            skills,
-            hasAnyData: Boolean(fullName || title || email || phone || location || linkedin || github || website || summary || skills.length)
-        }
-    }
-
-    const resumePreview = normalizeResumePreview(savedResume)
 
     useEffect(() => {
         if (!user) {
@@ -85,25 +34,6 @@ export default function StudentChoice() {
             return
         }
         fetchSavedData()
-
-        const dbUserId = getDbUserId(user)
-        if (!dbUserId) return
-
-        const subscription = supabase
-            .channel(`student_choice_resumes_${dbUserId}`)
-            .on('postgres_changes', {
-                event: '*',
-                schema: 'public',
-                table: 'resumes',
-                filter: `user_id=eq.${dbUserId}`
-            }, () => {
-                fetchSavedData()
-            })
-            .subscribe()
-
-        return () => {
-            subscription.unsubscribe()
-        }
     }, [user, navigate])
 
     const fetchSavedData = async () => {
@@ -114,24 +44,33 @@ export default function StudentChoice() {
                 return
             }
 
-            const { data: resumeRows, error: resumeError } = await supabase
+            // Fetch most recent resume
+            const { data: resumeData } = await supabase
                 .from('resumes')
                 .select('*')
                 .eq('user_id', dbUserId)
-                .order('updated_at', { ascending: false })
-                .limit(25)
+                .order('created_at', { ascending: false })
+                .limit(1)
+                .maybeSingle()
 
-            if (resumeError) {
-                throw resumeError
+            if (resumeData) {
+                setSavedResume(resumeData)
             }
 
-            if (Array.isArray(resumeRows) && resumeRows.length > 0) {
-                const bestResume = resumeRows.find((row) => normalizeResumePreview(row).hasAnyData) || resumeRows[0]
-                setSavedResume(bestResume)
-                setLoading(false)
-                return
-            }
+            // Fetch master profile
+            const candidates = ['profiles', 'master_profiles', 'students']
+            for (const tableName of candidates) {
+                const { data: profileData } = await supabase
+                    .from(tableName)
+                    .select('*')
+                    .eq('user_id', dbUserId)
+                    .maybeSingle()
 
+                if (profileData) {
+                    setSavedProfile(profileData)
+                    break
+                }
+            }
         } catch (err) {
             console.error('Error fetching data:', err)
         } finally {
@@ -152,9 +91,15 @@ export default function StudentChoice() {
         }
     }
 
+    const handleEditProfile = () => {
+        navigate('/master-profile')
+    }
+
     const handleViewAllResumes = () => {
         navigate('/student')
     }
+
+    const dynamicAtsScore = savedResume ? calculateATSScore(getParsedResumeData(savedResume.data)) : 0
 
     return (
         <motion.div
@@ -217,181 +162,56 @@ export default function StudentChoice() {
                     </div>
                 ) : (
                     <>
-                        {/* Saved Resume Section - PRIORITY */}
+                        {/* Saved Resume Section */}
                         {savedResume && (
                             <motion.div
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}
                                 transition={{ delay: 0.1 }}
                                 style={{
-                                    background: 'linear-gradient(135deg, #fff 0%, #f0f9ff 100%)',
+                                    background: '#fff',
                                     borderRadius: '24px',
-                                    padding: '2.5rem',
+                                    padding: '2rem',
                                     marginBottom: '2rem',
-                                    boxShadow: '0 20px 60px rgba(79, 70, 229, 0.15)',
-                                    border: '2px solid #4f46e5',
-                                    position: 'relative',
-                                    overflow: 'hidden'
+                                    boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
+                                    border: '2px solid #e5e7eb'
                                 }}
                             >
-                                {/* Badge */}
-                                <div style={{
-                                    position: 'absolute',
-                                    top: '1rem',
-                                    right: '1rem',
-                                    background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                    color: '#fff',
-                                    padding: '0.5rem 1rem',
-                                    borderRadius: '20px',
-                                    fontSize: '0.8rem',
-                                    fontWeight: 700,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.05em'
-                                }}>
-                                    Saved Resume
-                                </div>
-
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2rem', marginTop: '0.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
                                     <div>
-                                        <h2 style={{ fontSize: '2.2rem', fontWeight: 900, marginBottom: '0.5rem', color: '#1e1b4b' }}>
-                                            {savedResume.title || 'Your Resume'}
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                                            📄 {savedResume.title || 'My Resume'}
                                         </h2>
-                                        <p style={{ color: '#64748b', fontSize: '1rem' }}>
-                                            Updated: {new Date(savedResume.updated_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}
+                                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
+                                            Last updated: {new Date(savedResume.updated_at).toLocaleDateString()}
                                         </p>
                                     </div>
-                                    {savedResume.score && (
+                                    {savedResume && (
                                         <div style={{
                                             background: 'linear-gradient(135deg, #10b981, #059669)',
                                             color: '#fff',
-                                            padding: '1.25rem 2rem',
+                                            padding: '1rem 1.5rem',
                                             borderRadius: '16px',
-                                            textAlign: 'center',
-                                            boxShadow: '0 10px 30px rgba(16, 185, 129, 0.2)'
+                                            textAlign: 'center'
                                         }}>
-                                            <p style={{ fontSize: '0.85rem', opacity: 0.9, marginBottom: '0.25rem' }}>ATS Score</p>
-                                            <p style={{ fontSize: '2.2rem', fontWeight: 900 }}>{savedResume.score}%</p>
+                                            <p style={{ fontSize: '0.85rem', opacity: 0.9 }}>ATS Score</p>
+                                            <p style={{ fontSize: '1.8rem', fontWeight: 900 }}>{dynamicAtsScore}%</p>
                                         </div>
                                     )}
                                 </div>
 
-                                {/* Display Resume Data (uploaded PDF or manual entry) */}
-                                {resumePreview.hasAnyData && (
-                                    <>
-                                        <div style={{
-                                            display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-                                            gap: '1.25rem', marginBottom: '2rem'
-                                        }}>
-                                            {resumePreview.name && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Name</p>
-                                                    <p style={{ fontSize: '1.1rem', fontWeight: 800, color: '#1e1b4b' }}>
-                                                        {resumePreview.name}
-                                                    </p>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.title && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Title</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.title}</p>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.email && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email</p>
-                                                    <p style={{ fontSize: '0.95rem', fontWeight: 600, color: '#1e1b4b', wordBreak: 'break-all' }}>{resumePreview.email}</p>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.phone && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Phone</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.phone}</p>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.location && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Location</p>
-                                                    <p style={{ fontSize: '1rem', fontWeight: 700, color: '#1e1b4b' }}>{resumePreview.location}</p>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.linkedin && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>LinkedIn</p>
-                                                    <a href={resumePreview.linkedin} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
-                                                        View Profile →
-                                                    </a>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.github && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>GitHub</p>
-                                                    <a href={resumePreview.github} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
-                                                        View Profile →
-                                                    </a>
-                                                </div>
-                                            )}
-
-                                            {resumePreview.website && (
-                                                <div style={{ padding: '1.25rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                                    <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.5rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Website</p>
-                                                    <a href={resumePreview.websiteHref} target="_blank" rel="noopener noreferrer" style={{ fontSize: '0.9rem', fontWeight: 700, color: '#4f46e5', textDecoration: 'none', wordBreak: 'break-all' }}>
-                                                        {resumePreview.website} →
-                                                    </a>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Summary Section */}
-                                        {resumePreview.summary && (
-                                            <div style={{ padding: '1.5rem', background: '#fff', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '2rem' }}>
-                                                <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '0.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Professional Summary</p>
-                                                <p style={{ fontSize: '1rem', lineHeight: 1.7, color: '#334155' }}>{resumePreview.summary}</p>
-                                            </div>
-                                        )}
-
-                                        {/* Skills Section */}
-                                        {resumePreview.skills.length > 0 && (
-                                            <div style={{ marginBottom: '2rem' }}>
-                                                <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '1rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Technical Skills</p>
-                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem' }}>
-                                                    {resumePreview.skills.slice(0, 15).map((skill, idx) => (
-                                                        <span key={idx} style={{
-                                                            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                                                            color: '#fff',
-                                                            padding: '0.5rem 1rem',
-                                                            borderRadius: '20px',
-                                                            fontSize: '0.9rem',
-                                                            fontWeight: 600,
-                                                            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.2)'
-                                                        }}>
-                                                            {typeof skill === 'string' ? skill : skill.name || skill}
-                                                        </span>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
                                 <div style={{
-                                    display: 'flex', gap: '1rem', flexWrap: 'wrap', marginTop: resumePreview.hasAnyData ? '2rem' : '0'
+                                    display: 'flex', gap: '1rem', flexWrap: 'wrap',
+                                    marginTop: '1.5rem'
                                 }}>
                                     <button
                                         onClick={handleEditResume}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            background: 'linear-gradient(135deg, #4f46e5, #7c3aed)', color: '#fff',
-                                            border: 'none', padding: '0.85rem 1.75rem',
+                                            background: 'var(--color-accent-primary)', color: '#fff',
+                                            border: 'none', padding: '0.75rem 1.5rem',
                                             borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
-                                            transition: 'all 0.2s',
-                                            fontSize: '1rem',
-                                            boxShadow: '0 4px 12px rgba(79, 70, 229, 0.3)'
+                                            transition: 'all 0.2s'
                                         }}
                                         onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                                         onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
@@ -403,58 +223,133 @@ export default function StudentChoice() {
                                         onClick={() => navigate(`/student`)}
                                         style={{
                                             display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            background: '#e2e8f0', color: '#1e1b4b',
-                                            border: 'none', padding: '0.85rem 1.75rem',
+                                            background: '#f3f4f6', color: 'var(--color-text-primary)',
+                                            border: 'none', padding: '0.75rem 1.5rem',
                                             borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
-                                            transition: 'all 0.2s',
-                                            fontSize: '1rem'
+                                            transition: 'all 0.2s'
                                         }}
                                         onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
                                         onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
                                     >
-                                        <Eye size={18} /> View All
+                                        <Eye size={18} /> View All Resumes
                                     </button>
                                 </div>
                             </motion.div>
                         )}
 
-                        {/* Quick Actions Section */}
-                        {!savedResume && (
-                            <>
-                                <h3 style={{
-                                    fontSize: '1.3rem', fontWeight: 800, marginTop: '3rem',
-                                    marginBottom: '1.5rem', textAlign: 'center', color: 'var(--color-text-primary)'
-                                }}>
-                                    Get Started
-                                </h3>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
-                                    <motion.div
-                                        whileHover={{ y: -10, scale: 1.02 }}
-                                        onClick={() => navigate('/upload-resume')}
-                                        style={{
-                                            background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
-                                            cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
-                                            border: '2px solid transparent', transition: 'all 0.3s'
-                                        }}
-                                        onMouseOver={e => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-                                        onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
-                                    >
-                                        <div style={{
-                                            width: '70px', height: '70px', background: 'var(--color-accent-primary)',
-                                            borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                            margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px var(--color-accent-primary)'
-                                        }}>
-                                            <Upload size={28} />
-                                        </div>
-                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Upload Resume</h3>
-                                        <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
-                                            Already have a resume? Upload it and we'll extract your details.
+                        {/* Saved Profile Section */}
+                        {savedProfile && (
+                            <motion.div
+                                initial={{ y: 20, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.2 }}
+                                style={{
+                                    background: '#fff',
+                                    borderRadius: '24px',
+                                    padding: '2rem',
+                                    marginBottom: '2rem',
+                                    boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
+                                    border: '2px solid #e5e7eb'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
+                                    <div>
+                                        <h2 style={{ fontSize: '1.8rem', fontWeight: 800, marginBottom: '0.5rem' }}>
+                                            👤 Master Profile
+                                        </h2>
+                                        <p style={{ color: 'var(--color-text-secondary)', fontSize: '0.95rem' }}>
+                                            {savedProfile.first_name || savedProfile.name ? `${savedProfile.first_name || ''} ${savedProfile.last_name || savedProfile.name || ''}`.trim() : 'Your professional profile'}
                                         </p>
-                                    </motion.div>
+                                    </div>
+                                </div>
 
+                                <div style={{
+                                    display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                                    gap: '1rem', marginBottom: '1.5rem'
+                                }}>
+                                    {savedProfile.title && (
+                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Title</p>
+                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>{savedProfile.title}</p>
+                                        </div>
+                                    )}
+                                    {(savedProfile.city || savedProfile.country) && (
+                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Location</p>
+                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>
+                                                {[savedProfile.city, savedProfile.country].filter(Boolean).join(', ')}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {savedProfile.phone && (
+                                        <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px' }}>
+                                            <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.25rem' }}>Phone</p>
+                                            <p style={{ fontSize: '1rem', fontWeight: 700 }}>{savedProfile.phone}</p>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {savedProfile.summary && (
+                                    <div style={{ padding: '1rem', background: '#f9fafb', borderRadius: '12px', marginBottom: '1.5rem' }}>
+                                        <p style={{ fontSize: '0.85rem', color: 'var(--color-text-secondary)', marginBottom: '0.5rem' }}>Summary</p>
+                                        <p style={{ fontSize: '0.95rem', lineHeight: 1.6 }}>{savedProfile.summary}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleEditProfile}
+                                    style={{
+                                        display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                        background: '#10b981', color: '#fff',
+                                        border: 'none', padding: '0.75rem 1.5rem',
+                                        borderRadius: '12px', cursor: 'pointer', fontWeight: 700,
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseOver={e => e.currentTarget.style.transform = 'translateY(-2px)'}
+                                    onMouseOut={e => e.currentTarget.style.transform = 'translateY(0)'}
+                                >
+                                    <Edit3 size={18} /> Edit Profile
+                                </button>
+                            </motion.div>
+                        )}
+
+                        {/* Quick Actions Section */}
+                        <>
+                            <h3 style={{
+                                fontSize: '1.3rem', fontWeight: 800, marginTop: '3rem',
+                                marginBottom: '1.5rem', textAlign: 'center', color: 'var(--color-text-primary)'
+                            }}>
+                                Quick Actions
+                            </h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+                                <motion.div
+                                    whileHover={{ y: -10, scale: 1.02 }}
+                                    onClick={() => navigate('/upload-resume')}
+                                    style={{
+                                        background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
+                                        cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
+                                        border: '2px solid transparent', transition: 'all 0.3s'
+                                    }}
+                                    onMouseOver={e => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
+                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
+                                >
+                                    <div style={{
+                                        width: '70px', height: '70px', background: 'var(--color-accent-primary)',
+                                        borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px var(--color-accent-primary)'
+                                    }}>
+                                        <Upload size={28} />
+                                    </div>
+                                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Upload Resume</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
+                                        Upload PDF/DOCX and auto-fill resume data anytime.
+                                    </p>
+                                </motion.div>
+
+                                {!savedProfile && (
                                     <motion.div
                                         whileHover={{ y: -10, scale: 1.02 }}
-                                        onClick={() => navigate('/templates')}
+                                        onClick={() => navigate('/master-profile')}
                                         style={{
                                             background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
                                             cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
@@ -468,19 +363,43 @@ export default function StudentChoice() {
                                             borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
                                             margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px #10b981'
                                         }}>
-                                            <FileText size={28} />
+                                            <UserPlus size={28} />
                                         </div>
-                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Create Resume Manually</h3>
+                                        <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Create Profile</h3>
                                         <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
-                                            Start from a template and enter details manually.
+                                            Build a master profile from scratch.
                                         </p>
                                     </motion.div>
-                                </div>
-                            </>
-                        )}
+                                )}
+
+                                <motion.div
+                                    whileHover={{ y: -10, scale: 1.02 }}
+                                    onClick={handleViewAllResumes}
+                                    style={{
+                                        background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
+                                        cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
+                                        border: '2px solid transparent', transition: 'all 0.3s'
+                                    }}
+                                    onMouseOver={e => e.currentTarget.style.borderColor = '#f59e0b'}
+                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
+                                >
+                                    <div style={{
+                                        width: '70px', height: '70px', background: '#f59e0b',
+                                        borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px #f59e0b'
+                                    }}>
+                                        <FileText size={28} />
+                                    </div>
+                                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Dashboard</h3>
+                                    <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
+                                        View all resumes and cover letters.
+                                    </p>
+                                </motion.div>
+                            </div>
+                        </>
 
                         {/* Empty State */}
-                        {!savedResume && (
+                        {!savedResume && !savedProfile && (
                             <motion.div
                                 initial={{ y: 20, opacity: 0 }}
                                 animate={{ y: 0, opacity: 1 }}

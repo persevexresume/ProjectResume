@@ -7,7 +7,7 @@ import useStore from '../store/useStore'
 import { getDbUserId } from '../lib/userIdentity'
 
 export default function SignIn() {
-    const { setUser, updatePersonalInfo, setExperience, setEducation, setSkills, resetResume } = useStore()
+    const { setUser, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, resetResume } = useStore()
     const navigate = useNavigate()
     const location = useLocation()
     const [loginId, setLoginId] = useState('')
@@ -104,12 +104,14 @@ export default function SignIn() {
                         setExperience(Array.isArray(profile.experience_data) ? profile.experience_data : [])
                         setEducation(Array.isArray(profile.education_data) ? profile.education_data : [])
                         setSkills(Array.isArray(profile.skills_data) ? profile.skills_data : [])
+                        setProjects(Array.isArray(profile.projects_data) ? profile.projects_data : [])
+                        setCertifications(Array.isArray(profile.certifications_data) ? profile.certifications_data : [])
                     } else {
                         resetResume()
                         updatePersonalInfo({ email: result.user.email || '' })
                     }
 
-                    navigate('/student')
+                    navigate('/student/choice')
                 }
             } else {
                 setError(result.error || 'Invalid credentials. Please try again.')

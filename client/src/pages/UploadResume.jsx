@@ -4,13 +4,11 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Upload, FileText, ArrowLeft, CheckCircle2, Loader2, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
-import { supabase } from '../supabase'
-import { getDbUserId } from '../lib/userIdentity'
 
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { user, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -58,7 +56,6 @@ export default function UploadResume() {
         // Find name: First non-empty line that isn't a section header and doesn't contain a phone/email/url
         const nameLine = lines.find((line) => {
             const clean = line.trim()
-            if (!clean || clean.length < 3 || clean.length > 60) return false
             if (/[@\d]/.test(clean)) return false
             if (clean.toLowerCase().includes('http')) return false
             if (isLikelySectionHeader(clean)) return false
@@ -91,9 +88,9 @@ export default function UploadResume() {
             lastName,
             email: emailMatch?.[0] || '',
             phone: phoneMatch?.[0]?.trim() || '',
-            location: (locationLine || '').slice(0, 80),
-            title: (titleCandidate || '').slice(0, 80),
-            summary: summaryLines.slice(0, 4).join(' ').slice(0, 450),
+            location: locationLine || '',
+            title: titleCandidate || '',
+            summary: summaryLines.join(' '),
             linkedin: linkedinMatch?.[0] || '',
             github: githubMatch?.[0] || '',
             website: isEmailDomain ? '' : website
@@ -110,7 +107,7 @@ export default function UploadResume() {
             .map((item) => item.trim())
             .filter((item) => item.length >= 2 && item.length <= 40)
 
-        const deduped = [...new Set(skillTokens)].slice(0, 15)
+        const deduped = [...new Set(skillTokens)]
         return deduped.map((name, index) => ({ id: Date.now() + index, name, level: 'Advanced' }))
     }
 
@@ -132,7 +129,7 @@ export default function UploadResume() {
             }
         }
         if (currentEntry) entries.push(currentEntry)
-        return entries.map(e => ({ ...e, description: e.description.slice(0, 250) })).slice(0, 5)
+        return entries
     }
 
     const parseEducation = (lines) => {
@@ -152,8 +149,8 @@ export default function UploadResume() {
 
             entries.push({
                 id: Date.now() + i,
-                school: schoolLine.slice(0, 90),
-                degree: degreeLine.slice(0, 90),
+                school: schoolLine,
+                degree: degreeLine,
                 location: '',
                 startDate: years[0] || '',
                 endDate: years[1] || years[0] || '',
@@ -163,7 +160,7 @@ export default function UploadResume() {
             i++ // Skip next since we consumed it
         }
 
-        return entries.slice(0, 5)
+        return entries
     }
 
     const parseExperience = (lines) => {
@@ -183,16 +180,43 @@ export default function UploadResume() {
 
             entries.push({
                 id: Date.now() + i,
-                role: roleLine.slice(0, 80) || 'Professional Role',
-                company: companyLine.slice(0, 80) || 'Organization',
+                role: roleLine || 'Professional Role',
+                company: companyLine || 'Organization',
                 location: '',
                 startDate: (dateParts[0] || '').trim(),
                 endDate: (dateParts[1] || '').trim(),
-                description: details.slice(0, 350)
+                description: details
             })
         }
 
-        return entries.slice(0, 6)
+        return entries
+    }
+
+    const parseCertifications = (lines) => {
+        const certLines = getSectionContent(lines, SECTION_HEADERS.certifications)
+        const entries = []
+
+        for (let i = 0; i < certLines.length; i += 1) {
+            const clean = certLines[i]?.trim()
+            if (!clean) continue
+
+            const next = certLines[i + 1]?.trim() || ''
+            entries.push({
+                id: Date.now() + i,
+                name: clean,
+                issuer: next && !isLikelySectionHeader(next) ? next : '',
+                issueDate: '',
+                expiryDate: '',
+                credentialId: '',
+                link: ''
+            })
+
+            if (next && !isLikelySectionHeader(next)) {
+                i += 1
+            }
+        }
+
+        return entries
     }
 
     const extractTextFromPdf = async (selectedFile) => {
@@ -259,75 +283,38 @@ export default function UploadResume() {
             experience: parseExperience(lines),
             education: parseEducation(lines),
             skills: parseSkills(lines),
-            projects: parseProjects(lines)
+            projects: parseProjects(lines),
+            certifications: parseCertifications(lines)
         }
     }
 
-    const saveParsedResume = async (parsed, selectedFile) => {
-        const dbUserId = getDbUserId(user)
-        if (!dbUserId) {
-            throw new Error('Please sign in again before uploading resume.')
+    const parseResumeWithAI = async (rawText) => {
+        const response = await fetch('/api/parse-resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resumeText: rawText })
+        })
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            throw new Error(err.error || 'AI parsing is unavailable right now.')
         }
 
-        const fullName = `${parsed.personalInfo?.firstName || ''} ${parsed.personalInfo?.lastName || ''}`.trim()
-        const fallbackTitle = selectedFile?.name ? selectedFile.name.replace(/\.[^.]+$/, '') : ''
-        const title = parsed.personalInfo?.title || fullName || fallbackTitle || 'Uploaded Resume'
+        const payload = await response.json()
+        return payload?.data || {}
+    }
 
-        const resumePayload = {
-            firstName: parsed.personalInfo?.firstName || '',
-            lastName: parsed.personalInfo?.lastName || '',
-            title: parsed.personalInfo?.title || '',
-            email: parsed.personalInfo?.email || '',
-            phone: parsed.personalInfo?.phone || '',
-            location: parsed.personalInfo?.location || '',
-            linkedin: parsed.personalInfo?.linkedin || '',
-            github: parsed.personalInfo?.github || '',
-            website: parsed.personalInfo?.website || '',
-            summary: parsed.personalInfo?.summary || '',
-            personalInfo: parsed.personalInfo || {},
-            experience: parsed.experience || [],
-            education: parsed.education || [],
-            skills: parsed.skills || [],
-            projects: parsed.projects || [],
-            certifications: parsed.certifications || []
+    const mergeParsedResume = (baseParsed, aiParsed) => {
+        const asArray = (value) => (Array.isArray(value) ? value : [])
+
+        return {
+            personalInfo: { ...(baseParsed.personalInfo || {}), ...(aiParsed?.personalInfo || {}) },
+            experience: asArray(aiParsed?.experience).length ? aiParsed.experience : asArray(baseParsed.experience),
+            education: asArray(aiParsed?.education).length ? aiParsed.education : asArray(baseParsed.education),
+            skills: asArray(aiParsed?.skills).length ? aiParsed.skills : asArray(baseParsed.skills),
+            projects: asArray(aiParsed?.projects).length ? aiParsed.projects : asArray(baseParsed.projects),
+            certifications: asArray(aiParsed?.certifications)
         }
-
-        const payload = {
-            user_id: dbUserId,
-            title,
-            data: resumePayload,
-            template_id: 't01',
-            template: 't01',
-            score: 0,
-            updated_at: new Date().toISOString()
-        }
-
-        const attemptPayload = { ...payload }
-
-        for (let attempt = 0; attempt < 6; attempt += 1) {
-            const { error } = await supabase
-                .from('resumes')
-                .insert({
-                    ...attemptPayload,
-                    created_at: new Date().toISOString()
-                })
-
-            if (!error) {
-                return
-            }
-
-            const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-            const missingColumnMatch = fullMessage.match(/Could not find the '([^']+)' column/i) || fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-            if (missingColumnMatch && attemptPayload[missingColumnMatch[1]] !== undefined) {
-                delete attemptPayload[missingColumnMatch[1]]
-                continue
-            }
-
-            throw error
-        }
-
-        throw new Error('Unable to save uploaded resume due to schema mismatch.')
     }
 
     const handleFileChange = (e) => {
@@ -345,7 +332,18 @@ export default function UploadResume() {
             const extractedText = await extractResumeText(selectedFile)
 
             setStatus('parsing')
-            const parsed = parseResumeText(extractedText)
+            const locallyParsed = parseResumeText(extractedText)
+
+            let parsed = locallyParsed
+            try {
+                const aiParsed = await parseResumeWithAI(extractedText)
+                parsed = mergeParsedResume(locallyParsed, aiParsed)
+            } catch (aiError) {
+                console.warn('AI parser unavailable, using local parser fallback:', aiError)
+            }
+
+            // Upload flow should always create a new resume record.
+            setEditingResumeId(null)
 
             // Update local store
             updatePersonalInfo(parsed.personalInfo)
@@ -355,12 +353,11 @@ export default function UploadResume() {
             setProjects(parsed.projects || [])
             setCertifications(parsed.certifications || [])
 
-            await saveParsedResume(parsed, selectedFile)
-
             setStatus('success')
-            toastSuccess('Resume uploaded and saved successfully. Redirecting to dashboard...')
+            toastSuccess('Resume parsed successfully. Redirecting to templates...')
             setTimeout(() => {
-                navigate('/student/choice')
+                // Redirect to templates so user can see their data injected in thumbnails
+                navigate('/templates')
             }, 1200)
         } catch (error) {
             console.error('Resume parsing failed:', error)

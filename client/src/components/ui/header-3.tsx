@@ -77,7 +77,7 @@ export function Header() {
         location.pathname === '/upload-resume';
     const isStudentChoice = location.pathname === '/student/choice';
     const isBuildPage = location.pathname === '/build' || location.pathname === '/build-demo';
-    const isStandaloneFlowPage = location.pathname === '/upload-resume';
+    const isStandaloneFlowPage = location.pathname === '/upload-resume' || location.pathname === '/master-profile';
 
     // Hide header on student choice and build pages
     if (isStudentChoice || isBuildPage || isStandaloneFlowPage) return null;
@@ -137,7 +137,14 @@ export function Header() {
                                 </Link>
 
                                 <Link
-                                    to="/master-profile"
+                                    to="/templates"
+                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                >
+                                    Templates
+                                </Link>
+
+                                <Link
+                                    to="/student/choice"
                                     className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
                                 >
                                     Master Profile
@@ -190,7 +197,23 @@ export function Header() {
                                     Support
                                 </Link>
 
-                                 {/* Removed Build and Templates from here as requested */}
+                                {location.pathname !== '/' && (
+                                    <>
+                                        <Link
+                                            to="/signin"
+                                            className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                        >
+                                            Build
+                                        </Link>
+
+                                        <Link
+                                            to="/templates"
+                                            className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                        >
+                                            Templates
+                                        </Link>
+                                    </>
+                                )}
 
                                 {/* Job Portal Highlight inside the island */}
                                 <a
@@ -256,7 +279,11 @@ export function Header() {
                                 <FileStack className="size-5 text-blue-600" />
                                 Dashboard
                             </Link>
-                            <Link to="/master-profile" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
+                            <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-indigo-50">
+                                <Layout className="size-5 text-indigo-600" />
+                                Templates
+                            </Link>
+                            <Link to="/student/choice" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
                                 <UserCircle className="size-5 text-violet-600" />
                                 Master Profile
                             </Link>
@@ -280,7 +307,18 @@ export function Header() {
                                 <LifeBuoy className="size-5 text-emerald-500" />
                                 Support
                             </Link>
-                            {/* Removed Build and Templates from mobile as requested */}
+                            {location.pathname !== '/' && (
+                                <>
+                                    <Link to="/build" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold">
+                                        <Zap className="size-5 text-blue-600" />
+                                        Build
+                                    </Link>
+                                    <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold">
+                                        <Layout className="size-5 text-indigo-600" />
+                                        Templates
+                                    </Link>
+                                </>
+                            )}
                             <a href="https://www.persevex.com/job-portal" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform">
                                 <Briefcase className="size-5" />
                                 Job Portal

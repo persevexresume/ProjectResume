@@ -1,29 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Plus, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap } from 'lucide-react'
-import { motion, AnimatePresence } from 'framer-motion'
+import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap, Search, Plus, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase, isMock } from '../supabase'
 import { resumeTemplates } from '../data/templates'
 import { getDbUserId } from '../lib/userIdentity'
-import ResumeRenderer from '../components/resume/ResumeRenderer'
+import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer'
 import ATSChecker from '../components/ATSChecker'
-import ATSRealtimePanel from '../components/resume/ATSRealtimePanel'
 
 // Wizard Components
-import PathSelection from '../components/builder/PathSelection'
-import WizardStep from '../components/builder/WizardStep'
-import SectionIntro from '../components/builder/SectionIntro'
-import TemplatePreview from '../components/builder/TemplatePreview'
+import PathSelection from '../components/build/PathSelection'
+import WizardStep from '../components/build/WizardStep'
+import SectionIntro from '../components/build/SectionIntro'
+import TemplatePreview from '../components/build/TemplatePreview'
 import { useToast } from '../context/ToastContext'
-import { Search, Target, FileText as FileIcon } from 'lucide-react'
 
 export default function Build() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
     const [searchParams] = useSearchParams()
     const templateFromQuery = searchParams.get('template')
-    const { user, resumeData, customization, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, setJobDescription, selectedTemplate, setSelectedTemplate, editingResumeId, restoreUserFromFallback, setUser } = useStore()
+    const { user, resumeData, customization, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, selectedTemplate, setSelectedTemplate, editingResumeId, setEditingResumeId, restoreUserFromFallback, setUser } = useStore()
 
     // Wizard State
     const [viewMode, setViewMode] = useState('selection') // 'selection', 'preview', 'intro', 'form'
@@ -37,70 +34,7 @@ export default function Build() {
     const [themeColor, setThemeColor] = useState('#2563eb')
     const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
     const [showATSChecker, setShowATSChecker] = useState(false)
-    const [showBigPreview, setShowBigPreview] = useState(false)
-    const [rightSidebarTab, setRightSidebarTab] = useState('preview') // 'preview', 'ats'
-    const [isImporting, setIsImporting] = useState(false)
-    const [previewUpdateTrigger, setPreviewUpdateTrigger] = useState(0) // Force preview re-render on photo upload
-
-    const handleImportFromProfile = async () => {
-        if (!user) return;
-        setIsImporting(true);
-        try {
-            const dbUserId = getDbUserId(user);
-            const tableCandidates = ['master_profiles', 'profiles'];
-            let profileData = null;
-
-            for (const tableName of tableCandidates) {
-                const { data, error } = await supabase
-                    .from(tableName)
-                    .select('*')
-                    .eq('user_id', dbUserId)
-                    .maybeSingle();
-
-                if (data) {
-                    profileData = data;
-                    break;
-                }
-            }
-
-            if (profileData) {
-                const data = profileData;
-                updatePersonalInfo({
-                    firstName: data.first_name || '',
-                    lastName: data.last_name || '',
-                    email: data.email || user?.email || '',
-                    phone: data.phone || '',
-                    location: data.location || `${data.city || ''}, ${data.country || ''}`.replace(/^, /, '') || '',
-                    title: data.title || '',
-                    summary: data.summary || '',
-                    profilePhoto: data.profile_photo || ''
-                })
-
-                // Load Experience if resume is empty or user confirms
-                if (data.experience_data && Array.isArray(data.experience_data)) {
-                    setExperience(data.experience_data)
-                }
-
-                // Load Education
-                if (data.education_data && Array.isArray(data.education_data)) {
-                    setEducation(data.education_data)
-                }
-
-                // Load Skills
-                if (data.skills_data && Array.isArray(data.skills_data)) {
-                    setSkills(data.skills_data)
-                }
-
-                toastSuccess('Everything imported from your Master Profile!')
-            } else {
-                toastInfo('No master profile found. Create one to enable 1-click building!')
-            }
-        } catch (err) {
-            toastError('Import failed: ' + err.message)
-        } finally {
-            setIsImporting(false)
-        }
-    }
+    const [showPreviewModal, setShowPreviewModal] = useState(false)
 
     useEffect(() => {
         const handleResize = () => setViewportWidth(window.innerWidth)
@@ -109,10 +43,29 @@ export default function Build() {
     }, [])
 
     const isCompactRail = viewportWidth < 860
-    const showPreviewPanel = viewportWidth >= 1100
-    const railWidth = isCompactRail ? 92 : (viewportWidth < 1200 ? 240 : 280)
-    const previewWidth = viewportWidth < 1400 ? 320 : 400
-    const previewScale = Math.max(0.5, Math.min(0.74, (previewWidth - 28) / 816))
+    const showPreviewPanel = viewportWidth >= 1024
+    
+    const railWidth = isCompactRail ? 92 : 260
+    // LockedinAI/ResumeNow style wide split screen:
+    // User wants roughly 45-50% of the screen width for the live preview
+    const previewWidth = showPreviewPanel ? Math.max(480, Math.floor((viewportWidth - railWidth) * 0.48)) : 0
+    // The true A4 pixel width is ~816. We scale the preview exactly to the panel.
+    const previewScale = Math.max(0.4, Math.min(1.0, (previewWidth - 48) / 816))
+
+    // Real-Time Auto-Save Functionality (LockedInAI style)
+    const initialRender = useRef(true)
+    useEffect(() => {
+        if (initialRender.current) {
+            initialRender.current = false
+            return
+        }
+        if (viewMode === 'form' && selectedTemplate) {
+            const timeout = setTimeout(() => {
+                handleSave(true)
+            }, 1200)
+            return () => clearTimeout(timeout)
+        }
+    }, [resumeData, selectedTemplate, customization])
 
     useEffect(() => {
         const resolvedTemplateId = templateFromQuery || selectedTemplate
@@ -260,9 +213,11 @@ export default function Build() {
         }
     }
 
-    const handleSave = async () => {
-        setSaving(true)
-        setStatusMessage('')
+    const handleSave = async (isAutoSave = false) => {
+        if (!isAutoSave) {
+            setSaving(true)
+            setStatusMessage('')
+        }
         try {
             let activeUser = user
             if (!activeUser) {
@@ -296,6 +251,7 @@ export default function Build() {
                 template_id: activeTemplateId,
                 template: activeTemplateId,
                 customization: customization,
+                score: calculateATSScore(resumeData),
                 updated_at: new Date().toISOString()
             }
 
@@ -310,6 +266,12 @@ export default function Build() {
                             .from('resumes')
                             .update(attemptPayload)
                             .eq('id', editingResumeId)
+                            .select('id')
+                            .maybeSingle()
+
+                        if (!result.error && !result.data) {
+                            return { error: null, noRowsUpdated: true }
+                        }
                     } else {
                         result = await supabase
                             .from('resumes')
@@ -317,10 +279,12 @@ export default function Build() {
                                 ...attemptPayload,
                                 created_at: new Date().toISOString()
                             })
+                            .select('id')
+                            .single()
                     }
 
                     if (!result.error) {
-                        return { error: null }
+                        return { error: null, noRowsUpdated: false, data: result.data }
                     }
 
                     const fullMessage = [result.error.message, result.error.details, result.error.hint].filter(Boolean).join(' | ')
@@ -342,7 +306,19 @@ export default function Build() {
                 return { error: { message: 'Save failed after multiple schema adaptation attempts.' } }
             }
 
-            let { error } = await saveWithAdaptiveColumns(Boolean(editingResumeId), payload)
+            const startedAsUpdate = Boolean(editingResumeId)
+            let { error, noRowsUpdated, data } = await saveWithAdaptiveColumns(startedAsUpdate, payload)
+
+            if (!error && startedAsUpdate && noRowsUpdated) {
+                const insertResult = await saveWithAdaptiveColumns(false, payload)
+                error = insertResult.error
+                noRowsUpdated = insertResult.noRowsUpdated
+                data = insertResult.data
+            }
+
+            if (!error && data?.id) {
+                setEditingResumeId(data.id)
+            }
 
             // If FK fails, recover user_id from students table and retry once.
             if (error && /resumes_user_id_fkey|foreign key constraint/i.test([error.message, error.details, error.hint].filter(Boolean).join(' | ')) && activeUser?.email && !isMock) {
@@ -373,21 +349,27 @@ export default function Build() {
                 throw new Error(details || 'Unknown database error')
             }
 
-            setSaveSuccess(true)
-            setStatusType('success')
-            setStatusMessage('Resume saved successfully.')
-            toastSuccess('Resume saved successfully.')
-            setTimeout(() => setSaveSuccess(false), 3000)
+            if (!isAutoSave) {
+                setSaveSuccess(true)
+                setStatusType('success')
+                setStatusMessage('Resume saved successfully.')
+                toastSuccess('Resume saved successfully.')
+                setTimeout(() => setSaveSuccess(false), 3000)
+            }
             return true
         } catch (error) {
             console.error('Error saving resume:', error)
             const message = (error && error.message) ? error.message : 'Failed to save progress'
-            setStatusType('error')
-            setStatusMessage(`Failed to save progress: ${message}`)
-            toastError(`Failed to save progress: ${message}`)
+            if (!isAutoSave) {
+                setStatusType('error')
+                setStatusMessage(`Failed to save progress: ${message}`)
+                toastError(`Failed to save progress: ${message}`)
+            }
             return false
         } finally {
-            setSaving(false)
+            if (!isAutoSave) {
+                setSaving(false)
+            }
         }
     }
 
@@ -513,6 +495,15 @@ export default function Build() {
                     </div>
                 ))}
 
+                <button
+                    onClick={() => setShowATSChecker(true)}
+                    className="mt-6 w-full flex items-center gap-2 p-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg rounded-xl font-bold text-xs uppercase tracking-widest transition-all"
+                    style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '1rem' }}
+                    title="Analyze your resume with AI-powered ATS checker"
+                >
+                    <Zap size={14} />
+                    {!isCompactRail && 'ATS Check'}
+                </button>
 
                 <button
                     onClick={() => navigate('/student')}
@@ -563,7 +554,7 @@ export default function Build() {
                         nextLabel={activeStep === steps.length ? 'Finalize Resume' : 'Continue'}
                     >
                         <div className="bg-white p-2">
-                            {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} onImport={handleImportFromProfile} isImporting={isImporting} supportsPhoto={currentTemplate?.supportsPhoto !== false} user={user} onPhotoUpload={() => setPreviewUpdateTrigger(prev => prev + 1)} />}
+                            {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} />}
                             {activeStep === 2 && <ExperienceSection experience={resumeData.experience} setExp={setExperience} />}
                             {activeStep === 3 && <EducationSection education={resumeData.education} setEdu={setEducation} />}
                             {activeStep === 4 && <SkillsSection skills={resumeData.skills} setSkills={setSkills} />}
@@ -575,279 +566,284 @@ export default function Build() {
                 )}
             </div>
 
-            {/* 3. Live Preview Panel */}
+            {/* 3. Live Preview Panel (ResumeNow / LockedInAI Layout) */}
             {showPreviewPanel && (
             <div style={{
-                width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1.5px solid #f1f5f9',
-                overflowY: 'auto', padding: '1.5rem', position: 'fixed', top: 0, right: 0, bottom: 0,
-                display: 'flex', flexDirection: 'column', zIndex: 10
+                width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1.5px solid #e2e8f0',
+                overflowY: 'auto', overflowX: 'hidden', padding: '2rem', position: 'fixed', top: 0, right: 0, bottom: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10
             }}>
-                {/* Tabs for Sidebar */}
-                <div className="flex bg-slate-200/50 p-1.5 rounded-2xl mb-8 self-center">
-                    <button 
-                        onClick={() => setRightSidebarTab('preview')}
-                        className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rightSidebarTab === 'preview' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        Live Preview
-                    </button>
-                    <button 
-                        onClick={() => setRightSidebarTab('ats')}
-                        className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rightSidebarTab === 'ats' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-                    >
-                        ATS Checker
-                    </button>
+                <div style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+                        <span style={{ fontSize: '0.65rem', fontWeight: 950, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>REAL-TIME ENGINE</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
+                        <Zap size={12} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
+                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#334155', letterSpacing: '0.05em' }}>ATS Score:</span>
+                        <span className={`text-xs font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
+                    </div>
                 </div>
 
-                {rightSidebarTab === 'preview' ? (
-                    <div className="flex flex-col items-center animate-in fade-in slide-in-from-right-4 duration-500">
-                        <div style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}>
-                            <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                            <span style={{ fontSize: '0.65rem', fontWeight: 950, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>REAL-TIME ENGINE</span>
-                        </div>
-
-                        <div style={{ 
-                            position: 'relative', 
-                            width: '100%', 
-                            aspectRatio: '1/1.41', 
-                            boxShadow: '0 32px 64px -16px rgba(0,0,0,0.12)', 
-                            borderRadius: '12px', 
-                            overflow: 'hidden', 
-                            border: '1px solid #f1f5f9',
-                            background: '#fff'
-                        }}>
-                            <div style={{ 
-                                transform: `scale(${previewScale})`, 
-                                transformOrigin: 'top left',
-                                width: '794px',
-                                height: '1123px',
-                                position: 'absolute',
-                                top: 0,
-                                left: 0
-                            }}>
-                                {activeTemplateId && (
-                                    <ResumeRenderer key={`${activeTemplateId}-${previewUpdateTrigger}`} data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
-                                )}
-                            </div>
-                            
-                            {/* Floating Actions on Bottom Left */}
-                            <div className="absolute bottom-4 left-4 flex flex-col gap-3">
-                                <button 
-                                    onClick={() => setShowBigPreview(true)}
-                                    className="w-8 h-8 bg-slate-900/90 text-white rounded-lg flex items-center justify-center shadow-xl hover:bg-black hover:scale-105 transition-all"
-                                    title="Open Big Preview"
-                                >
-                                    <Plus size={18} />
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="mt-8 w-full">
-                            <button
-                                onClick={handleSave}
-                                disabled={saving}
-                                className="w-full flex items-center justify-center gap-2 p-3 bg-white border border-slate-200 rounded-2xl text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
-                            >
-                                {saving ? 'Syncing...' : saveSuccess ? <><CheckCircle2 size={16} className="text-emerald-500" /> Saved</> : <><Save size={16} /> Save Draft</>}
-                            </button>
-                        </div>
+                <div style={{
+                    width: '100%',
+                    boxShadow: '0 32px 64px -16px rgba(0,0,0,0.12)',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    border: '1px solid #f1f5f9',
+                    background: '#fff'
+                }}>
+                    {activeTemplateId && (
+                        <PagedResumePreview
+                            data={resumeData}
+                            templateId={activeTemplateId}
+                            customization={{ ...customization, themeColor }}
+                            previewScale={previewScale}
+                            paged={false}
+                        />
+                    )}
+                    <div className="absolute bottom-6 right-6 flex flex-col gap-3">
+                        <button
+                            onClick={() => setShowPreviewModal(true)}
+                            className="w-14 h-14 bg-[#f7c66a] text-slate-900 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform border border-amber-300"
+                            title="Open full preview"
+                        >
+                            <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Search size={24} strokeWidth={2.3} />
+                                <Plus size={11} strokeWidth={3} style={{ position: 'absolute', top: '3px', right: '2px' }} />
+                            </span>
+                        </button>
                     </div>
-                ) : (
-                    <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-right-4 duration-500">
-                         {/* Job Description Input */}
-                         <div className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm">
-                             <div className="flex items-center gap-2 mb-4">
-                               <Target size={18} className="text-indigo-600" />
-                               <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">Job Description</h3>
-                             </div>
-                             <textarea 
-                                value={resumeData.jobDescription || ''}
-                                onChange={(e) => setJobDescription(e.target.value)}
-                                placeholder="Paste the job description here to see keyword matches and ATS analysis..."
-                                className="w-full h-32 p-4 bg-slate-50 border border-slate-100 rounded-2xl text-xs font-bold text-slate-700 outline-none focus:bg-white focus:border-indigo-600 transition-all resize-none"
-                             />
-                             <p className="mt-2 text-[10px] font-bold text-slate-400 px-1">Keywords are automatically extracted from this text.</p>
-                         </div>
+                </div>
 
-                         {/* AI Scan Trigger */}
-                         <div className="bg-indigo-600 p-6 rounded-[2rem] shadow-xl shadow-indigo-100 text-white group">
-                             <div className="flex items-center gap-3 mb-4">
-                               <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white backdrop-blur-sm group-hover:scale-110 transition-transform">
-                                   <Sparkles size={20} className="text-amber-300" />
-                               </div>
-                               <div>
-                                   <h4 className="font-black text-xs uppercase tracking-tight">AI Deep Analysis</h4>
-                                   <p className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Premium Engine</p>
-                               </div>
-                             </div>
-                             <p className="text-[11px] font-bold text-indigo-100 leading-relaxed mb-6">
-                                Get a comprehensive AI report with line-by-line feedback and precise formatting checks.
-                             </p>
-                             <button 
-                                onClick={() => setShowATSChecker(true)}
-                                className="w-full py-3 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 transition-all shadow-lg active:scale-95"
-                             >
-                                Run Deep AI Scan
-                             </button>
-                         </div>
-
-                         {/* Real-time Insights */}
-                         <ATSRealtimePanel resumeData={resumeData} />
-                    </div>
-                )}
+                <div className="mt-8 w-full">
+                    <button
+                        onClick={() => handleSave(false)}
+                        disabled={saving}
+                        className="w-full flex items-center justify-center gap-2 p-3 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                    >
+                        {saving ? <><Zap size={14} className="animate-pulse text-blue-500"/> Auto-Saving...</> : saveSuccess ? <><CheckCircle2 size={16} className="text-emerald-500" /> Saved to Cloud</> : <><Save size={16} className="text-blue-500" /> Force Save</>}
+                    </button>
+                    <p className="text-center text-[10px] text-slate-400 mt-3 uppercase tracking-widest font-bold">Progress saves automatically</p>
+                </div>
             </div>
             )}
 
-            {/* ATS Deep Analysis Modal */}
+            {/* ATS Checker Modal */}
             {showATSChecker && (
                 <ATSChecker onClose={() => setShowATSChecker(false)} />
             )}
 
-            {/* Big Preview Modal */}
-            <AnimatePresence>
-                {showBigPreview && (
-                    <motion.div 
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 md:p-12"
-                        onClick={() => setShowBigPreview(false)}
+            {/* Centered Resume Preview Modal */}
+            {showPreviewModal && (
+                <div
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowPreviewModal(false)
+                        }
+                    }}
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 120,
+                        background: 'rgba(15, 23, 42, 0.45)',
+                        backdropFilter: 'blur(4px)',
+                        WebkitBackdropFilter: 'blur(4px)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '1rem'
+                    }}
+                >
+                    <div
+                        style={{
+                            width: 'min(980px, 92vw)',
+                            maxHeight: '90vh',
+                            background: '#fff',
+                            borderRadius: '12px',
+                            overflow: 'hidden',
+                            boxShadow: '0 35px 80px -20px rgba(15, 23, 42, 0.6)',
+                            border: '1px solid #dbeafe'
+                        }}
                     >
-                        <motion.div 
-                            initial={{ scale: 0.9, opacity: 0, y: 40 }}
-                            animate={{ scale: 1, opacity: 1, y: 0 }}
-                            exit={{ scale: 0.9, opacity: 0, y: 40 }}
-                            className="relative w-full max-w-5xl h-full bg-white rounded-[2.5rem] overflow-hidden shadow-[0_32px_120px_-20px_rgba(0,0,0,0.3)] border border-slate-200"
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            <div className="absolute top-8 right-8 z-10">
-                                <button 
-                                    onClick={() => setShowBigPreview(false)}
-                                    className="w-12 h-12 bg-white/80 backdrop-blur hover:bg-white text-slate-900 rounded-full flex items-center justify-center transition-all shadow-xl hover:scale-110 active:scale-95 border border-slate-100"
-                                >
-                                    <ArrowLeft size={24} className="rotate-180" />
-                                </button>
+                        <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '0.85rem 1rem',
+                            borderBottom: '1px solid #e2e8f0',
+                            background: '#f8fafc'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem' }}>
+                                <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <Search size={16} color="#334155" />
+                                    <Plus size={8} color="#334155" strokeWidth={3} style={{ position: 'absolute', top: '0px', right: '-1px' }} />
+                                </span>
+                                <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#334155', letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+                                    Resume Preview
+                                </span>
                             </div>
-                            
-                            <div className="w-full h-full overflow-y-auto p-12 flex justify-center bg-slate-50/50">
-                                <div className="bg-white shadow-2xl origin-top mb-12" style={{ 
-                                    width: '794px', 
-                                    minHeight: '1123px',
-                                    transform: viewportWidth < 1000 ? `scale(${(viewportWidth - 100) / 794})` : 'scale(1)'
-                                }}>
-                                    {activeTemplateId && (
-                                        <ResumeRenderer key={`${activeTemplateId}-${previewUpdateTrigger}`} data={resumeData} templateId={activeTemplateId} customization={{ ...customization, themeColor }} />
-                                    )}
-                                </div>
-                            </div>
-                        </motion.div>
-                    </motion.div>
-                )}
-            </AnimatePresence>
+                            <button
+                                onClick={() => setShowPreviewModal(false)}
+                                style={{
+                                    width: '34px',
+                                    height: '34px',
+                                    borderRadius: '8px',
+                                    background: '#eef2ff',
+                                    color: '#4338ca',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    border: '1px solid #c7d2fe'
+                                }}
+                                title="Close preview"
+                            >
+                                <X size={16} />
+                            </button>
+                        </div>
+
+                        <PagedResumePreview
+                            data={resumeData}
+                            templateId={activeTemplateId}
+                            customization={{ ...customization, themeColor }}
+                            previewScale={0.82}
+                            paged={true}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     )
 }
 
-const HeaderSection = ({ data, update, supportsPhoto = true, onImport, isImporting, user, onPhotoUpload }) => {
-    const { error: toastError } = useToast()
-    const [photoUploading, setPhotoUploading] = useState(false)
-    
+const PagedResumePreview = ({ data, templateId, customization, previewScale, paged }) => {
+    const PAGE_WIDTH = 794
+    const PAGE_HEIGHT = 1123
+    const measureRef = useRef(null)
+    const [pageCount, setPageCount] = useState(1)
+
+    useEffect(() => {
+        const refreshPages = () => {
+            const measuredHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
+            const computedPages = Math.max(1, Math.ceil(measuredHeight / PAGE_HEIGHT))
+            setPageCount(Math.min(computedPages, 8))
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            refreshPages()
+            window.setTimeout(refreshPages, 120)
+        })
+
+        return () => window.cancelAnimationFrame(frame)
+    }, [data, templateId, customization, paged])
+
+    if (!paged) {
+        return (
+            <div style={{
+                position: 'relative',
+                width: '100%',
+                aspectRatio: '1/1.41',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                background: '#fff'
+            }}>
+                <div style={{
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: 'top left',
+                    width: `${PAGE_WIDTH}px`,
+                    minHeight: `${PAGE_HEIGHT}px`
+                }}>
+                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                </div>
+            </div>
+        )
+    }
+
+    return (
+        <div style={{ position: 'relative', width: '100%', background: '#f8fafc' }}>
+            {/* Hidden measuring render to detect required page count */}
+            <div
+                style={{ position: 'absolute', left: '-20000px', top: 0, width: `${PAGE_WIDTH}px`, visibility: 'hidden', pointerEvents: 'none' }}
+                aria-hidden="true"
+            >
+                <div ref={measureRef}>
+                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                </div>
+            </div>
+
+            <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '0.75rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', alignItems: 'center' }}>
+                    {Array.from({ length: pageCount }).map((_, pageIndex) => (
+                        <div
+                            key={`preview-page-${pageIndex}`}
+                            style={{
+                                width: `${PAGE_WIDTH * previewScale}px`,
+                                height: `${PAGE_HEIGHT * previewScale}px`,
+                                overflow: 'hidden',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '10px',
+                                background: '#fff',
+                                boxShadow: '0 14px 28px -14px rgba(15, 23, 42, 0.5)'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: `${PAGE_WIDTH}px`,
+                                    height: `${PAGE_HEIGHT}px`,
+                                    transform: `scale(${previewScale})`,
+                                    transformOrigin: 'top left',
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                <div style={{ transform: `translateY(-${pageIndex * PAGE_HEIGHT}px)` }}>
+                                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+}
+
+const HeaderSection = ({ data, update }) => {
     const handleChange = (field, value) => update({ ...data, [field]: value })
 
-    const handlePhotoChange = async (e) => {
+    const handlePhotoChange = (e) => {
         const file = e.target.files[0]
-        if (!file) return
-
-        setPhotoUploading(true)
-        try {
+        if (file) {
             const reader = new FileReader()
-            reader.onloadend = async () => {
-                try {
-                    // Upload to server
-                    const response = await fetch('/api/upload-photo', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            userId: user?.uid || user?.id,
-                            fileData: reader.result,
-                            fileName: file.name
-                        })
-                    })
-
-                    if (!response.ok) {
-                        const errorData = await response.json()
-                        throw new Error(errorData.error || 'Photo upload failed')
-                    }
-
-                    const result = await response.json()
-                    if (result.success && result.url) {
-                        // Update store directly - don't rely on stale 'data' closure
-                        update({ profilePhoto: result.url })
-                        // Force preview to re-render
-                        if (onPhotoUpload) onPhotoUpload()
-                    }
-                } catch (error) {
-                    console.error('Error uploading photo:', error)
-                    toastError(`Upload failed: ${error.message}`)
-                } finally {
-                    setPhotoUploading(false)
-                }
+            reader.onloadend = () => {
+                handleChange('profilePhoto', reader.result)
             }
             reader.readAsDataURL(file)
-        } catch (error) {
-            console.error('Error reading file:', error)
-            toastError('Failed to read file')
-            setPhotoUploading(false)
         }
     }
 
     return (
-        <div className="space-y-6">
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                    <User size={18} className="text-indigo-600" />
-                    <h3 className="font-black text-xs uppercase tracking-widest text-slate-900">Personal Information</h3>
+        <div>
+            <div className="mb-6 flex items-center gap-6 p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                <div className="relative group">
+                    <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg">
+                        {data.profilePhoto ? (
+                            <img src={data.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-slate-400">
+                                <User size={40} />
+                            </div>
+                        )}
+                    </div>
+                    <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
+                        <PenTool size={20} />
+                        <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+                    </label>
                 </div>
-                {onImport && (
-                    <button 
-                        onClick={onImport}
-                        disabled={isImporting}
-                        className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-xl hover:bg-indigo-100 transition-all font-black text-[10px] uppercase tracking-widest border border-indigo-100/50"
-                    >
-                        {isImporting ? <div className="w-3 h-3 border-2 border-indigo-700 border-t-transparent animate-spin" /> : <Sparkles size={14} />}
-                        Sync Master Profile
-                    </button>
-                )}
+                <div>
+                    <h4 className="text-sm font-black text-slate-900 mb-1">Profile Photo</h4>
+                    <p className="text-[10px] font-medium text-slate-500 max-w-[200px]">Add a professional photo to increase your chances of being hired.</p>
+                </div>
             </div>
-            {supportsPhoto && (
-                <div className="mb-6 flex items-center gap-6 p-4 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
-                    <div className="relative group">
-                        <div className="w-24 h-24 rounded-full bg-slate-200 overflow-hidden border-4 border-white shadow-lg relative">
-                            {photoUploading && (
-                                <div className="absolute inset-0 flex items-center justify-center bg-slate-400/50">
-                                    <div className="w-6 h-6 border-3 border-white border-t-transparent animate-spin rounded-full"></div>
-                                </div>
-                            )}
-                            {data.profilePhoto && !photoUploading ? (
-                                <img src={data.profilePhoto} alt="Profile" className="w-full h-full object-cover" />
-                            ) : (
-                                <div className="w-full h-full flex items-center justify-center text-slate-400">
-                                    <User size={40} />
-                                </div>
-                            )}
-                        </div>
-                        <label className={`absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full ${photoUploading ? 'cursor-not-allowed' : ''}`}>
-                            <PenTool size={20} />
-                            <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} disabled={photoUploading} />
-                        </label>
-                    </div>
-                    <div>
-                        <h4 className="text-sm font-black text-slate-900 mb-1">Profile Photo</h4>
-                        <p className="text-[10px] font-medium text-slate-500 max-w-[200px]">{photoUploading ? 'Uploading...' : 'Add a professional photo to increase your chances of being hired.'}</p>
-                    </div>
-                </div>
-            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
                 <InputField label="First Name" value={data.firstName} onChange={(e) => handleChange('firstName', e.target.value)} placeholder="John" />
                 <InputField label="Last Name" value={data.lastName} onChange={(e) => handleChange('lastName', e.target.value)} placeholder="Doe" />

@@ -32,17 +32,29 @@ const Particle = ({ delay }) => {
     )
 }
 
-export default function SplashLoader({ progress = 0 }) {
+export default function SplashLoader() {
+    const [progress, setProgress] = useState(0)
     const [loadingText, setLoadingText] = useState("Initializing Engine...")
 
     useEffect(() => {
         const textPhases = ["Initializing Engine...", "Parsing ATS Algorithms...", "Loading Templates...", "Almost Ready..."]
-        
-        if (progress > 80) setLoadingText(textPhases[3])
-        else if (progress > 50) setLoadingText(textPhases[2])
-        else if (progress > 25) setLoadingText(textPhases[1])
-        else setLoadingText(textPhases[0])
-    }, [progress])
+        let phaseIndex = 0;
+
+        const interval = setInterval(() => {
+            setProgress(p => {
+                const nav = p + Math.random() * 2.5;
+                if (nav >= 100) return 100;
+
+                // Change text based on progress
+                if (nav > 25 && phaseIndex === 0) { phaseIndex++; setLoadingText(textPhases[phaseIndex]); }
+                if (nav > 50 && phaseIndex === 1) { phaseIndex++; setLoadingText(textPhases[phaseIndex]); }
+                if (nav > 80 && phaseIndex === 2) { phaseIndex++; setLoadingText(textPhases[phaseIndex]); }
+
+                return nav;
+            })
+        }, 35)
+        return () => clearInterval(interval)
+    }, [])
 
     return (
         <motion.div
