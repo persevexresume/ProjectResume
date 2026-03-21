@@ -10,13 +10,27 @@ import { getDbUserId } from '../lib/userIdentity'
 
 export default function Templates() {
   const navigate = useNavigate()
-  const { user, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+  const { user, resumeData, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
   const [filter, setFilter] = useState('all')
   const [styleFilter, setStyleFilter] = useState('All')
 
   useEffect(() => {
     const hydrateFromMasterProfile = async () => {
       if (!user) return
+
+      // Do not overwrite parsed upload data that is already present in store.
+      const hasExistingResumeData = Boolean(
+        resumeData?.personalInfo?.firstName ||
+        resumeData?.personalInfo?.lastName ||
+        resumeData?.personalInfo?.email ||
+        resumeData?.personalInfo?.summary ||
+        (resumeData?.experience?.length || 0) > 0 ||
+        (resumeData?.education?.length || 0) > 0 ||
+        (resumeData?.skills?.length || 0) > 0 ||
+        (resumeData?.projects?.length || 0) > 0 ||
+        (resumeData?.certifications?.length || 0) > 0
+      )
+      if (hasExistingResumeData) return
 
       const dbUserId = getDbUserId(user)
       if (!dbUserId) return
@@ -61,7 +75,7 @@ export default function Templates() {
     }
 
     hydrateFromMasterProfile()
-  }, [user, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
+  }, [user, resumeData, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
 
   // Derive categories and counts from the templates data
   const categories = useMemo(() => {

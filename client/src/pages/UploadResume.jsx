@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext'
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { selectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -354,10 +354,10 @@ export default function UploadResume() {
             setCertifications(parsed.certifications || [])
 
             setStatus('success')
-            toastSuccess('Resume parsed successfully. Redirecting to templates...')
+            toastSuccess('Resume parsed successfully. Opening builder with your data...')
             setTimeout(() => {
-                // Redirect to templates so user can see their data injected in thumbnails
-                navigate('/templates')
+                // Open builder directly so parsed fields remain prefilled in real time.
+                navigate(`/build?template=${encodeURIComponent(selectedTemplate || 'prof-sebastian')}`)
             }, 1200)
         } catch (error) {
             console.error('Resume parsing failed:', error)
