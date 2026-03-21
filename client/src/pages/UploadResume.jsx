@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext'
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { selectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -313,8 +313,97 @@ export default function UploadResume() {
             education: asArray(aiParsed?.education).length ? aiParsed.education : asArray(baseParsed.education),
             skills: asArray(aiParsed?.skills).length ? aiParsed.skills : asArray(baseParsed.skills),
             projects: asArray(aiParsed?.projects).length ? aiParsed.projects : asArray(baseParsed.projects),
-            certifications: asArray(aiParsed?.certifications)
+            certifications: asArray(aiParsed?.certifications).length ? aiParsed.certifications : asArray(baseParsed.certifications)
         }
+    }
+
+    const normalizeParsedResume = (parsed) => {
+        const safeText = (value) => (typeof value === 'string' ? value.trim() : '')
+        const safeArray = (value) => (Array.isArray(value) ? value : [])
+        const firstNonEmpty = (...values) => values.map(safeText).find(Boolean) || ''
+        const now = Date.now()
+
+        const personal = parsed?.personalInfo || {}
+        const fullName = firstNonEmpty(personal.fullName, personal.name)
+        const splitName = fullName ? fullName.split(/\s+/).filter(Boolean) : []
+        const firstName = firstNonEmpty(personal.firstName, splitName[0])
+        const lastName = firstNonEmpty(personal.lastName, splitName.slice(1).join(' '))
+
+        const personalInfo = {
+            firstName,
+            lastName,
+            email: firstNonEmpty(personal.email),
+            title: firstNonEmpty(personal.title, personal.headline, personal.role),
+            phone: firstNonEmpty(personal.phone, personal.mobile),
+            summary: firstNonEmpty(personal.summary, parsed?.summary),
+            location: firstNonEmpty(personal.location, personal.address),
+            github: firstNonEmpty(personal.github),
+            linkedin: firstNonEmpty(personal.linkedin),
+            website: firstNonEmpty(personal.website, personal.portfolio),
+            profilePhoto: firstNonEmpty(personal.profilePhoto, personal.photoUrl)
+        }
+
+        const experience = safeArray(parsed?.experience).map((item, index) => {
+            const role = firstNonEmpty(item?.role, item?.title, item?.position)
+            const company = firstNonEmpty(item?.company, item?.organization, item?.employer)
+            const startDate = firstNonEmpty(item?.startDate, item?.from, item?.start)
+            const endDate = firstNonEmpty(item?.endDate, item?.to, item?.end)
+            const description = firstNonEmpty(
+                item?.description,
+                safeArray(item?.highlights).join(' '),
+                safeArray(item?.responsibilities).join(' ')
+            )
+
+            return {
+                id: item?.id || now + index,
+                role,
+                company,
+                location: firstNonEmpty(item?.location),
+                startDate,
+                endDate,
+                description
+            }
+        }).filter((item) => item.role || item.company || item.description)
+
+        const education = safeArray(parsed?.education).map((item, index) => ({
+            id: item?.id || now + 1000 + index,
+            school: firstNonEmpty(item?.school, item?.institution, item?.college, item?.university),
+            degree: firstNonEmpty(item?.degree, item?.qualification, item?.program),
+            location: firstNonEmpty(item?.location),
+            startDate: firstNonEmpty(item?.startDate, item?.from, item?.start),
+            endDate: firstNonEmpty(item?.endDate, item?.to, item?.end, item?.year, item?.graduationDate),
+            gpa: firstNonEmpty(item?.gpa),
+            description: firstNonEmpty(item?.description)
+        })).filter((item) => item.school || item.degree)
+
+        const skills = safeArray(parsed?.skills)
+            .map((item) => {
+                if (typeof item === 'string') return item.trim()
+                if (item && typeof item === 'object') return firstNonEmpty(item.name, item.skill, item.label)
+                return ''
+            })
+            .filter(Boolean)
+
+        const projects = safeArray(parsed?.projects).map((item, index) => ({
+            id: item?.id || now + 2000 + index,
+            name: firstNonEmpty(item?.name, item?.title, item?.project),
+            description: firstNonEmpty(item?.description, safeArray(item?.highlights).join(' ')),
+            link: firstNonEmpty(item?.link, item?.url, item?.repository),
+            startDate: firstNonEmpty(item?.startDate, item?.from, item?.start),
+            endDate: firstNonEmpty(item?.endDate, item?.to, item?.end)
+        })).filter((item) => item.name || item.description)
+
+        const certifications = safeArray(parsed?.certifications).map((item, index) => ({
+            id: item?.id || now + 3000 + index,
+            name: firstNonEmpty(item?.name, item?.title, item?.certification),
+            issuer: firstNonEmpty(item?.issuer, item?.organization, item?.authority),
+            issueDate: firstNonEmpty(item?.issueDate, item?.date),
+            expiryDate: firstNonEmpty(item?.expiryDate, item?.expiresOn),
+            credentialId: firstNonEmpty(item?.credentialId, item?.id),
+            link: firstNonEmpty(item?.link, item?.url)
+        })).filter((item) => item.name)
+
+        return { personalInfo, experience, education, skills, projects, certifications }
     }
 
     const handleFileChange = (e) => {
@@ -342,22 +431,24 @@ export default function UploadResume() {
                 console.warn('AI parser unavailable, using local parser fallback:', aiError)
             }
 
+            const normalized = normalizeParsedResume(parsed)
+
             // Upload flow should always create a new resume record.
             setEditingResumeId(null)
 
             // Update local store
-            updatePersonalInfo(parsed.personalInfo)
-            setExperience(parsed.experience)
-            setEducation(parsed.education)
-            setSkills(parsed.skills)
-            setProjects(parsed.projects || [])
-            setCertifications(parsed.certifications || [])
+            updatePersonalInfo(normalized.personalInfo)
+            setExperience(normalized.experience)
+            setEducation(normalized.education)
+            setSkills(normalized.skills)
+            setProjects(normalized.projects)
+            setCertifications(normalized.certifications)
 
             setStatus('success')
             toastSuccess('Resume parsed successfully. Opening builder with your data...')
             setTimeout(() => {
-                // Open builder directly so parsed fields remain prefilled in real time.
-                navigate(`/build?template=${encodeURIComponent(selectedTemplate || 'prof-sebastian')}`)
+                // Open builder directly with current selected template untouched.
+                navigate('/build')
             }, 1200)
         } catch (error) {
             console.error('Resume parsing failed:', error)
