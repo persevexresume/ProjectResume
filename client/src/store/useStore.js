@@ -74,6 +74,8 @@ const useStore = create(
       setSelectedTemplate: (id) => set({ selectedTemplate: id }),
       editingResumeId: null,
       setEditingResumeId: (id) => set({ editingResumeId: id }),
+      uploadedResumePrefill: false,
+      setUploadedResumePrefill: (value) => set({ uploadedResumePrefill: Boolean(value) }),
 
       customization: {
         font: 'Inter',
@@ -113,11 +115,13 @@ const useStore = create(
 
       resetResume: () => set({
         editingResumeId: null,
+        uploadedResumePrefill: false,
         resumeData: initialResumeData
       }),
 
       loadResume: (resume) => set({
         editingResumeId: resume.id,
+        uploadedResumePrefill: false,
         resumeData: resume.data,
         customization: resume.customization,
         selectedTemplate: resume.template_id || resume.template || resume.templateId || 'prof-sebastian'
@@ -132,6 +136,7 @@ const useStore = create(
         theme: state.theme,
         selectedTemplate: state.selectedTemplate,
         editingResumeId: state.editingResumeId,
+        uploadedResumePrefill: state.uploadedResumePrefill,
         customization: state.customization,
         resumeData: state.resumeData
       }),

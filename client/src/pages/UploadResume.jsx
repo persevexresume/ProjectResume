@@ -8,7 +8,7 @@ import { useToast } from '../context/ToastContext'
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -435,6 +435,7 @@ export default function UploadResume() {
 
             // Upload flow should always create a new resume record.
             setEditingResumeId(null)
+            setUploadedResumePrefill(true)
 
             // Update local store
             updatePersonalInfo(normalized.personalInfo)

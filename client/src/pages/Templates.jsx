@@ -10,13 +10,14 @@ import { getDbUserId } from '../lib/userIdentity'
 
 export default function Templates() {
   const navigate = useNavigate()
-  const { user, resumeData, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+  const { user, resumeData, uploadedResumePrefill, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
   const [filter, setFilter] = useState('all')
   const [styleFilter, setStyleFilter] = useState('All')
 
   useEffect(() => {
     const hydrateFromMasterProfile = async () => {
       if (!user) return
+      if (uploadedResumePrefill) return
 
       // Do not overwrite parsed upload data that is already present in store.
       const hasExistingResumeData = Boolean(
@@ -75,7 +76,7 @@ export default function Templates() {
     }
 
     hydrateFromMasterProfile()
-  }, [user, resumeData, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
+  }, [user, resumeData, uploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
 
   // Derive categories and counts from the templates data
   const categories = useMemo(() => {
