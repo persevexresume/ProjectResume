@@ -445,10 +445,10 @@ export default function UploadResume() {
             setCertifications(normalized.certifications)
 
             setStatus('success')
-            toastSuccess('Resume parsed successfully. Opening builder with your data...')
+            toastSuccess('Resume parsed successfully. Choose a template to continue.')
             setTimeout(() => {
-                // Open builder directly with current selected template untouched.
-                navigate('/build')
+                // Let user choose template manually after upload.
+                navigate('/templates')
             }, 1200)
         } catch (error) {
             console.error('Resume parsing failed:', error)
@@ -600,7 +600,7 @@ export default function UploadResume() {
                                 <CheckCircle2 size={40} />
                             </motion.div>
                             <h3 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '0.5rem' }}>Success!</h3>
-                            <p style={{ color: '#64748b' }}>Data extracted successfully. Redirecting to your selected builder template...</p>
+                            <p style={{ color: '#64748b' }}>Data extracted successfully. Redirecting to template selection...</p>
                         </div>
                     )}
                 </div>
