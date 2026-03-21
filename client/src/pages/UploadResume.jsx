@@ -4,11 +4,13 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Upload, FileText, ArrowLeft, CheckCircle2, Loader2, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
+import { supabase, isMock } from '../supabase'
+import { getDbUserId } from '../lib/userIdentity'
 
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { user, selectedTemplate, customization, setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -238,7 +240,41 @@ export default function UploadResume() {
         for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
             const page = await pdf.getPage(pageNumber)
             const content = await page.getTextContent()
-            const pageText = content.items.map((item) => item.str).join(' ')
+
+            // Preserve line structure from PDF coordinates so section parsing is reliable.
+            const items = content.items
+                .map((item) => ({
+                    str: item.str || '',
+                    x: item.transform?.[4] || 0,
+                    y: item.transform?.[5] || 0
+                }))
+                .filter((item) => item.str.trim().length > 0)
+                .sort((a, b) => {
+                    if (Math.abs(b.y - a.y) > 2) return b.y - a.y
+                    return a.x - b.x
+                })
+
+            const lines = []
+            for (const item of items) {
+                const line = lines.find((entry) => Math.abs(entry.y - item.y) <= 2.5)
+                if (line) {
+                    line.items.push(item)
+                } else {
+                    lines.push({ y: item.y, items: [item] })
+                }
+            }
+
+            const pageText = lines
+                .sort((a, b) => b.y - a.y)
+                .map((line) => line.items
+                    .sort((a, b) => a.x - b.x)
+                    .map((item) => item.str)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim())
+                .filter(Boolean)
+                .join('\n')
+
             text += `\n${pageText}`
         }
 
@@ -406,6 +442,54 @@ export default function UploadResume() {
         return { personalInfo, experience, education, skills, projects, certifications }
     }
 
+    const saveParsedResumeDraft = async (normalizedData) => {
+        if (isMock) return null
+
+        const dbUserId = getDbUserId(user)
+        if (!dbUserId) {
+            throw new Error('Please sign in so uploaded resume data can be saved.')
+        }
+
+        const attemptPayload = {
+            user_id: dbUserId,
+            data: normalizedData,
+            template_id: selectedTemplate || 'prof-sebastian',
+            template: selectedTemplate || 'prof-sebastian',
+            customization: customization || {},
+            updated_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+        }
+
+        for (let attempt = 0; attempt < 6; attempt += 1) {
+            const result = await supabase
+                .from('resumes')
+                .insert(attemptPayload)
+                .select('id')
+                .single()
+
+            if (!result.error) {
+                return result.data?.id || null
+            }
+
+            const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                .filter(Boolean)
+                .join(' | ')
+
+            const missingColumnMatch =
+                fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+            if (missingColumnMatch && attemptPayload[missingColumnMatch[1]] !== undefined) {
+                delete attemptPayload[missingColumnMatch[1]]
+                continue
+            }
+
+            throw new Error(fullMessage || 'Failed to save uploaded resume data.')
+        }
+
+        throw new Error('Failed to save uploaded resume data after schema adaptation attempts.')
+    }
+
     const handleFileChange = (e) => {
         const selectedFile = e.target.files[0]
         if (selectedFile) {
@@ -433,8 +517,26 @@ export default function UploadResume() {
 
             const normalized = normalizeParsedResume(parsed)
 
-            // Upload flow should always create a new resume record.
-            setEditingResumeId(null)
+            const hasExtractedData = Boolean(
+                normalized.personalInfo.firstName ||
+                normalized.personalInfo.lastName ||
+                normalized.personalInfo.email ||
+                normalized.personalInfo.summary ||
+                normalized.experience.length ||
+                normalized.education.length ||
+                normalized.skills.length ||
+                normalized.projects.length ||
+                normalized.certifications.length
+            )
+
+            if (!hasExtractedData) {
+                throw new Error('Could not extract usable details from this file. Try another PDF or upload DOCX.')
+            }
+
+            const savedResumeId = await saveParsedResumeDraft(normalized)
+
+            // Keep the uploaded record id so selected template opens with saved data context.
+            setEditingResumeId(savedResumeId)
             setUploadedResumePrefill(true)
 
             // Update local store

@@ -10,7 +10,7 @@ import { getDbUserId } from '../lib/userIdentity'
 
 export default function Templates() {
   const navigate = useNavigate()
-  const { user, resumeData, uploadedResumePrefill, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+  const { user, resumeData, uploadedResumePrefill, setUploadedResumePrefill, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
   const [filter, setFilter] = useState('all')
   const [styleFilter, setStyleFilter] = useState('All')
 
@@ -109,8 +109,11 @@ export default function Templates() {
   }, [filter, styleFilter])
 
   const handleSelectTemplate = (templateId) => {
-    // Selecting from template gallery is always a new resume flow.
-    setEditingResumeId(null)
+    // If data came from upload, keep DB draft id and just apply template choice.
+    if (!uploadedResumePrefill) {
+      setEditingResumeId(null)
+    }
+    setUploadedResumePrefill(false)
     setSelectedTemplate(templateId)
     navigate(`/build?template=${encodeURIComponent(templateId)}`)
   }
