@@ -115,7 +115,10 @@ export default function Templates() {
     }
     setUploadedResumePrefill(false)
     setSelectedTemplate(templateId)
-    navigate(`/build?template=${encodeURIComponent(templateId)}`)
+    const query = uploadedResumePrefill
+      ? `template=${encodeURIComponent(templateId)}`
+      : `template=${encodeURIComponent(templateId)}&new=1`
+    navigate(`/build?${query}`)
   }
 
   return (

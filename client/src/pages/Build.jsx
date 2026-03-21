@@ -20,6 +20,7 @@ export default function Build() {
     const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
     const [searchParams] = useSearchParams()
     const templateFromQuery = searchParams.get('template')
+    const forceNewFromQuery = searchParams.get('new') === '1'
     const { user, resumeData, customization, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, selectedTemplate, setSelectedTemplate, editingResumeId, setEditingResumeId, restoreUserFromFallback, setUser } = useStore()
 
     // Wizard State
@@ -70,6 +71,10 @@ export default function Build() {
     useEffect(() => {
         const resolvedTemplateId = templateFromQuery || selectedTemplate
 
+        if (forceNewFromQuery && editingResumeId) {
+            setEditingResumeId(null)
+        }
+
         if (templateFromQuery && templateFromQuery !== selectedTemplate) {
             const queryTemplate = resumeTemplates.find(t => t.id === templateFromQuery)
             if (queryTemplate) {
@@ -89,7 +94,7 @@ export default function Build() {
                 setThemeColor(template.colors.accent)
             }
         }
-    }, [templateFromQuery, selectedTemplate, setSelectedTemplate, editingResumeId])
+    }, [templateFromQuery, selectedTemplate, setSelectedTemplate, editingResumeId, forceNewFromQuery])
 
     // Get the selected template from the templates data
     const activeTemplateId = templateFromQuery || selectedTemplate
