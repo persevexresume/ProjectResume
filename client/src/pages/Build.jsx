@@ -36,6 +36,7 @@ export default function Build() {
     const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
     const [showATSChecker, setShowATSChecker] = useState(false)
     const [showPreviewModal, setShowPreviewModal] = useState(false)
+    const [showLivePreview, setShowLivePreview] = useState(true)
 
     useEffect(() => {
         const handleResize = () => setViewportWidth(window.innerWidth)
@@ -44,14 +45,13 @@ export default function Build() {
     }, [])
 
     const isCompactRail = viewportWidth < 860
-    const showPreviewPanel = viewportWidth >= 1024
+    const canShowSidePreview = viewportWidth >= 1024
     
     const railWidth = isCompactRail ? 92 : 260
-    // LockedinAI/ResumeNow style wide split screen:
-    // User wants roughly 45-50% of the screen width for the live preview
-    const previewWidth = showPreviewPanel ? Math.max(480, Math.floor((viewportWidth - railWidth) * 0.48)) : 0
-    // The true A4 pixel width is ~816. We scale the preview exactly to the panel.
-    const previewScale = Math.max(0.4, Math.min(1.0, (previewWidth - 48) / 816))
+    // Split screen 50/50: left sidebar (actionable) | right live preview (read-only)
+    const previewWidth = (canShowSidePreview && showLivePreview) ? Math.floor(viewportWidth * 0.50) : 0
+    // The true A4 pixel width is ~794. We scale the preview exactly to the panel.
+    const previewScale = Math.max(0.4, Math.min(1.1, (previewWidth - 48) / 794))
 
     // Real-Time Auto-Save Functionality (LockedInAI style)
     const initialRender = useRef(true)
@@ -503,12 +503,24 @@ export default function Build() {
                 <button
                     onClick={() => setShowATSChecker(true)}
                     className="mt-6 w-full flex items-center gap-2 p-3 bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:shadow-lg rounded-xl font-bold text-xs uppercase tracking-widest transition-all"
-                    style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '1rem' }}
+                    style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '0.75rem' }}
                     title="Analyze your resume with AI-powered ATS checker"
                 >
                     <Zap size={14} />
                     {!isCompactRail && 'ATS Check'}
                 </button>
+
+                {canShowSidePreview && (
+                    <button
+                        onClick={() => setShowLivePreview(!showLivePreview)}
+                        className={`w-full flex items-center gap-2 p-3 ${showLivePreview ? 'bg-slate-100 text-slate-600' : 'bg-blue-600 text-white'} rounded-xl font-bold text-xs uppercase tracking-widest transition-all`}
+                        style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '1rem' }}
+                        title={showLivePreview ? "Hide Preview" : "Show Preview"}
+                    >
+                        <Search size={14} />
+                        {!isCompactRail && (showLivePreview ? 'Hide Preview' : 'Show Preview')}
+                    </button>
+                )}
 
                 <button
                     onClick={() => navigate('/student')}
@@ -522,8 +534,9 @@ export default function Build() {
 
             {/* 2. Main Workspace */}
             <div style={{
-                marginLeft: `${railWidth}px`, marginRight: showPreviewPanel ? `${previewWidth}px` : 0, flex: 1,
-                padding: viewportWidth < 860 ? '1rem 1rem 1rem 1.25rem' : '2rem 2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start'
+                marginLeft: `${railWidth}px`, marginRight: (canShowSidePreview && showLivePreview) ? `${previewWidth}px` : 0, flex: 1,
+                padding: viewportWidth < 860 ? '1rem 1rem 1rem 1.25rem' : '2rem 2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                transition: 'margin-right 0.3s ease-in-out'
             }}>
                 {statusMessage && (
                     <div style={{
@@ -571,12 +584,13 @@ export default function Build() {
                 )}
             </div>
 
-            {/* 3. Live Preview Panel (ResumeNow / LockedInAI Layout) */}
-            {showPreviewPanel && (
+            {/* 3. Live Preview Panel */}
+            {canShowSidePreview && showLivePreview && (
             <div style={{
                 width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1.5px solid #e2e8f0',
-                overflowY: 'auto', overflowX: 'hidden', padding: '2rem', position: 'fixed', top: 0, right: 0, bottom: 0,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10
+                overflowY: 'auto', overflowX: 'hidden', padding: '1.5rem', position: 'fixed', top: 0, right: 0, bottom: 0,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
+                animation: 'slideIn 0.3s ease-out'
             }}>
                 <div style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -776,8 +790,8 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
                 </div>
             </div>
 
-            <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '0.75rem' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', alignItems: 'center' }}>
+            <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '1rem', background: '#f1f5f9' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', paddingBottom: '2rem' }}>
                     {Array.from({ length: pageCount }).map((_, pageIndex) => (
                         <div
                             key={`preview-page-${pageIndex}`}
@@ -865,67 +879,167 @@ const HeaderSection = ({ data, update }) => {
 }
 
 const ExperienceSection = ({ experience, setExp }) => {
-    const addExp = () => setExp([...experience, { role: '', company: '', startDate: '', endDate: '', description: '' }])
-    const updateExp = (idx, field, value) => {
+    const [editingIdx, setEditingIdx] = useState(null)
+    const [step, setStep] = useState(1) // 1: Basics, 2: Description
+
+    const addExp = () => {
+        setExp([...experience, { role: '', company: '', startDate: '', endDate: '', description: '' }])
+        setEditingIdx(experience.length)
+        setStep(1)
+    }
+
+    const updateExp = (field, value) => {
         const updated = [...experience]
-        updated[idx][field] = value
+        updated[editingIdx][field] = value
         setExp(updated)
     }
-    const removeExp = (idx) => setExp(experience.filter((_, i) => i !== idx))
 
-    return (
-        <div>
-            {experience.map((item, idx) => (
-                <div key={idx} style={{ marginBottom: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <h3 style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>Position #{idx + 1}</h3>
-                        <button onClick={() => removeExp(idx)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
-                            <Trash2 size={12} style={{ display: 'inline', marginRight: '0.2rem' }} /> Remove
+    const removeExp = (idx) => {
+        setExp(experience.filter((_, i) => i !== idx))
+        if (editingIdx === idx) setEditingIdx(null)
+    }
+
+    const closeEditor = () => {
+        setEditingIdx(null)
+        setStep(1)
+    }
+
+    if (editingIdx !== null && experience[editingIdx]) {
+        const item = experience[editingIdx]
+        return (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>
+                        {step === 1 ? "Job Details" : "Role Description"}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                         <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
+                         <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                            Cancel
                         </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <InputField label="Job Title" value={item.role} onChange={(e) => updateExp(idx, 'role', e.target.value)} placeholder="Product Manager" />
-                        <InputField label="Company" value={item.company} onChange={(e) => updateExp(idx, 'company', e.target.value)} placeholder="Tech Corp" />
+                </div>
+
+                {step === 1 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                        <InputField label="What was your title?" value={item.role} onChange={(e) => updateExp('role', e.target.value)} placeholder="e.g. Senior Product Manager" />
+                        <InputField label="Who did you work for?" value={item.company} onChange={(e) => updateExp('company', e.target.value)} placeholder="e.g. Acme Corp" />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <InputField label="Start Date" value={item.startDate} onChange={(e) => updateExp('startDate', e.target.value)} placeholder="Jan 2020" />
+                            <InputField label="End Date" value={item.endDate} onChange={(e) => updateExp('endDate', e.target.value)} placeholder="Present" />
+                        </div>
+                        <button onClick={() => setStep(2)} style={{ marginTop: '1rem', width: '100%', padding: '0.85rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                            Next: Add Description
+                        </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        <InputField label="Start Date" value={item.startDate} onChange={(e) => updateExp(idx, 'startDate', e.target.value)} placeholder="Jan 2020" />
-                        <InputField label="End Date" value={item.endDate} onChange={(e) => updateExp(idx, 'endDate', e.target.value)} placeholder="Present" />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', minHeight: '350px' }}>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-2">
+                            <h4 className="text-sm font-black text-blue-800 mb-1">What did you achieve?</h4>
+                            <p className="text-xs font-medium text-blue-600/80">Focus on measurable results and action verbs. Bullet points are highly recommended.</p>
+                        </div>
+                        <InputField 
+                            label="" 
+                            value={item.description} 
+                            onChange={(e) => updateExp('description', e.target.value)} 
+                            placeholder="• Increased sales by 20%...\n• Managed a team of 5..." 
+                            multiline 
+                            rows={10} 
+                            style={{ height: '100%', flex: 1 }}
+                        />
+                         <div className="flex gap-3 mt-auto pt-4">
+                            <button onClick={() => setStep(1)} style={{ padding: '0.85rem 1.5rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Back
+                            </button>
+                            <button onClick={closeEditor} style={{ flex: 1, padding: '0.85rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Save Experience
+                            </button>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            {experience.map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', shadow: '0 1px 2px rgba(0,0,0,0.02)', borderRadius: '12px', transition: 'all 0.2s', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group">
+                    <div>
+                        <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.role || '(Not specified)'}</h4>
+                        <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.company} {item.startDate && `• ${item.startDate} - ${item.endDate}`}</p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={(e) => { e.stopPropagation(); removeExp(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                            <Trash2 size={16} />
+                        </button>
+                        <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
+                            <PenTool size={16} />
+                        </button>
                     </div>
                 </div>
             ))}
-            <button onClick={addExp} style={{ width: '100%', padding: '0.75rem', background: '#ecfdf5', color: '#059669', border: '2px dashed #10b981', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                <Plus size={14} style={{ display: 'inline', marginRight: '0.3rem' }} /> Add Experience
+            <button onClick={addExp} style={{ width: '100%', padding: '1.25rem', background: '#f8fafc', color: '#3b82f6', border: '2px dashed #cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', transition: 'all 0.2s' }} className="hover:bg-blue-50 hover:border-blue-300">
+                <Plus size={18} /> Add New Position
             </button>
         </div>
     )
 }
 
 const EducationSection = ({ education, setEdu }) => {
-    const addEdu = () => setEdu([...education, { school: '', degree: '', endDate: '', gpa: '' }])
-    const updateEdu = (idx, field, value) => {
+    const [editingIdx, setEditingIdx] = useState(null)
+
+    const addEdu = () => {
+        setEdu([...education, { school: '', degree: '', endDate: '', gpa: '' }])
+        setEditingIdx(education.length)
+    }
+
+    const updateEdu = (field, value) => {
         const updated = [...education]
-        updated[idx][field] = value
+        updated[editingIdx][field] = value
         setEdu(updated)
     }
-    const removeEdu = (idx) => setEdu(education.filter((_, i) => i !== idx))
+
+    const removeEdu = (idx) => {
+        setEdu(education.filter((_, i) => i !== idx))
+        if (editingIdx === idx) setEditingIdx(null)
+    }
+
+    if (editingIdx !== null && education[editingIdx]) {
+        const item = education[editingIdx]
+        return (
+             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>Education Details</h3>
+                    <button onClick={() => setEditingIdx(null)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Close</button>
+                </div>
+                <InputField label="School / University" value={item.school} onChange={(e) => updateEdu('school', e.target.value)} placeholder="e.g. Stanford University" />
+                <InputField label="Degree & Major" value={item.degree} onChange={(e) => updateEdu('degree', e.target.value)} placeholder="e.g. B.S. Computer Science" />
+                <InputField label="Graduation Date" value={item.endDate} onChange={(e) => updateEdu('endDate', e.target.value)} placeholder="e.g. May 2024" />
+                <button onClick={() => setEditingIdx(null)} style={{ marginTop: '0.5rem', width: '100%', padding: '0.85rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                    Save Education
+                </button>
+            </div>
+        )
+    }
 
     return (
-        <div>
+        <div className="flex flex-col gap-3">
             {education.map((item, idx) => (
-                <div key={idx} style={{ marginBottom: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <h3 style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>School #{idx + 1}</h3>
-                        <button onClick={() => removeEdu(idx)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
-                            <Trash2 size={12} style={{ display: 'inline', marginRight: '0.2rem' }} /> Remove
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
+                    <div>
+                        <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.school || '(Not specified)'}</h4>
+                        <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.degree} {item.endDate && `• ${item.endDate}`}</p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={(e) => { e.stopPropagation(); removeExp(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={16} />
                         </button>
                     </div>
-                    <InputField label="School / University" value={item.school} onChange={(e) => updateEdu(idx, 'school', e.target.value)} placeholder="Stanford University" style={{ marginBottom: '0.5rem' }} />
-                    <InputField label="Degree" value={item.degree} onChange={(e) => updateEdu(idx, 'degree', e.target.value)} placeholder="B.S. Computer Science" style={{ marginBottom: '0.5rem' }} />
-                    <InputField label="Graduation Date" value={item.endDate} onChange={(e) => updateEdu(idx, 'endDate', e.target.value)} placeholder="May 2020" />
                 </div>
             ))}
-            <button onClick={addEdu} style={{ width: '100%', padding: '0.75rem', background: '#ecfdf5', color: '#059669', border: '2px dashed #10b981', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                <Plus size={14} style={{ display: 'inline', marginRight: '0.3rem' }} /> Add Education
+            <button onClick={addEdu} style={{ width: '100%', padding: '1.25rem', background: '#f8fafc', color: '#3b82f6', border: '2px dashed #cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} className="hover:bg-blue-50 hover:border-blue-300 transition-all">
+                <Plus size={18} /> Add Education
             </button>
         </div>
     )
@@ -942,18 +1056,22 @@ const SkillsSection = ({ skills, setSkills }) => {
     const removeSkill = (idx) => setSkills(skills.filter((_, i) => i !== idx))
 
     return (
-        <div>
-            <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '1rem' }}>
-                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addSkill()} placeholder="e.g., React, PM..." style={{ flex: 1, padding: '0.6rem', border: '2px solid #e5e7eb', borderRadius: '6px', fontSize: '0.85rem' }} />
-                <button onClick={addSkill} style={{ padding: '0.6rem 1rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: 700, cursor: 'pointer' }}>
-                    <Plus size={16} />
+        <div className="flex flex-col gap-5">
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                <h4 className="text-sm font-black text-blue-800 mb-1">Add a few key skills</h4>
+                <p className="text-xs font-medium text-blue-600/80">List exact software, frameworks, and methodologies. Press Enter to add.</p>
+            </div>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addSkill()} placeholder="e.g. React, Agile, Python..." style={{ flex: 1, padding: '0.85rem 1rem', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '0.9rem', fontWeight: 600, outline: 'none' }} className="focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" />
+                <button onClick={addSkill} style={{ padding: '0 1.25rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:bg-blue-600 transition-colors">
+                    Add
                 </button>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
                 {skills.map((skill, idx) => (
-                    <div key={idx} style={{ background: '#dbeafe', color: '#1e40af', padding: '0.35rem 0.75rem', borderRadius: '4px', display: 'flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, fontSize: '0.8rem' }}>
+                    <div key={idx} className="animate-in zoom-in-95 duration-200" style={{ background: '#1e293b', color: '#fff', padding: '0.5rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                         {skill.name}
-                        <button onClick={() => removeSkill(idx)} style={{ background: 'transparent', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: '1rem', padding: 0 }}>×</button>
+                        <button onClick={() => removeSkill(idx)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }} className="hover:bg-red-500 transition-colors">×</button>
                     </div>
                 ))}
             </div>
@@ -962,80 +1080,162 @@ const SkillsSection = ({ skills, setSkills }) => {
 }
 
 const ProjectsSection = ({ projects, setProjects }) => {
-    const addProject = () => setProjects([...(projects || []), { name: '', role: '', startDate: '', endDate: '', link: '', description: '' }])
-    const updateProject = (idx, field, value) => {
+    const [editingIdx, setEditingIdx] = useState(null)
+    const [step, setStep] = useState(1)
+
+    const addProject = () => {
+        setProjects([...(projects || []), { name: '', role: '', startDate: '', endDate: '', link: '', description: '' }])
+        setEditingIdx((projects || []).length)
+        setStep(1)
+    }
+
+    const updateProject = (field, value) => {
         const updated = [...(projects || [])]
-        updated[idx][field] = value
+        updated[editingIdx][field] = value
         setProjects(updated)
     }
-    const removeProject = (idx) => setProjects((projects || []).filter((_, i) => i !== idx))
 
-    return (
-        <div>
-            {(projects || []).map((project, idx) => (
-                <div key={idx} style={{ marginBottom: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <h3 style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>Project #{idx + 1}</h3>
-                        <button onClick={() => removeProject(idx)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
-                            <Trash2 size={12} style={{ display: 'inline', marginRight: '0.2rem' }} /> Remove
+    const removeProject = (idx) => {
+        setProjects((projects || []).filter((_, i) => i !== idx))
+        if (editingIdx === idx) setEditingIdx(null)
+    }
+    
+    const closeEditor = () => {
+        setEditingIdx(null)
+        setStep(1)
+    }
+
+    if (editingIdx !== null && projects[editingIdx]) {
+        const item = projects[editingIdx]
+        return (
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                    <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>
+                        {step === 1 ? "Project Basics" : "Project Story"}
+                    </h3>
+                    <div className="flex items-center gap-2">
+                         <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
+                         <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Cancel</button>
+                    </div>
+                </div>
+
+                {step === 1 ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
+                        <InputField label="Project Name" value={item.name || ''} onChange={(e) => updateProject('name', e.target.value)} placeholder="e.g. AI Content Generator" />
+                        <InputField label="Your Role" value={item.role || ''} onChange={(e) => updateProject('role', e.target.value)} placeholder="e.g. Lead Developer" />
+                        <InputField label="Project Link / URL" value={item.link || ''} onChange={(e) => updateProject('link', e.target.value)} placeholder="e.g. https://github.com/..." />
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <InputField label="Start Date" value={item.startDate || ''} onChange={(e) => updateProject('startDate', e.target.value)} placeholder="Jan 2023" />
+                            <InputField label="End Date" value={item.endDate || ''} onChange={(e) => updateProject('endDate', e.target.value)} placeholder="Present" />
+                        </div>
+                        <button onClick={() => setStep(2)} style={{ marginTop: '1rem', width: '100%', padding: '0.85rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                            Next: Add Details
                         </button>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <InputField label="Project Name" value={project.name || ''} onChange={(e) => updateProject(idx, 'name', e.target.value)} placeholder="Fraud Detection Dashboard" />
-                        <InputField label="Role" value={project.role || ''} onChange={(e) => updateProject(idx, 'role', e.target.value)} placeholder="Lead Developer" />
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', minHeight: '350px' }}>
+                        <InputField 
+                            label="What was the project and its impact?" 
+                            value={item.description || ''} 
+                            onChange={(e) => updateProject('description', e.target.value)} 
+                            placeholder="• Built a scalable backend that handled 10k RPS...\n• Reduced load time by 30%..." 
+                            multiline 
+                            rows={10} 
+                            style={{ height: '100%', flex: 1 }}
+                        />
+                         <div className="flex gap-3 mt-auto pt-4">
+                            <button onClick={() => setStep(1)} style={{ padding: '0.85rem 1.5rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>Back</button>
+                            <button onClick={closeEditor} style={{ flex: 1, padding: '0.85rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>Save Project</button>
+                        </div>
                     </div>
-                    <InputField label="Project Link" value={project.link || ''} onChange={(e) => updateProject(idx, 'link', e.target.value)} placeholder="https://github.com/..." style={{ marginBottom: '0.5rem' }} />
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <InputField label="Start Date" value={project.startDate || ''} onChange={(e) => updateProject(idx, 'startDate', e.target.value)} placeholder="Jan 2023" />
-                        <InputField label="End Date" value={project.endDate || ''} onChange={(e) => updateProject(idx, 'endDate', e.target.value)} placeholder="Present" />
+                )}
+            </div>
+        )
+    }
+
+    return (
+        <div className="flex flex-col gap-3">
+            {(projects || []).map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
+                    <div>
+                        <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.name || '(Not specified)'}</h4>
+                        <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.role}</p>
                     </div>
-                    <InputField label="Description" value={project.description || ''} onChange={(e) => updateProject(idx, 'description', e.target.value)} placeholder="Built and deployed a dashboard that reduced fraud losses by 18%." multiline rows={3} />
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={(e) => { e.stopPropagation(); removeProject(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={16} />
+                        </button>
+                    </div>
                 </div>
             ))}
-
-            <button onClick={addProject} style={{ width: '100%', padding: '0.75rem', background: '#ecfdf5', color: '#059669', border: '2px dashed #10b981', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                <Plus size={14} style={{ display: 'inline', marginRight: '0.3rem' }} /> Add Project
+            <button onClick={addProject} style={{ width: '100%', padding: '1.25rem', background: '#f8fafc', color: '#3b82f6', border: '2px dashed #cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} className="hover:bg-blue-50 hover:border-blue-300 transition-all">
+                <Plus size={18} /> Add Project
             </button>
         </div>
     )
 }
 
 const CertificationsSection = ({ certifications, setCertifications }) => {
-    const addCertification = () => setCertifications([...(certifications || []), { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])
-    const updateCertification = (idx, field, value) => {
+    const [editingIdx, setEditingIdx] = useState(null)
+
+    const addCertification = () => {
+        setCertifications([...(certifications || []), { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])
+        setEditingIdx((certifications || []).length)
+    }
+
+    const updateCertification = (field, value) => {
         const updated = [...(certifications || [])]
-        updated[idx][field] = value
+        updated[editingIdx][field] = value
         setCertifications(updated)
     }
-    const removeCertification = (idx) => setCertifications((certifications || []).filter((_, i) => i !== idx))
+
+    const removeCertification = (idx) => {
+        setCertifications((certifications || []).filter((_, i) => i !== idx))
+        if (editingIdx === idx) setEditingIdx(null)
+    }
+
+    if (editingIdx !== null && certifications[editingIdx]) {
+        const item = certifications[editingIdx]
+        return (
+             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>Certification Details</h3>
+                    <button onClick={() => setEditingIdx(null)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Close</button>
+                </div>
+                <InputField label="Certification Name" value={item.name || ''} onChange={(e) => updateCertification('name', e.target.value)} placeholder="e.g. AWS Certified Developer" />
+                <InputField label="Issuing Organization" value={item.issuer || ''} onChange={(e) => updateCertification('issuer', e.target.value)} placeholder="e.g. Amazon Web Services" />
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <InputField label="Issue Date" value={item.issueDate || ''} onChange={(e) => updateCertification('issueDate', e.target.value)} placeholder="e.g. Mar 2025" />
+                    <InputField label="Expiry Date (Optional)" value={item.expiryDate || ''} onChange={(e) => updateCertification('expiryDate', e.target.value)} placeholder="e.g. Mar 2028" />
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <InputField label="Credential ID" value={item.credentialId || ''} onChange={(e) => updateCertification('credentialId', e.target.value)} placeholder="e.g. ABC-123-XYZ" />
+                    <InputField label="Verification Link" value={item.link || ''} onChange={(e) => updateCertification('link', e.target.value)} placeholder="e.g. https://..." />
+                </div>
+                <button onClick={() => setEditingIdx(null)} style={{ marginTop: '0.5rem', width: '100%', padding: '0.85rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
+                    Save Certification
+                </button>
+            </div>
+        )
+    }
 
     return (
-        <div>
-            {(certifications || []).map((cert, idx) => (
-                <div key={idx} style={{ marginBottom: '1rem', padding: '1rem', background: '#f3f4f6', borderRadius: '8px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                        <h3 style={{ margin: 0, fontWeight: 700, fontSize: '0.9rem' }}>Certification #{idx + 1}</h3>
-                        <button onClick={() => removeCertification(idx)} style={{ background: '#fee2e2', color: '#dc2626', border: 'none', padding: '0.25rem 0.5rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 600, fontSize: '0.75rem' }}>
-                            <Trash2 size={12} style={{ display: 'inline', marginRight: '0.2rem' }} /> Remove
+        <div className="flex flex-col gap-3">
+            {(certifications || []).map((item, idx) => (
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
+                    <div>
+                        <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.name || '(Not specified)'}</h4>
+                        <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.issuer}</p>
+                    </div>
+                    <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button onClick={(e) => { e.stopPropagation(); removeCertification(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={16} />
                         </button>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <InputField label="Certification Name" value={cert.name || ''} onChange={(e) => updateCertification(idx, 'name', e.target.value)} placeholder="AWS Certified Cloud Practitioner" />
-                        <InputField label="Issuer" value={cert.issuer || ''} onChange={(e) => updateCertification(idx, 'issuer', e.target.value)} placeholder="Amazon Web Services" />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                        <InputField label="Issue Date" value={cert.issueDate || ''} onChange={(e) => updateCertification(idx, 'issueDate', e.target.value)} placeholder="Mar 2025" />
-                        <InputField label="Expiry Date (Optional)" value={cert.expiryDate || ''} onChange={(e) => updateCertification(idx, 'expiryDate', e.target.value)} placeholder="Mar 2028" />
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                        <InputField label="Credential ID" value={cert.credentialId || ''} onChange={(e) => updateCertification(idx, 'credentialId', e.target.value)} placeholder="ABC-123-XYZ" />
-                        <InputField label="Verification Link" value={cert.link || ''} onChange={(e) => updateCertification(idx, 'link', e.target.value)} placeholder="https://..." />
                     </div>
                 </div>
             ))}
-
-            <button onClick={addCertification} style={{ width: '100%', padding: '0.75rem', background: '#ecfdf5', color: '#059669', border: '2px dashed #10b981', borderRadius: '8px', fontWeight: 700, cursor: 'pointer', fontSize: '0.85rem' }}>
-                <Plus size={14} style={{ display: 'inline', marginRight: '0.3rem' }} /> Add Certification
+            <button onClick={addCertification} style={{ width: '100%', padding: '1.25rem', background: '#f8fafc', color: '#3b82f6', border: '2px dashed #cbd5e1', borderRadius: '12px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }} className="hover:bg-blue-50 hover:border-blue-300 transition-all">
+                <Plus size={18} /> Add Certification
             </button>
         </div>
     )
@@ -1044,7 +1244,21 @@ const CertificationsSection = ({ certifications, setCertifications }) => {
 const SummarySection = ({ data, update }) => {
     const handleChange = (field, value) => update({ ...data, [field]: value })
     return (
-        <InputField label="Professional Summary" value={data.summary} onChange={(e) => handleChange('summary', e.target.value)} placeholder="Brief overview of your professional background..." multiline rows={3} />
+        <div className="flex flex-col gap-4 min-h-[400px]">
+            <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                <h4 className="text-sm font-black text-blue-800 mb-1">Professional Overview</h4>
+                <p className="text-xs font-medium text-blue-600/80">A strong summary uses 3-4 lines to highlight your biggest accomplishments and core value proposition.</p>
+            </div>
+            <InputField 
+                label="" 
+                value={data.summary} 
+                onChange={(e) => handleChange('summary', e.target.value)} 
+                placeholder="Results-driven professional with 5+ years of experience in..." 
+                multiline 
+                rows={12} 
+                style={{ flex: 1, minHeight: '300px' }}
+            />
+        </div>
     )
 }
 
@@ -1052,7 +1266,7 @@ const InputField = ({ label, value, onChange, placeholder, multiline = false, ro
     const Component = multiline ? 'textarea' : 'input'
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
-            {label && <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569', letterSpacing: '0.01em' }}>{label}</label>}
+            {label && <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', letterSpacing: '0.01em' }}>{label}</label>}
             <Component
                 value={value}
                 onChange={onChange}
@@ -1060,29 +1274,21 @@ const InputField = ({ label, value, onChange, placeholder, multiline = false, ro
                 rows={rows}
                 style={{
                     width: '100%',
-                    padding: '0.65rem 0.8rem',
-                    border: '1.5px solid #e2e8f0',
+                    padding: multiline ? '1rem' : '0.8rem 1rem',
+                    border: '2px solid #e2e8f0',
                     borderRadius: '10px',
-                    fontSize: '0.8rem',
+                    fontSize: '0.9rem',
                     fontWeight: 500,
-                    color: '#1e293b',
-                    background: '#ffffff',
+                    color: '#0f172a',
+                    background: '#f8fafc',
                     outline: 'none',
                     transition: 'all 0.25s ease',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                     fontFamily: 'inherit',
-                    resize: 'none'
+                    resize: 'none',
+                    lineHeight: multiline ? 1.6 : 1,
+                    ...(multiline ? { minHeight: '150px' } : {})
                 }}
-                onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#2563eb'
-                    e.currentTarget.style.boxShadow = '0 0 0 4px rgba(37, 99, 235, 0.08)'
-                    e.currentTarget.style.transform = 'translateY(-1px)'
-                }}
-                onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#e2e8f0'
-                    e.currentTarget.style.boxShadow = '0 1px 2px rgba(0,0,0,0.02)'
-                    e.currentTarget.style.transform = 'translateY(0)'
-                }}
+                className="focus:bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-400"
             />
         </div>
     )

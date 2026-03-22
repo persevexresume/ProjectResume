@@ -36,7 +36,9 @@ import {
     LifeBuoy,
     MessageSquare,
     Briefcase,
-    Zap
+    Zap,
+    Archive,
+    FilePen
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import useStore from '../../store/useStore';
@@ -74,6 +76,7 @@ export function Header() {
         location.pathname === '/job-board' ||
         location.pathname === '/templates' ||
         location.pathname === '/build' ||
+        location.pathname === '/cover-letter' ||
         location.pathname === '/upload-resume';
     const isStudentChoice = location.pathname === '/student/choice';
     const isBuildPage = location.pathname === '/build' || location.pathname === '/build-demo';
@@ -137,10 +140,24 @@ export function Header() {
                                 </Link>
 
                                 <Link
+                                    to="/student"
+                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                >
+                                    Career Vault
+                                </Link>
+
+                                <Link
                                     to="/templates"
                                     className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
                                 >
                                     Templates
+                                </Link>
+
+                                <Link
+                                    to="/cover-letter"
+                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                >
+                                    Cover Letter
                                 </Link>
 
                                 <Link
@@ -279,9 +296,17 @@ export function Header() {
                                 <FileStack className="size-5 text-blue-600" />
                                 Dashboard
                             </Link>
+                            <Link to="/student" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-teal-50">
+                                <Archive className="size-5 text-teal-600" />
+                                Career Vault
+                            </Link>
                             <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-indigo-50">
                                 <Layout className="size-5 text-indigo-600" />
                                 Templates
+                            </Link>
+                            <Link to="/cover-letter" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-emerald-50">
+                                <FilePen className="size-5 text-emerald-600" />
+                                Cover Letter
                             </Link>
                             <Link to="/student/choice" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
                                 <UserCircle className="size-5 text-violet-600" />

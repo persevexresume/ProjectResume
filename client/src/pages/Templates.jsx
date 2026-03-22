@@ -36,7 +36,7 @@ export default function Templates() {
       const dbUserId = getDbUserId(user)
       if (!dbUserId) return
 
-      const tableCandidates = ['profiles', 'master_profiles']
+      const tableCandidates = ['profiles']
       for (const tableName of tableCandidates) {
         const { data, error } = await supabase
           .from(tableName)

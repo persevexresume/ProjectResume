@@ -57,18 +57,35 @@ export default function StudentChoice() {
                 setSavedResume(resumeData)
             }
 
-            // Fetch master profile
-            const candidates = ['profiles', 'master_profiles', 'students']
-            for (const tableName of candidates) {
-                const { data: profileData } = await supabase
-                    .from(tableName)
-                    .select('*')
-                    .eq('user_id', dbUserId)
-                    .maybeSingle()
+            // Fetch master profile — check tables in order (students table uses 'id', others use 'user_id')
+            const profileTableCandidates = ['profiles']
+            for (const tableName of profileTableCandidates) {
+                try {
+                    const { data: profileData, error: tableError } = await supabase
+                        .from(tableName)
+                        .select('*')
+                        .eq('user_id', dbUserId)
+                        .maybeSingle()
 
-                if (profileData) {
-                    setSavedProfile(profileData)
-                    break
+                    if (!tableError && profileData) {
+                        setSavedProfile(profileData)
+                        break
+                    }
+                } catch (err) {
+                    // Silently fail for missing tables in candidates loop
+                    console.log(`Note: Profile table ${tableName} skip or not found.`)
+                }
+            }
+
+            // Also check the students table itself (uses 'id' as primary key, not 'user_id')
+            if (!savedProfile) {
+                const { data: studentData } = await supabase
+                    .from('students')
+                    .select('*')
+                    .eq('id', dbUserId)
+                    .maybeSingle()
+                if (studentData) {
+                    setSavedProfile(studentData)
                 }
             }
         } catch (err) {

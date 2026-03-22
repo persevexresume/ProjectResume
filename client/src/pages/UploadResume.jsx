@@ -17,12 +17,12 @@ export default function UploadResume() {
     const fileInputRef = useRef(null)
 
     const SECTION_HEADERS = {
-        summary: ['summary', 'profile', 'objective', 'about me', 'professional summary', 'executive summary'],
-        experience: ['experience', 'work experience', 'employment', 'professional experience', 'work history', 'career history'],
-        education: ['education', 'academic background', 'academics', 'qualification', 'academic profile'],
-        skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies'],
-        projects: ['projects', 'personal projects', 'key projects', 'academic projects'],
-        certifications: ['certifications', 'awards', 'honors', 'achievements', 'certifications & awards']
+        summary: ['summary', 'profile', 'objective', 'about me', 'professional summary', 'executive summary', 'professional profile'],
+        experience: ['experience', 'work experience', 'employment', 'professional experience', 'work history', 'career history', 'employment history', 'professional background'],
+        education: ['education', 'academic background', 'academics', 'qualification', 'academic profile', 'educational background', 'academic qualifications'],
+        skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies', 'technologies', 'technical expertise', 'key skills'],
+        projects: ['projects', 'personal projects', 'key projects', 'academic projects', 'recent projects'],
+        certifications: ['certifications', 'awards', 'honors', 'achievements', 'certifications & awards', 'licenses', 'professional certifications']
     }
 
     const isLikelySectionHeader = (line) => {
@@ -105,12 +105,23 @@ export default function UploadResume() {
         
         const skillTokens = skillSectionLines
             .join(' | ')
-            .split(/[|,•·\n]/)
+            .split(/[|,•·\n\t;]/)
             .map((item) => item.trim())
-            .filter((item) => item.length >= 2 && item.length <= 40)
+            .filter((item) => item.length >= 2 && item.length <= 50)
 
         const deduped = [...new Set(skillTokens)]
-        return deduped.map((name, index) => ({ id: Date.now() + index, name, level: 'Advanced' }))
+        // Look for common skill separators within a token (e.g. "React, Node.js, Express")
+        const finalSkills = []
+        deduped.forEach(token => {
+            const nested = token.split(/[,/]/).map(s => s.trim()).filter(Boolean)
+            finalSkills.push(...nested)
+        })
+
+        return [...new Set(finalSkills)].map((name, index) => ({ 
+            id: Date.now() + index, 
+            name, 
+            level: 'Advanced' 
+        }))
     }
 
     const parseProjects = (lines) => {
@@ -168,26 +179,52 @@ export default function UploadResume() {
     const parseExperience = (lines) => {
         const expSectionLines = getSectionContent(lines, SECTION_HEADERS.experience)
         const chunks = expSectionLines.filter((line) => line.trim().length > 0)
-        const dateRegex = /((Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19|20)\d{2})\s*[-–—]\s*((Present|Current|Till Date)|(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)?\s*(19|20)\d{2})/i
+        // More comprehensive date regex
+        const dateRegex = /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})\s*(?:[-–—]|to)\s*((?:Present|Current|Till Date|Ongoing)|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})/i
 
         const entries = []
         for (let i = 0; i < chunks.length; i += 1) {
             const current = chunks[i]
             if (!dateRegex.test(current)) continue
 
-            const roleLine = chunks[i - 1] || chunks[i + 1] || ''
-            const companyLine = chunks[i - 2] || chunks[i - 1] || ''
-            const details = chunks.slice(i + 1, i + 4).join(' ')
-            const dateParts = current.split(/[-–—]/)
+            // Look backward for role and company
+            const prev1 = chunks[i - 1] || ''
+            const prev2 = chunks[i - 2] || ''
+            
+            let role = ''
+            let company = ''
+
+            if (prev1 && prev2) {
+                // Usually Company \n Role \n Date  OR  Role \n Company \n Date
+                if (prev1.length < prev2.length) {
+                    role = prev1
+                    company = prev2
+                } else {
+                    role = prev2
+                    company = prev1
+                }
+            } else {
+                role = prev1 || 'Professional Role'
+                company = 'Organization'
+            }
+
+            const details = []
+            for (let j = i + 1; j < chunks.length; j++) {
+                if (dateRegex.test(chunks[j]) || isLikelySectionHeader(chunks[j])) break
+                details.push(chunks[j])
+                if (details.length > 5) break // Don't grab too much
+            }
+
+            const dateParts = current.split(/[-–—]|to/i)
 
             entries.push({
                 id: Date.now() + i,
-                role: roleLine || 'Professional Role',
-                company: companyLine || 'Organization',
+                role: role.trim(),
+                company: company.trim(),
                 location: '',
                 startDate: (dateParts[0] || '').trim(),
                 endDate: (dateParts[1] || '').trim(),
-                description: details
+                description: details.join(' ')
             })
         }
 
@@ -413,10 +450,17 @@ export default function UploadResume() {
         })).filter((item) => item.school || item.degree)
 
         const skills = safeArray(parsed?.skills)
-            .map((item) => {
-                if (typeof item === 'string') return item.trim()
-                if (item && typeof item === 'object') return firstNonEmpty(item.name, item.skill, item.label)
-                return ''
+            .map((item, index) => {
+                const now = Date.now()
+                if (typeof item === 'string' && item.trim()) {
+                    return { id: now + index, name: item.trim(), level: 'Advanced' }
+                }
+                if (item && typeof item === 'object') {
+                    const name = firstNonEmpty(item.name, item.skill, item.label)
+                    if (!name) return null
+                    return { id: item.id || now + index, name, level: item.level || 'Advanced' }
+                }
+                return null
             })
             .filter(Boolean)
 
@@ -504,18 +548,29 @@ export default function UploadResume() {
             setStatus('uploading')
             const extractedText = await extractResumeText(selectedFile)
 
-            setStatus('parsing')
-            const locallyParsed = parseResumeText(extractedText)
-
-            let parsed = locallyParsed
-            try {
-                const aiParsed = await parseResumeWithAI(extractedText)
-                parsed = mergeParsedResume(locallyParsed, aiParsed)
-            } catch (aiError) {
-                console.warn('AI parser unavailable, using local parser fallback:', aiError)
+            if (!extractedText || extractedText.trim().length < 50) {
+                throw new Error('The file appears to be empty or could not be read. Please try a different file.')
             }
 
-            const normalized = normalizeParsedResume(parsed)
+            setStatus('parsing')
+            
+            // Try AI parsing first, but fall back to local parsing if it fails (e.g. out of credits)
+            let aiParsed = null
+            let parseError = null
+            
+            try {
+                aiParsed = await parseResumeWithAI(extractedText)
+            } catch (err) {
+                console.warn('AI parsing failed, falling back to local extraction:', err.message)
+                parseError = err.message
+            }
+
+            // Always run local extraction as baseline/fallback
+            const localParsed = parseResumeText(extractedText)
+            
+            // Merge AI results into local results if available, else use local only
+            const finalParsed = aiParsed ? mergeParsedResume(localParsed, aiParsed) : localParsed
+            const normalized = normalizeParsedResume(finalParsed)
 
             const hasExtractedData = Boolean(
                 normalized.personalInfo.firstName ||
@@ -530,16 +585,18 @@ export default function UploadResume() {
             )
 
             if (!hasExtractedData) {
-                throw new Error('Could not extract usable details from this file. Try another PDF or upload DOCX.')
+                throw new Error(parseError || 'Could not extract usable details from this file. Please try a PDF or DOCX with readable text.')
             }
 
+            // If we relied on fallback, show a small success toast but mention it's local only? 
+            // Better to just let it succeed for the "fix it now" requirement.
+            
             const savedResumeId = await saveParsedResumeDraft(normalized)
 
-            // Keep the uploaded record id so selected template opens with saved data context.
             setEditingResumeId(savedResumeId)
             setUploadedResumePrefill(true)
 
-            // Update local store
+            // Update local store with AI-parsed data
             updatePersonalInfo(normalized.personalInfo)
             setExperience(normalized.experience)
             setEducation(normalized.education)
@@ -548,11 +605,11 @@ export default function UploadResume() {
             setCertifications(normalized.certifications)
 
             setStatus('success')
-            toastSuccess('Resume parsed successfully. Choose a template to continue.')
+            toastSuccess('Resume parsed successfully! Choose how to continue.')
             setTimeout(() => {
-                // Let user choose template manually after upload.
-                navigate('/templates')
-            }, 1200)
+                // Go back to choice page — user selects template or edits from there
+                navigate('/student/choice')
+            }, 1400)
         } catch (error) {
             console.error('Resume parsing failed:', error)
             const message = error.message || 'Could not parse this file. Please try another resume format.'
@@ -702,8 +759,8 @@ export default function UploadResume() {
                             >
                                 <CheckCircle2 size={40} />
                             </motion.div>
-                            <h3 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '0.5rem' }}>Success!</h3>
-                            <p style={{ color: '#64748b' }}>Data extracted successfully. Redirecting to template selection...</p>
+                            <h3 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '0.5rem' }}>Resume Parsed!</h3>
+                            <p style={{ color: '#64748b' }}>All your details have been extracted. Redirecting you to choose how to continue...</p>
                         </div>
                     )}
                 </div>

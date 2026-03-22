@@ -119,13 +119,35 @@ const useStore = create(
         resumeData: initialResumeData
       }),
 
-      loadResume: (resume) => set({
-        editingResumeId: resume.id,
-        uploadedResumePrefill: false,
-        resumeData: resume.data,
-        customization: resume.customization,
-        selectedTemplate: resume.template_id || resume.template || resume.templateId || 'prof-sebastian'
-      })
+      loadResume: (resume) => {
+        let parsedData = resume.data;
+        if (typeof parsedData === 'string') {
+          try {
+            parsedData = JSON.parse(parsedData);
+          } catch (e) {
+            console.error('Failed to parse resume data string:', e);
+            parsedData = initialResumeData;
+          }
+        }
+        
+        // Final fallback: merge with initialResumeData to ensure all keys exist
+        const finalData = {
+          ...initialResumeData,
+          ...(parsedData || {}),
+          personalInfo: {
+            ...initialResumeData.personalInfo,
+            ...(parsedData?.personalInfo || {})
+          }
+        };
+
+        set({
+          editingResumeId: resume.id,
+          uploadedResumePrefill: false,
+          resumeData: finalData,
+          customization: resume.customization || get().customization,
+          selectedTemplate: resume.template_id || resume.template || resume.templateId || 'prof-sebastian'
+        });
+      }
     }),
     {
       name: 'persevex-store',

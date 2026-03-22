@@ -292,3 +292,48 @@ button {
     display: none !important;
   }
 }
+
+/* ============================================
+   NATIVE PRINT OUT (A4 PDF FIX)
+   ============================================ */
+@media print {
+  body.is-printing * {
+    visibility: hidden;
+  }
+  body.is-printing #resume-content, 
+  body.is-printing #resume-content * {
+    visibility: visible;
+  }
+  body.is-printing #resume-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 210mm;
+    margin: 0;
+    padding: 0;
+  }
+  
+  /* Prevent awkward cutoffs mid-element */
+  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; break-after: avoid; }
+  .resume-section, .resume-entry, p, li { 
+    page-break-inside: avoid; 
+    break-inside: avoid; 
+  }
+
+  /* Force background graphics and colors to print */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  
+  @page {
+    size: A4 portrait;
+    margin: 0 !important;
+  }
+}
+
+@keyframes slideIn {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}

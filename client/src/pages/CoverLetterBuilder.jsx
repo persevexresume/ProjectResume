@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Download, Plus, Trash2 } from 'lucide-react'
+import { ArrowLeft, Save, Download, Plus, Trash2, Sparkles, ChevronDown } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../supabase'
@@ -28,6 +28,82 @@ export default function CoverLetterBuilder() {
         closingParagraph: '',
     })
     const [isGenerating, setIsGenerating] = useState(false)
+    const [resumes, setResumes] = useState([])
+    const [selectedResumeId, setSelectedResumeId] = useState('')
+    const [jobDescription, setJobDescription] = useState('')
+    const [isAILoading, setIsAILoading] = useState(false)
+
+    useEffect(() => {
+        const fetchResumes = async () => {
+            if (!user) return;
+            try {
+                const dbUserId = getDbUserId(user);
+                const { data, error } = await supabase
+                    .from('resumes')
+                    .select('id, title, data')
+                    .eq('user_id', dbUserId)
+                    .order('created_at', { ascending: false });
+                
+                if (!error && data) {
+                    setResumes(data);
+                    if (data.length > 0) setSelectedResumeId(data[0].id);
+                }
+            } catch (err) {
+                console.error("Error fetching resumes for AI:", err);
+            }
+        };
+        fetchResumes();
+    }, [user]);
+
+    const handleGenerateAI = async () => {
+        if (!selectedResumeId) {
+            showError("Please select a resume first.");
+            return;
+        }
+        if (!jobDescription.trim()) {
+            showError("Please provide a job description.");
+            return;
+        }
+
+        const selectedResume = resumes.find(r => r.id === selectedResumeId);
+        if (!selectedResume) return;
+
+        setIsAILoading(true);
+        try {
+            const response = await fetch('http://localhost:5000/api/generate-cover-letter', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    resumeData: selectedResume.data,
+                    jobDescription: jobDescription,
+                    companyName: coverLetter.companyName,
+                    recipientName: coverLetter.recipientName,
+                    recipientTitle: coverLetter.recipientTitle
+                })
+            });
+
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Failed to generate cover letter');
+            }
+
+            const aiData = data.data;
+            
+            setCoverLetter(prev => ({
+                ...prev,
+                openingParagraph: aiData.openingParagraph || prev.openingParagraph,
+                bodyParagraphs: aiData.bodyParagraphs || prev.bodyParagraphs,
+                closingParagraph: aiData.closingParagraph || prev.closingParagraph
+            }));
+
+            success("Cover letter generated successfully!");
+        } catch (err) {
+            console.error("AI Generation Error:", err);
+            showError(err.message);
+        } finally {
+            setIsAILoading(false);
+        }
+    };
 
     const handleInputChange = (field, value) => {
         setCoverLetter(prev => ({ ...prev, [field]: value }))
@@ -157,6 +233,68 @@ export default function CoverLetterBuilder() {
                         <div style={{ marginBottom: '2.5rem' }}>
                             <h2 style={{ fontSize: '2.2rem', fontWeight: 900, color: '#0f172a', letterSpacing: '-0.02em', marginBottom: '0.5rem' }}>Cover Letter Builder</h2>
                             <p style={{ color: '#64748b', fontWeight: 500 }}>Create a professional cover letter that gets you hired.</p>
+                        </div>
+
+                        {/* AI Generator Section */}
+                        <div style={{ background: 'linear-gradient(135deg, #f0fdfa, #f8fafc)', padding: '2rem', borderRadius: '16px', marginBottom: '3rem', border: '1px solid #ccfbf1', position: 'relative', overflow: 'hidden' }}>
+                            <div style={{ position: 'absolute', top: '-20px', right: '-20px', opacity: 0.1, pointerEvents: 'none' }}>
+                                <Sparkles size={120} color="#0d9488" />
+                            </div>
+                            <div style={{ position: 'relative', zIndex: 1 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ width: '40px', height: '40px', background: '#0d9488', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)' }}>
+                                        <Sparkles size={20} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>AI Cover Letter Generator</h3>
+                                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Craft a tailored letter in seconds based on your resume and job description</p>
+                                    </div>
+                                </div>
+                                
+                                <div style={{ display: 'grid', gap: '1.25rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Select Base Resume</label>
+                                        <select 
+                                            value={selectedResumeId}
+                                            onChange={(e) => setSelectedResumeId(e.target.value)}
+                                            style={{ padding: '0.8rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 500, outline: 'none', background: '#fff', cursor: 'pointer', appearance: 'none' }}
+                                        >
+                                            {resumes.length === 0 ? (
+                                                <option value="">No resumes found. Create one first!</option>
+                                            ) : (
+                                                resumes.map(r => (
+                                                    <option key={r.id} value={r.id}>{r.title || 'Untitled Resume'}</option>
+                                                ))
+                                            )}
+                                        </select>
+                                    </div>
+                                    <InputField 
+                                        label="Target Job Description" 
+                                        value={jobDescription}
+                                        onChange={(e) => setJobDescription(e.target.value)}
+                                        placeholder="Paste the job description here..."
+                                        multiline
+                                        rows={4}
+                                    />
+                                    <button 
+                                        onClick={handleGenerateAI}
+                                        disabled={isAILoading || resumes.length === 0 || !jobDescription.trim()}
+                                        style={{ 
+                                            background: '#0f172a', color: 'white', padding: '1rem', borderRadius: '12px', 
+                                            fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', 
+                                            alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem',
+                                            opacity: (isAILoading || resumes.length === 0 || !jobDescription.trim()) ? 0.7 : 1,
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {isAILoading ? (
+                                            <>Generating Magic...</>
+                                        ) : (
+                                            <><Sparkles size={18} /> Generate Cover Letter</>
+                                        )}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Title Section */}

@@ -6,7 +6,7 @@ import {
     LayoutDashboard, FileText, Pickaxe, Clock, Star,
     Edit3, Trash2, Download as DownloadIcon, Plus,
     MoreVertical, Search, Filter, CheckCircle2, AlertCircle,
-    User, Settings, LogOut, ChevronRight, Zap, Briefcase
+    User, Settings, LogOut, ChevronRight, Zap, Briefcase, Copy
 } from 'lucide-react'
 import { supabase } from '../supabase'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer';
@@ -300,6 +300,52 @@ export default function StudentDashboard() {
         })
     }
 
+    const handleDuplicate = async (resume) => {
+        try {
+            const dbUserId = getDbUserId(user)
+            if (!dbUserId) throw new Error("User not authenticated")
+
+            const { data, error } = await supabase
+                .from('resumes')
+                .insert({
+                    user_id: dbUserId,
+                    data: resume.data,
+                    template: resume.template,
+                    template_id: resume.template_id,
+                    customization: resume.customization,
+                    score: resume.score,
+                    title: `${resume.title || 'Untitled'} (Copy)`,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+
+            if (error) {
+                const attemptPayload = {
+                    user_id: dbUserId,
+                    data: resume.data,
+                    template: resume.template,
+                    customization: resume.customization,
+                    title: `${resume.title || 'Untitled'} (Copy)`,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                }
+                const fallbackResult = await supabase
+                    .from('resumes')
+                    .insert(attemptPayload)
+                    .select()
+                
+                if (fallbackResult.error) throw fallbackResult.error;
+            }
+
+            success('Resume duplicated successfully!')
+            fetchResumes()
+        } catch (error) {
+            console.error("Duplicate Error:", error)
+            showError("Failed to duplicate resume. Please try again.")
+        }
+    }
+
     const handleDeleteCoverLetter = async (clId) => {
         openConfirmDialog({
             title: 'Delete Cover Letter',
@@ -330,6 +376,32 @@ export default function StudentDashboard() {
                 }
             }
         })
+    }
+
+    const handleDuplicateCoverLetter = async (cl) => {
+        try {
+            const dbUserId = getDbUserId(user)
+            if (!dbUserId) throw new Error("User not authenticated")
+
+            const { data, error } = await supabase
+                .from('cover_letters')
+                .insert({
+                    user_id: dbUserId,
+                    data: cl.data,
+                    title: `${cl.title || 'Untitled'} (Copy)`,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
+                })
+                .select()
+
+            if (error) throw error
+
+            success('Cover letter duplicated successfully!')
+            fetchCoverLetters()
+        } catch (error) {
+            console.error("Duplicate Error:", error)
+            showError("Failed to duplicate cover letter. Please try again.")
+        }
     }
 
     const handleStartEditTitle = (id, currentTitle, type) => {
@@ -401,6 +473,7 @@ export default function StudentDashboard() {
             const normalizedData = normalizeResumeData(resume.data)
             return {
                 ...resume,
+                _rawData: resume.data,      // keep original DB data for saving/editing
                 data: normalizedData,
                 customization: getObject(resume.customization),
                 dynamicScore: calculateATSScore(normalizedData),
@@ -565,12 +638,23 @@ export default function StudentDashboard() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8">
                                     <AnimatePresence>
-                                        {filteredResumes.map((resume, idx) => (
+                                                        {filteredResumes.map((resume, idx) => (
                                             <ResumeCard
                                                 key={resume.id}
                                                 resume={resume}
                                                 idx={idx}
-                                                onEdit={() => { loadResume(resume); navigate('/build'); }}
+                                                onEdit={() => {
+                                                    // Load with normalized data but preserve original template/customization DB fields
+                                                    loadResume({
+                                                        ...resume,
+                                                        data: resume.data,
+                                                        customization: resume.customization,
+                                                        template_id: resume.template_id,
+                                                        template: resume.template,
+                                                        templateId: resume.templateId
+                                                    });
+                                                    navigate('/build');
+                                                }}
                                                 onDelete={() => handleDelete(resume.id)}
                                                 onDownload={() => handleDownload(resume)}
                                                 onPreview={() => setPreviewResume(resume)}
@@ -581,6 +665,7 @@ export default function StudentDashboard() {
                                                 onSaveTitle={handleSaveTitle}
                                                 onCancelEdit={handleCancelEdit}
                                                 onTitleChange={setNewTitle}
+                                                onDuplicate={() => handleDuplicate(resume)}
                                             />
                                         ))}
                                     </AnimatePresence>
@@ -620,6 +705,7 @@ export default function StudentDashboard() {
                                                 onSaveTitle={handleSaveTitle}
                                                 onCancelEdit={handleCancelEdit}
                                                 onTitleChange={setNewTitle}
+                                                onDuplicate={() => handleDuplicateCoverLetter(cl)}
                                             />
                                         ))}
                                     </AnimatePresence>
@@ -934,7 +1020,7 @@ function LazyResumeThumbnail({ resume }) {
     )
 }
 
-function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange }) {
+function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange, onDuplicate }) {
     const dynamicScore = getResumeATSScore(resume)
 
     return (
@@ -1023,6 +1109,13 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
                                 <DownloadIcon size={18} />
                             </button>
                             <button
+                                onClick={onDuplicate}
+                                className="w-11 h-11 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg border border-slate-200"
+                                title="Duplicate resume"
+                            >
+                                <Copy size={18} />
+                            </button>
+                            <button
                                 onClick={onDelete}
                                 disabled={isDeleting}
                                 className="w-11 h-11 bg-rose-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-lg disabled:opacity-70 disabled:cursor-not-allowed"
@@ -1054,7 +1147,7 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
     )
 }
 
-function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange }) {
+function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange, onDuplicate }) {
     return (
         <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -1081,10 +1174,13 @@ function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, is
 
                 {/* Quick Actions Overlay */}
                 <div className="absolute inset-0 bg-emerald-900/60 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-[2px]">
-                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
+                    <button onClick={(e) => { e.stopPropagation(); onDownload(); }} title="Download PDF" className="w-12 h-12 bg-emerald-500 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
                         <DownloadIcon size={20} />
                     </button>
-                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="w-12 h-12 bg-rose-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
+                    <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} title="Duplicate" className="w-12 h-12 bg-slate-100 text-slate-700 rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
+                        <Copy size={20} />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete" className="w-12 h-12 bg-rose-600 text-white rounded-xl flex items-center justify-center hover:scale-110 active:scale-90 transition-all shadow-xl">
                         <Trash2 size={20} />
                     </button>
                 </div>

@@ -41,10 +41,10 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // Helper: Entry Component
   const Entry = ({ title, subtitle, date, description, style = {} }) => (
-    <div style={{ marginBottom: '1.2rem', ...style }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-        <h4 style={{ fontSize: '0.95rem', fontWeight: 750, color: finalPrimary, margin: 0 }}>{title}</h4>
-        {date && <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.6 }}>{date}</span>}
+    <div style={{ marginBottom: '1.2rem', ...style, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <h4 style={{ fontSize: '0.95rem', fontWeight: 750, color: finalPrimary, margin: 0, flex: '1 1 300px' }}>{title}</h4>
+        {date && <span style={{ fontSize: '0.75rem', fontWeight: 600, opacity: 0.6, flexShrink: 0 }}>{date}</span>}
       </div>
       {subtitle && <div style={{ fontSize: '0.85rem', fontWeight: 600, color: finalAccent, marginTop: '0.1rem' }}>{subtitle}</div>}
       {description && <p style={{ fontSize: '0.85rem', margin: '0.4rem 0 0 0', opacity: 0.8, lineHeight: 1.5 }}>{description}</p>}
@@ -55,12 +55,12 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 1. DIAGONAL HERO (t01, t20)
   const renderDiagonalHero = () => (
-    <div style={{ width: '816px', minHeight: '1056px', background: bg, color: '#333', fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
+    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#333', fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '220px', background: finalPrimary, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 70%)', zjoin: 'miter' }} />
       <div style={{ position: 'absolute', top: 0, left: 0, width: '120px', height: '220px', background: finalAccent, clipPath: 'polygon(0 0, 100% 0, 0 70%)', opacity: 0.9 }} />
       
       <div style={{ position: 'relative', padding: '2.5rem 3rem', color: '#fff' }}>
-        <h1 style={{ fontSize: '3.2rem', fontWeight: 950, margin: 0, letterSpacing: '-0.03em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+        <h1 style={{ fontSize: '3.2rem', fontWeight: 950, margin: 0, letterSpacing: '-0.03em', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
         <div style={{ fontSize: '1.1rem', fontWeight: 600, color: finalAccent, marginTop: '0.2rem' }}>{personalInfo.title}</div>
         <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', fontSize: '0.8rem', opacity: 0.8 }}>
            {personalInfo.email && <span>{personalInfo.email}</span>}
@@ -69,23 +69,29 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
       </div>
 
       <div style={{ padding: '3rem', marginTop: '40px', display: 'grid', gridTemplateColumns: '1fr', gap: '2.5rem' }}>
-        <section>
-          <SectionLabel title="Professional Summary" />
-          <p style={{ fontSize: '0.95rem', lineHeight: 1.7, opacity: 0.85 }}>{resolvedSummary}</p>
-        </section>
-        <section>
-          <SectionLabel title="Experience" />
-          {experience.map((exp, idx) => (
-            <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
-          ))}
-        </section>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2.5rem' }}>
+        {resolvedSummary && (
+          <section>
+            <SectionLabel title="Professional Summary" />
+            <p style={{ fontSize: '0.95rem', lineHeight: 1.7, opacity: 0.85 }}>{resolvedSummary}</p>
+          </section>
+        )}
+        {experience.length > 0 && (
+          <section>
+            <SectionLabel title="Experience" />
+            {experience.map((exp, idx) => (
+              <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+            ))}
+          </section>
+        )}
+        {education.length > 0 && (
           <section>
             <SectionLabel title="Education" />
             {education.map((edu, idx) => (
               <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
             ))}
           </section>
+        )}
+        {skills.length > 0 && (
           <section>
             <SectionLabel title="Skills" />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
@@ -96,7 +102,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
               ))}
             </div>
           </section>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -104,7 +110,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
   // 2. SIDEBAR PANEL (t02, t05, t08, t14, t25, sidebar style)
   const renderSidebarPanel = (onRight = false) => (
     <div style={{ 
-        width: '816px', 
+        width: '794px', 
         minHeight: '1056px', 
         display: 'flex', 
         flexDirection: onRight ? 'row-reverse' : 'row', 
@@ -113,52 +119,66 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
         fontFamily: fonts.body 
     }}>
       <div style={{ width: '30%', background: finalPrimary, color: '#fff', padding: '3rem 2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: `${finalAccent}33`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <User size={50} color={finalAccent} />
+        <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: `${finalAccent}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          {personalInfo.profilePhoto ? (
+            <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectCover: 'cover' }} />
+          ) : (
+            <User size={50} color={finalAccent} />
+          )}
         </div>
-        <section>
-          <SectionLabel title="Contact" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', opacity: 0.9 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> {personalInfo.email}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Phone size={14} /> {personalInfo.phone}</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><MapPin size={14} /> {personalInfo.location}</div>
-          </div>
-        </section>
-        <section>
-          <SectionLabel title="Skills" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-            {skills.map((s, idx) => (
-              <div key={idx}>
-                <div style={{ fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 600 }}>{getSkillName(s)}</div>
-                <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
-                  <div style={{ width: '85%', height: '100%', background: finalAccent, borderRadius: '2px' }} />
+        {(personalInfo.email || personalInfo.phone || personalInfo.location) && (
+          <section>
+            <SectionLabel title="Contact" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', opacity: 0.9 }}>
+              {personalInfo.email && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> {personalInfo.email}</div>}
+              {personalInfo.phone && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Phone size={14} /> {personalInfo.phone}</div>}
+              {personalInfo.location && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><MapPin size={14} /> {personalInfo.location}</div>}
+            </div>
+          </section>
+        )}
+        {skills.length > 0 && (
+          <section>
+            <SectionLabel title="Skills" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+              {skills.map((s, idx) => (
+                <div key={idx}>
+                  <div style={{ fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 600 }}>{getSkillName(s)}</div>
+                  <div style={{ width: '100%', height: '4px', background: 'rgba(255,255,255,0.1)', borderRadius: '2px' }}>
+                    <div style={{ width: '85%', height: '100%', background: finalAccent, borderRadius: '2px' }} />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
       <div style={{ width: '70%', padding: '4rem 3rem' }}>
-        <h1 style={{ fontSize: '2.8rem', fontWeight: 900, color: finalPrimary, margin: 0, lineHeight: 1.12, letterSpacing: '-0.02em', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: finalAccent, margin: '0.45rem 0 0 0', lineHeight: 1.3, wordBreak: 'break-word' }}>{personalInfo.title}</h2>
+        <h1 style={{ fontSize: '2.8rem', fontWeight: 900, color: finalPrimary, margin: 0, lineHeight: 1.12, letterSpacing: '-0.02em', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+        <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: finalAccent, margin: '0.45rem 0 0 0', lineHeight: 1.3, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.title}</h2>
         
         <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
-          <section>
-            <SectionLabel title="Professional Summary" />
-            <p style={{ fontSize: '0.9rem', lineHeight: 1.6, opacity: 0.8 }}>{resolvedSummary}</p>
-          </section>
-          <section>
-            <SectionLabel title="Experience" icon={Briefcase} />
-            {experience.map((exp, idx) => (
-              <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
-            ))}
-          </section>
-          <section>
-            <SectionLabel title="Education" icon={GraduationCap} />
-            {education.map((edu, idx) => (
-              <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
-            ))}
-          </section>
+          {resolvedSummary && (
+            <section>
+              <SectionLabel title="Professional Summary" />
+              <p style={{ fontSize: '0.9rem', lineHeight: 1.6, opacity: 0.8 }}>{resolvedSummary}</p>
+            </section>
+          )}
+          {experience.length > 0 && (
+            <section>
+              <SectionLabel title="Experience" icon={Briefcase} />
+              {experience.map((exp, idx) => (
+                <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+              ))}
+            </section>
+          )}
+          {education.length > 0 && (
+            <section>
+              <SectionLabel title="Education" icon={GraduationCap} />
+              {education.map((edu, idx) => (
+                <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+              ))}
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -166,13 +186,13 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 3. TECH / NEON MODE (t06, t22, dev style)
   const renderTechMode = () => (
-    <div style={{ width: '816px', minHeight: '1056px', background: bg, color: '#e0e0e0', fontFamily: 'monospace', padding: '3rem' }}>
+    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#e0e0e0', fontFamily: 'monospace', padding: '3rem' }}>
         <div style={{ borderTop: `4px solid ${finalAccent}`, paddingTop: '1rem', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                <Terminal color={finalAccent} size={32} />
-                <h1 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, textTransform: 'uppercase' }}>{personalInfo.firstName}_{personalInfo.lastName}</h1>
+                <Terminal color={finalAccent} size={32} style={{ flexShrink: 0 }} />
+                <h1 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName}_{personalInfo.lastName}</h1>
             </div>
-            <div style={{ color: finalAccent, fontSize: '1.1rem', marginTop: '0.5rem' }}>&gt; {personalInfo.title}</div>
+            <div style={{ color: finalAccent, fontSize: '1.1rem', marginTop: '0.5rem', overflowWrap: 'break-word', wordBreak: 'break-word' }}>&gt; {personalInfo.title}</div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '3rem' }}>
@@ -184,15 +204,16 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
             <section>
                 <div style={{ color: finalAccent, fontWeight: 800, marginBottom: '1.5rem' }}>// EXPERIENCE</div>
                 {experience.map((exp, idx) => (
-                    <div key={idx} style={{ marginBottom: '2rem', paddingLeft: '1rem', borderLeft: `2px solid ${finalAccent}33` }}>
-                    <div style={{ fontWeight: 800 }}>{exp.role} @ {getExperienceCompany(exp)}</div>
+                    <div key={idx} style={{ marginBottom: '2rem', paddingLeft: '1rem', borderLeft: `2px solid ${finalAccent}33`, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                    <div style={{ fontWeight: 800, color: '#fff' }}>{exp.role} @ {getExperienceCompany(exp)}</div>
                     <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>[{getExperienceDate(exp)}]</div>
-                    {exp?.description && <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.35rem', lineHeight: 1.5 }}>{exp.description}</div>}
+                    {exp?.description && <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.45rem', lineHeight: 1.6 }}>{exp.description}</div>}
                     </div>
                 ))}
             </section>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem' }}>
+            {skills.length > 0 && (
                 <section>
                     <div style={{ color: finalAccent, fontWeight: 800, marginBottom: '1.5rem' }}>// TECH_STACK</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -201,6 +222,8 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                         ))}
                     </div>
                 </section>
+            )}
+            {education.length > 0 && (
                 <section>
                     <div style={{ color: finalAccent, fontWeight: 800, marginBottom: '1.5rem' }}>// EDUCATION</div>
                     {education.map((edu, idx) => (
@@ -210,14 +233,15 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                         </div>
                     ))}
                 </section>
-            </div>
+            )}
+        </div>
         </div>
     </div>
   );
 
   // 4. MAGAZINE / EDITORIAL (t07, t30, news style)
   const renderMagazineMode = () => (
-    <div style={{ width: '816px', minHeight: '1056px', background: bg, color: '#111', fontFamily: fonts.heading, padding: '4rem' }}>
+    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#111', fontFamily: fonts.heading, padding: '4rem' }}>
         <div style={{ borderLeft: `8px solid ${finalAccent}`, paddingLeft: '2rem', marginBottom: '4rem' }}>
             <h1 style={{ fontSize: '4rem', fontWeight: 950, lineHeight: 0.9, marginBottom: '0.5rem' }}>{personalInfo.firstName}<br />{personalInfo.lastName}</h1>
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: finalAccent, textTransform: 'uppercase', letterSpacing: '0.2em' }}>{personalInfo.title}</div>
@@ -236,20 +260,24 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                 </section>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
+            {(personalInfo.email || personalInfo.phone || personalInfo.location) && (
                 <section>
                     <SectionLabel title="Reach" style={{ borderBottomWidth: '3px', borderBottomColor: '#111' }} />
                     <div style={{ fontSize: '0.9rem', display: 'flex', flexDirection: 'column', gap: '1rem', opacity: 0.8 }}>
-                        <div>{personalInfo.email}</div>
-                        <div>{personalInfo.phone}</div>
-                        <div>{personalInfo.location}</div>
+                        {personalInfo.email && <div>{personalInfo.email}</div>}
+                        {personalInfo.phone && <div>{personalInfo.phone}</div>}
+                        {personalInfo.location && <div>{personalInfo.location}</div>}
                     </div>
                 </section>
+            )}
+            {skills.length > 0 && (
                 <section>
                     <SectionLabel title="Expertise" style={{ borderBottomWidth: '3px', borderBottomColor: '#111' }} />
                     {skills.map((s, idx) => (
                     <div key={idx} style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem' }}>• {getSkillName(s)}</div>
                     ))}
                 </section>
+            )}
             </div>
         </div>
     </div>
@@ -257,7 +285,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 5. CARD GRID (t19, studio style)
   const renderCardGrid = () => (
-    <div style={{ width: '816px', minHeight: '1056px', background: bg, padding: '3rem', fontFamily: fonts.body }}>
+    <div style={{ width: '794px', minHeight: '1056px', background: bg, padding: '3rem', fontFamily: fonts.body }}>
         <div style={{ background: finalPrimary, color: '#fff', padding: '3rem', borderRadius: '24px', marginBottom: '2rem' }}>
             <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
             <p style={{ fontSize: '1.2rem', opacity: 0.8, marginTop: '0.5rem' }}>{personalInfo.title}</p>
@@ -275,21 +303,23 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                     <div style={{ background: '#f8fafc', padding: '1rem', borderRadius: '12px', fontSize: '0.85rem' }}>{personalInfo.phone}</div>
                 </div>
             </div>
-            <div style={{ gridColumn: 'span 2', background: '#fff', padding: '2rem', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', border: '1px solid #f1f5f9' }}>
-                <SectionLabel title="Experience" />
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
-                {experience.map((exp, idx) => (
-                  <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
-                    ))}
+            {experience.length > 0 && (
+                <div style={{ gridColumn: 'span 2', background: '#fff', padding: '2rem', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', border: '1px solid #f1f5f9' }}>
+                    <SectionLabel title="Experience" />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                    {experience.map((exp, idx) => (
+                      <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+                        ))}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     </div>
   );
 
   // 6. EXECUTIVE / FORMAL (t11, t13, t23, corp, ib, legal, prof)
   const renderExecutiveMode = () => (
-    <div style={{ width: '816px', minHeight: '1056px', background: bg, color: (template.id || '').includes('dark') || bg === '#0d1b2a' || bg === '#111' ? '#fff' : '#111', padding: '96px', fontFamily: fonts.heading }}>
+    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: (template.id || '').includes('dark') || bg === '#0d1b2a' || bg === '#111' ? '#fff' : '#111', padding: '96px', fontFamily: fonts.heading }}>
         <div style={{ textAlign: 'center', borderBottom: `2px solid ${finalAccent}`, paddingBottom: '2rem', marginBottom: '3rem' }}>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
             <div style={{ fontSize: '1rem', fontWeight: 600, color: finalAccent, margin: '0.5rem 0' }}>{personalInfo.title}</div>
@@ -303,18 +333,22 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                 <SectionLabel title="Executive Profile" style={{ borderBottomColor: '#111' }} />
             <p style={{ fontSize: '1rem', lineHeight: 1.6 }}>{resolvedSummary}</p>
             </section>
-            <section>
-                <SectionLabel title="Experience" style={{ borderBottomColor: '#111' }} />
-                {experience.map((exp, idx) => (
-              <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
-                ))}
-            </section>
-            <section>
-                <SectionLabel title="Education" style={{ borderBottomColor: '#111' }} />
-                {education.map((edu, idx) => (
-              <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
-                ))}
-            </section>
+            {experience.length > 0 && (
+                <section>
+                    <SectionLabel title="Experience" style={{ borderBottomColor: '#111' }} />
+                    {experience.map((exp, idx) => (
+                  <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+                    ))}
+                </section>
+            )}
+            {education.length > 0 && (
+                <section>
+                    <SectionLabel title="Education" style={{ borderBottomColor: '#111' }} />
+                    {education.map((edu, idx) => (
+                  <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+                    ))}
+                </section>
+            )}
         </div>
     </div>
   );
@@ -350,26 +384,30 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // DEFAULT FALLBACK (Minimalist/Standard)
   return (
-    <div style={{ width: '816px', minHeight: '1056px', padding: '96px', background: bg, color: '#333', fontFamily: fonts.body }}>
-       <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: finalPrimary, margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+    <div style={{ width: '794px', minHeight: '1056px', padding: '96px', background: bg, color: '#333', fontFamily: fonts.body }}>
+       <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: finalPrimary, margin: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: finalAccent, borderBottom: `1px solid ${finalAccent}`, paddingBottom: '0.5rem', marginBottom: '2rem' }}>{personalInfo.title}</div>
        
        <div style={{ display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           <section>
            <p style={{ fontSize: '1rem', lineHeight: 1.6 }}>{resolvedSummary}</p>
           </section>
-          <section>
-             <SectionLabel title="Experience" />
-             {experience.map((exp, idx) => (
-             <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
-             ))}
-          </section>
-          <section>
-             <SectionLabel title="Education" />
-             {education.map((edu, idx) => (
-             <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
-             ))}
-          </section>
+          {experience.length > 0 && (
+              <section>
+                 <SectionLabel title="Experience" />
+                 {experience.map((exp, idx) => (
+                 <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+                 ))}
+              </section>
+          )}
+          {education.length > 0 && (
+              <section>
+                 <SectionLabel title="Education" />
+                 {education.map((edu, idx) => (
+                 <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+                 ))}
+              </section>
+          )}
        </div>
     </div>
   );

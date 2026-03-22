@@ -11,47 +11,22 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
     await document.fonts.ready;
   }
 
-  // Use a scaling factor for high resolution
-  const scale = 2;
-  const canvas = await html2canvas(element, {
-    scale,
-    useCORS: true,
-    logging: false,
-    backgroundColor: '#ffffff',
-    width: element.scrollWidth,
-    height: element.scrollHeight,
-    windowWidth: element.scrollWidth,
-    windowHeight: element.scrollHeight,
-    scrollX: 0,
-    scrollY: 0,
-    onclone: (clonedDoc) => {
-      const clonedElement = clonedDoc.getElementById(element.id);
-      if (clonedElement) {
-        clonedElement.style.overflow = 'visible';
-        clonedElement.style.height = 'auto';
-        clonedElement.style.minHeight = '0';
-        clonedElement.style.aspectRatio = 'auto';
-      }
-    },
+  return new Promise((resolve) => {
+    const originalTitle = document.title;
+    // Set title so the save dialog uses the requested file name (removing .pdf if present)
+    document.title = fileName.replace('.pdf', '');
+    
+    // Add print class to isolate the resume content
+    document.body.classList.add('is-printing');
+    
+    // Use a small timeout to allow CSS to apply
+    setTimeout(() => {
+      window.print();
+      
+      // Cleanup after printing
+      document.title = originalTitle;
+      document.body.classList.remove('is-printing');
+      resolve(true);
+    }, 300);
   });
-
-  // Standard A4 width in pt
-  const pdfWidth = 595.28; 
-  // Calculate the proportional height for the PDF based on the entire canvas
-  const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
-
-  // Create a single continuous PDF page that dynamically fits ALL content perfectly
-  const pdf = new jsPDF({
-    orientation: 'portrait',
-    unit: 'pt',
-    format: [pdfWidth, pdfHeight],
-  });
-
-  const pageData = canvas.toDataURL('image/png');
-
-  // Add the single image covering the exact size of the dynamic page
-  pdf.addImage(pageData, 'PNG', 0, 0, pdfWidth, pdfHeight, undefined, 'FAST');
-
-  // Save the PDF
-  pdf.save(fileName);
 };

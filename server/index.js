@@ -174,110 +174,101 @@ app.get('/api/users/:userId', async (req, res) => {
 
 // ==================== ATS CHECKER ====================
 
-// Resume parse API route (Gemini)
+// Resume parse API route (Claude)
 app.post('/api/parse-resume', async (req, res) => {
-        try {
-                const { resumeText } = req.body;
+    try {
+        const { resumeText } = req.body;
 
-                if (!resumeText || typeof resumeText !== 'string') {
-                        return res.status(400).json({ error: 'resumeText is required' });
-                }
+        if (!resumeText || typeof resumeText !== 'string') {
+            return res.status(400).json({ error: 'resumeText is required' });
+        }
 
-                const geminiApiKey = process.env.GEMINI_API_KEY;
-                if (!geminiApiKey) {
-                        return res.status(500).json({ error: 'GEMINI_API_KEY is not configured' });
-                }
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        const genieApiKey = process.env.GEMINI_API_KEY;
+        if (!genieApiKey) {
+            return res.status(500).json({ error: 'GEMINI_API_KEY is not configured for resume parsing.' });
+        }
 
-                const prompt = `Extract structured resume data from the provided text. Return ONLY valid JSON (no markdown, no explanation) with this schema:
+        const genAI = new GoogleGenerativeAI(genieApiKey);
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.0-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
+
+        const prompt = `You are a world-class resume parser. Extract ALL information from the resume text below into a structured JSON object. 
+Be absolutely thorough. Accuracy is paramount. 
+Extract every experience, education and skill. 
+
+JSON Schema:
 {
-    "personalInfo": {
-        "firstName": "",
-        "lastName": "",
-        "email": "",
-        "phone": "",
-        "location": "",
-        "title": "",
-        "summary": "",
-        "linkedin": "",
-        "github": "",
-        "website": ""
-    },
-    "experience": [
-        {
-            "role": "",
-            "company": "",
-            "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
-        }
-    ],
-    "education": [
-        {
-            "degree": "",
-            "school": "",
-            "location": "",
-            "startDate": "",
-            "endDate": "",
-            "description": ""
-        }
-    ],
-    "skills": [{ "name": "", "level": "Advanced" }],
-    "projects": [{ "name": "", "description": "", "link": "" }],
-    "certifications": [{ "name": "", "issuer": "", "issueDate": "", "expiryDate": "", "credentialId": "", "link": "" }]
+  "personalInfo": {
+    "firstName": "String",
+    "lastName": "String",
+    "email": "String",
+    "phone": "String",
+    "location": "City, Country",
+    "title": "Current Job Title or Headline",
+    "summary": "Professional Summary",
+    "profilePhoto": "null (leave null)",
+    "linkedin": "URL or empty",
+    "github": "URL or empty",
+    "website": "URL or empty"
+  },
+  "experience": [
+    {
+      "role": "Job Title",
+      "company": "Company Name",
+      "startDate": "Date",
+      "endDate": "Date or Present",
+      "description": "Bullet points joined by '. '"
+    }
+  ],
+  "education": [
+    {
+      "school": "University Name",
+      "degree": "Degree and Major",
+      "endDate": "Date",
+      "gpa": "String (if any)",
+      "description": "Any additional honors"
+    }
+  ],
+  "skills": [
+    { "name": "Skill Name", "level": "Beginner|Intermediate|Advanced|Expert" }
+  ],
+  "projects": [
+    { "name": "Name", "description": "Story", "link": "URL" }
+  ],
+  "certifications": [
+    { "name": "Name", "issuer": "Org", "issueDate": "Date", "link": "URL" }
+  ]
 }
-
-Rules:
-- Keep unknown fields as empty strings.
-- Keep arrays empty if missing.
-- Do not invent fake details.
 
 Resume Text:
 ${resumeText}`;
 
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`;
-                const geminiResponse = await fetch(url, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                                generationConfig: {
-                                        temperature: 0.2,
-                                        maxOutputTokens: 2048,
-                                        responseMimeType: 'application/json'
-                                }
-                        })
-                });
-
-                const geminiData = await geminiResponse.json();
-
-                if (!geminiResponse.ok) {
-                        const message = geminiData?.error?.message || 'Gemini API request failed';
-                        return res.status(500).json({ error: message });
-                }
-
-                const rawText = geminiData?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-
-                // Handle both plain JSON and accidental fenced JSON.
-                const cleaned = rawText
-                        .replace(/^```json\s*/i, '')
-                        .replace(/^```\s*/i, '')
-                        .replace(/```$/i, '')
-                        .trim();
-
-                let parsed;
-                try {
-                        parsed = JSON.parse(cleaned);
-                } catch (parseError) {
-                        console.error('Gemini parse JSON error:', parseError, cleaned);
-                        return res.status(500).json({ error: 'Failed to parse Gemini response JSON' });
-                }
-
-                res.json({ success: true, data: parsed });
-        } catch (error) {
-                console.error('Resume parse error:', error);
-                res.status(500).json({ error: 'Resume parse failed', details: error.message });
+        const result = await model.generateContent(prompt);
+        let responseText = result.response.text();
+        
+        // Robust JSON extraction
+        let parsed;
+        try {
+            // Remove markdown formatting if present
+            const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, responseText];
+            const cleanSource = jsonMatch[1].trim();
+            parsed = JSON.parse(cleanSource);
+        } catch (parseError) {
+            console.error('Failed to parse Gemini JSON:', responseText);
+            throw new Error('AI returned malformed JSON data');
         }
+
+        res.json({ success: true, data: parsed });
+    } catch (error) {
+        console.error('Resume Parse Error:', error);
+        res.status(500).json({ 
+            error: 'Resume parsing failed',
+            details: error.message 
+        });
+    }
 });
 
 // ATS Check API route
@@ -301,21 +292,24 @@ app.post('/api/ats-check', async (req, res) => {
 
         const client = new Anthropic({ apiKey });
 
-        const prompt = `You are a professional ATS analyzer. Analyze the resume against the job description. Return ONLY valid JSON, no markdown, no explanation:
+        const prompt = `You are an expert ATS (Applicant Tracking System) parser and an elite resume reviewer. Analyze the resume against the job description.
+CRITICAL RULE: Your feedback MUST be highly specific and actionable. Do NOT give generic advice like "Add more keywords" or "Quantify achievements". Instead, quote a specific bullet point from their experience and show how to improve it (e.g., "Change 'Helped with project' to 'Spearheaded project X leading to Y% increase'"). Give exact action verbs they should use based on the job description.
+
+Return ONLY valid JSON matching this schema exactly (no markdown, no preamble):
 {
   "overall_score": 0-100,
   "verdict": "Excellent|Good|Needs Improvement|Weak",
   "keyword_analysis": { "matched": [], "missing": [], "match_percent": 0-100 },
   "sections": { 
     "contact": {"score": 0-100, "status": "pass|warning|fail", "issues": []}, 
-    "summary": {"score": 0-100, "status": "pass|warning|fail", "issues": []}, 
-    "experience": {"score": 0-100, "status": "pass|warning|fail", "issues": []}, 
+    "summary": {"score": 0-100, "status": "pass|warning|fail", "issues": ["Provide highly specific critique referencing their exact summary text"]}, 
+    "experience": {"score": 0-100, "status": "pass|warning|fail", "issues": ["Quote specific bullets and rewrite them to be stronger"]}, 
     "education": {"score": 0-100, "status": "pass|warning|fail", "issues": []}, 
-    "skills": {"score": 0-100, "status": "pass|warning|fail", "issues": []} 
+    "skills": {"score": 0-100, "status": "pass|warning|fail", "issues": ["List EXACT strings from the JD they are missing"]} 
   },
-  "formatting_issues": [],
-  "strengths": [],
-  "recommendations": [],
+  "formatting_issues": ["List any formatting issues"],
+  "strengths": ["List specific strengths"],
+  "recommendations": ["Highly actionable step 1...", "Highly actionable step 2..."],
   "estimated_pass_rate": "High|Medium|Low"
 }
 
@@ -355,6 +349,82 @@ ${jobDescription}`;
         console.error('ATS Check Error:', error);
         res.status(500).json({ 
             error: 'ATS check failed',
+            details: error.message 
+        });
+    }
+});
+
+// ==================== COVER LETTER GENERATOR ====================
+
+app.post('/api/generate-cover-letter', async (req, res) => {
+    try {
+        const { resumeData, jobDescription, companyName, recipientName, recipientTitle } = req.body;
+
+        if (!resumeData || !jobDescription) {
+            return res.status(400).json({ error: 'resumeData and jobDescription are required.' });
+        }
+
+        const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+        if (!anthropicApiKey) {
+            return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured.' });
+        }
+
+        const prompt = `You are an expert career coach and professional copywriter.
+Write a highly compelling, tailored cover letter based on the provided resume and job description.
+The cover letter should match the tone and strict formatting required.
+
+Resume:
+${JSON.stringify(resumeData, null, 2)}
+
+Job Description:
+${jobDescription}
+
+Target Company: ${companyName || '[Company Name]'}
+Hiring Manager / Recipient Name: ${recipientName || 'Hiring Manager'}
+Recipient Title: ${recipientTitle || ''}
+
+Return ONLY valid JSON (no markdown, no preamble) with this exact schema:
+{
+  "openingParagraph": "A strong hook explaining why the applicant is writing and what position they are applying for.",
+  "bodyParagraphs": [
+    "Paragraph focusing on past experience and quantifiable achievements relevant to the job.",
+    "Paragraph focusing on skills, cultural fit, and why the applicant is uniquely suited for the company."
+  ],
+  "closingParagraph": "A professional closing with a call to action for an interview."
+}
+
+Ensure the paragraphs are professional, engaging, and directly connect the user's resume achievements to the job description's requirements.`;
+
+        const anthropic = new Anthropic({ apiKey: anthropicApiKey });
+        const message = await anthropic.messages.create({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 1500,
+            temperature: 0.7,
+            system: "You are an expert career coach and resume writer. Respond ONLY with valid JSON.",
+            messages: [{ role: 'user', content: prompt }]
+        });
+
+        const rawText = message.content[0].text;
+        
+        let clResult;
+        try {
+            const firstBrace = rawText.indexOf('{');
+            const lastBrace = rawText.lastIndexOf('}');
+            const jsonStr = rawText.slice(firstBrace, lastBrace + 1);
+            clResult = JSON.parse(jsonStr);
+        } catch (parseError) {
+            console.error('Failed to parse Claude cover letter response:', rawText);
+            return res.status(500).json({ 
+                error: 'Failed to parse AI cover letter response',
+                details: parseError.message 
+            });
+        }
+
+        res.json({ success: true, data: clResult });
+    } catch (error) {
+        console.error('Cover Letter Gen Error:', error);
+        res.status(500).json({ 
+            error: 'Cover letter generation failed',
             details: error.message 
         });
     }

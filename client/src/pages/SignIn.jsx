@@ -16,7 +16,7 @@ export default function SignIn() {
     const [loading, setLoading] = useState(false)
 
     const getProfileFromDatabase = async (dbUserId) => {
-        const tableCandidates = ['profiles', 'master_profiles']
+        const tableCandidates = ['profiles']
 
         for (const tableName of tableCandidates) {
             const { data, error } = await supabase

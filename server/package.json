@@ -18,6 +18,7 @@
   "type": "commonjs",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.3",
+    "@google/generative-ai": "^0.24.1",
     "@supabase/supabase-js": "^2.99.0",
     "cors": "^2.8.6",
     "debug": "^4.4.3",
