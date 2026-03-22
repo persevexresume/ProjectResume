@@ -1,11 +1,12 @@
 {
     "compilerOptions": {
-        "composite": true,
+        "target": "ESNext",
         "module": "ESNext",
         "moduleResolution": "Node",
         "allowSyntheticDefaultImports": true,
         "allowJs": true,
         "skipLibCheck": true,
+        "noEmit": true,
         "lib": ["ESNext"]
     },
     "include": [
