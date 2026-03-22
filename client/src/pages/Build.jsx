@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap, Search, Plus, X } from 'lucide-react'
+import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap, Search, Plus, X, Loader2 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase, isMock } from '../supabase'
 import { resumeTemplates } from '../data/templates'
@@ -14,6 +14,9 @@ import WizardStep from '../components/builder/WizardStep'
 import SectionIntro from '../components/builder/SectionIntro'
 import TemplatePreview from '../components/builder/TemplatePreview'
 import { useToast } from '../context/ToastContext'
+ 
+const PAGE_WIDTH = 794
+const PAGE_HEIGHT = 1123
 
 export default function Build() {
     const navigate = useNavigate()
@@ -587,63 +590,68 @@ export default function Build() {
             {/* 3. Live Preview Panel */}
             {canShowSidePreview && showLivePreview && (
             <div style={{
-                width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1.5px solid #e2e8f0',
-                overflowY: 'auto', overflowX: 'hidden', padding: '1.5rem', position: 'fixed', top: 0, right: 0, bottom: 0,
+                width: `${previewWidth}px`, background: '#f1f5f9', borderLeft: '1px solid #e2e8f0',
+                overflowY: 'auto', overflowX: 'hidden', padding: '2rem 1.5rem', position: 'fixed', top: 0, right: 0, bottom: 0,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
                 animation: 'slideIn 0.3s ease-out'
             }}>
-                <div style={{ width: '100%', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
-                        <span style={{ fontSize: '0.65rem', fontWeight: 950, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>REAL-TIME ENGINE</span>
+                <div style={{ width: '100%', maxWidth: '850px', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.5)]" />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 950, color: '#475569', letterSpacing: '0.25em', textTransform: 'uppercase' }}>Preview Engine</span>
                     </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-lg border border-slate-200 shadow-sm">
-                        <Zap size={12} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
-                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#334155', letterSpacing: '0.05em' }}>ATS Score:</span>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                        <Zap size={13} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
+                        <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#334155', letterSpacing: '0.05em' }}>ATS Score:</span>
                         <span className={`text-xs font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
                     </div>
                 </div>
 
+                {/* THE DOCUMENT CARD */}
                 <div style={{
-                    width: '100%',
-                    boxShadow: '0 32px 64px -16px rgba(0,0,0,0.12)',
-                    borderRadius: '12px',
-                    overflow: 'hidden',
-                    border: '1px solid #f1f5f9',
-                    background: '#fff'
+                    width: 'fit-content',
+                    minWidth: `${Math.min(previewWidth - 64, PAGE_WIDTH * previewScale)}px`,
+                    background: '#fff',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0,0,0,0.1)',
+                    borderRadius: '4px',
+                    position: 'relative',
+                    marginBottom: '6rem',
+                    transition: 'transform 0.3s ease'
                 }}>
                     {activeTemplateId && (
-                        <PagedResumePreview
-                            data={resumeData}
-                            templateId={activeTemplateId}
-                            customization={{ ...customization, themeColor }}
-                            previewScale={previewScale}
-                            paged={false}
-                        />
+                        <div style={{ padding: '0', overflow: 'hidden', borderRadius: '4px' }}>
+                            <PagedResumePreview
+                                data={resumeData}
+                                templateId={activeTemplateId}
+                                customization={{ ...customization, themeColor }}
+                                previewScale={previewScale}
+                                paged={false}
+                            />
+                        </div>
                     )}
-                    <div className="absolute bottom-6 right-6 flex flex-col gap-3">
-                        <button
-                            onClick={() => setShowPreviewModal(true)}
-                            className="w-14 h-14 bg-[#f7c66a] text-slate-900 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 transition-transform border border-amber-300"
-                            title="Open full preview"
-                        >
-                            <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Search size={24} strokeWidth={2.3} />
-                                <Plus size={11} strokeWidth={3} style={{ position: 'absolute', top: '3px', right: '2px' }} />
-                            </span>
-                        </button>
-                    </div>
+                    
+                    {/* Floating Zoom Button - matching user reference */}
+                    <button
+                        onClick={() => setShowPreviewModal(true)}
+                        className="absolute -bottom-8 -right-8 w-16 h-16 bg-[#f7c66a] text-slate-900 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all border-4 border-white z-20 group"
+                        title="Open full paged preview"
+                    >
+                        <div className="relative transform group-hover:rotate-12 transition-transform">
+                            <Search size={28} strokeWidth={2.5} />
+                            <Plus size={12} strokeWidth={4} style={{ position: 'absolute', top: '1px', right: '-1px' }} />
+                        </div>
+                    </button>
                 </div>
 
-                <div className="mt-8 w-full">
+                <div className="mt-auto w-full max-w-[400px] bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-4">
                     <button
                         onClick={() => handleSave(false)}
                         disabled={saving}
-                        className="w-full flex items-center justify-center gap-2 p-3 bg-white border border-slate-200 rounded-xl text-slate-600 font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all shadow-sm"
+                        className="w-full flex items-center justify-center gap-2 p-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
                     >
-                        {saving ? <><Zap size={14} className="animate-pulse text-blue-500"/> Auto-Saving...</> : saveSuccess ? <><CheckCircle2 size={16} className="text-emerald-500" /> Saved to Cloud</> : <><Save size={16} className="text-blue-500" /> Force Save</>}
+                        {saving ? <><Loader2 size={16} className="animate-spin" /> Auto-Saving...</> : saveSuccess ? <><CheckCircle2 size={16} /> Cloud Synced</> : <><Save size={16} /> Save Progress Now</>}
                     </button>
-                    <p className="text-center text-[10px] text-slate-400 mt-3 uppercase tracking-widest font-bold">Progress saves automatically</p>
+                    <p className="text-center text-[9px] text-slate-400 mt-3 uppercase tracking-[0.2em] font-black">All edits are backed up in real-time</p>
                 </div>
             </div>
             )}
@@ -736,8 +744,6 @@ export default function Build() {
 }
 
 const PagedResumePreview = ({ data, templateId, customization, previewScale, paged }) => {
-    const PAGE_WIDTH = 794
-    const PAGE_HEIGHT = 1123
     const measureRef = useRef(null)
     const [pageCount, setPageCount] = useState(1)
 
@@ -1032,7 +1038,7 @@ const EducationSection = ({ education, setEdu }) => {
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.degree} {item.endDate && `• ${item.endDate}`}</p>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); removeExp(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                         <button onClick={(e) => { e.stopPropagation(); removeEdu(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                             <Trash2 size={16} />
                         </button>
                     </div>

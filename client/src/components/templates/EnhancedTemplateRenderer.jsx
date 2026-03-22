@@ -10,6 +10,8 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
     experience = [],
     education = [],
     skills = [],
+    projects = [],
+    certifications = []
   } = resumeData;
 
   const { bg, primary: primaryCol, accent: accentCol } = template.colors || { bg: '#fff', primary: '#1a1a2e', accent: '#3b82f6' };
@@ -88,6 +90,22 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
             <SectionLabel title="Education" />
             {education.map((edu, idx) => (
               <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+            ))}
+          </section>
+        )}
+        {projects && projects.length > 0 && (
+          <section>
+            <SectionLabel title="Projects" />
+            {projects.map((proj, idx) => (
+              <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+            ))}
+          </section>
+        )}
+        {certifications && certifications.length > 0 && (
+          <section>
+            <SectionLabel title="Certifications" />
+            {certifications.map((cert, idx) => (
+              <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} />
             ))}
           </section>
         )}
@@ -179,6 +197,22 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
               ))}
             </section>
           )}
+          {projects && projects.length > 0 && (
+            <section>
+              <SectionLabel title="Projects" icon={Code} />
+              {projects.map((proj, idx) => (
+                <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+              ))}
+            </section>
+          )}
+          {certifications && certifications.length > 0 && (
+            <section>
+              <SectionLabel title="Certifications" icon={Award} />
+              {certifications.map((cert, idx) => (
+                <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} />
+              ))}
+            </section>
+          )}
         </div>
       </div>
     </div>
@@ -234,7 +268,30 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                     ))}
                 </section>
             )}
+            {certifications && certifications.length > 0 && (
+                <section>
+                    <div style={{ color: finalAccent, fontWeight: 800, marginBottom: '1.5rem' }}>// CERTIFICATIONS</div>
+                    {certifications.map((cert, idx) => (
+                        <div key={idx} style={{ marginBottom: '1rem', fontSize: '0.85rem' }}>
+                            <div style={{ fontWeight: 800 }}>{cert.name}</div>
+                            <div style={{ opacity: 0.7 }}>{cert.issuer}</div>
+                        </div>
+                    ))}
+                </section>
+            )}
         </div>
+        {projects && projects.length > 0 && (
+            <section style={{ marginTop: '3rem' }}>
+                <div style={{ color: finalAccent, fontWeight: 800, marginBottom: '1.5rem' }}>// PROJECTS</div>
+                {projects.map((proj, idx) => (
+                    <div key={idx} style={{ marginBottom: '2rem', paddingLeft: '1rem', borderLeft: `2px solid ${finalAccent}33` }}>
+                        <div style={{ fontWeight: 800, color: '#fff' }}>{proj.name}</div>
+                        <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>[{getExperienceDate(proj)}]</div>
+                        {proj.description && <div style={{ fontSize: '0.8rem', opacity: 0.8, marginTop: '0.45rem', lineHeight: 1.6 }}>{proj.description}</div>}
+                    </div>
+                ))}
+            </section>
+        )}
         </div>
     </div>
   );
@@ -278,6 +335,14 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                     ))}
                 </section>
             )}
+            {projects && projects.length > 0 && (
+                <section>
+                    <SectionLabel title="Showcase" style={{ borderBottomWidth: '3px', borderBottomColor: '#111' }} />
+                    {projects.map((proj, idx) => (
+                        <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+                    ))}
+                </section>
+            )}
             </div>
         </div>
     </div>
@@ -309,6 +374,16 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
                     {experience.map((exp, idx) => (
                       <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+                        ))}
+                    </div>
+                </div>
+            )}
+            {projects && projects.length > 0 && (
+                <div style={{ gridColumn: 'span 2', background: '#fff', padding: '2rem', borderRadius: '24px', boxShadow: '0 10px 30px rgba(0,0,0,0.03)', border: '1px solid #f1f5f9' }}>
+                    <SectionLabel title="Projects" />
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                        {projects.map((proj, idx) => (
+                            <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
                         ))}
                     </div>
                 </div>
@@ -346,6 +421,22 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                     <SectionLabel title="Education" style={{ borderBottomColor: '#111' }} />
                     {education.map((edu, idx) => (
                   <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+                    ))}
+                </section>
+            )}
+            {projects && projects.length > 0 && (
+                <section>
+                    <SectionLabel title="Projects" style={{ borderBottomColor: '#111' }} />
+                    {projects.map((proj, idx) => (
+                        <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+                    ))}
+                </section>
+            )}
+            {certifications && certifications.length > 0 && (
+                <section>
+                    <SectionLabel title="Certifications" style={{ borderBottomColor: '#111' }} />
+                    {certifications.map((cert, idx) => (
+                        <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} />
                     ))}
                 </section>
             )}
@@ -408,6 +499,22 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                  ))}
               </section>
           )}
+          {projects && projects.length > 0 && (
+               <section>
+                  <SectionLabel title="Projects" />
+                  {projects.map((proj, idx) => (
+                  <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+                  ))}
+               </section>
+           )}
+           {certifications && certifications.length > 0 && (
+               <section>
+                  <SectionLabel title="Certifications" />
+                  {certifications.map((cert, idx) => (
+                  <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} />
+                  ))}
+               </section>
+           )}
        </div>
     </div>
   );

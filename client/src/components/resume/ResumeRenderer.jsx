@@ -62,7 +62,8 @@ export default function ResumeRenderer({ data, templateId, customization: custom
             background: '#fff',
             margin: '0 auto',
             padding: '0',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            overflow: 'hidden'
         }}>
             {getTemplate()}
         </div>
@@ -118,7 +119,7 @@ const ContactItem = ({ icon, text }) => text ? (
 // ELITE SERIES - HIGH FIDELITY DESIGNS
 // -----------------------------------------------------------------------------
 const EliteLayout = ({ data, templateId, customization }) => {
-    const { personalInfo, experience, skills, education, projects } = data;
+    const { personalInfo, experience, skills, education, projects, certifications } = data;
     const themeColor = customization.themeColor || '#4f46e5';
 
     // 1. ELITE BAXTER (Financial Executive)
@@ -134,10 +135,10 @@ const EliteLayout = ({ data, templateId, customization }) => {
                     <h1 style={{ fontSize: '2.8rem', fontWeight: 900, lineHeight: 1, marginBottom: '0.5rem' }}>{personalInfo.firstName}<br/><span style={{ color: yellow }}>{personalInfo.lastName}</span></h1>
                     <p style={{ fontSize: '0.9rem', fontWeight: 700, letterSpacing: '3px', color: '#94a3b8', marginBottom: '5rem' }}>{personalInfo.title?.toUpperCase()}</p>
                     <SidebarSection title="CONNECT" color={yellow}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', fontSize: '0.85rem' }}>
-                            <ContactItem icon={<Mail size={14} color={yellow}/>} text={personalInfo.email} />
-                            <ContactItem icon={<Phone size={14} color={yellow}/>} text={personalInfo.phone} />
-                            <ContactItem icon={<MapPin size={14} color={yellow}/>} text={personalInfo.location} />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', fontSize: '0.85rem', overflowWrap: 'break-word' }}>
+                            <ContactItem icon={<Mail size={14} color={yellow}/>} text={personalInfo?.email} />
+                            <ContactItem icon={<Phone size={14} color={yellow}/>} text={personalInfo?.phone} />
+                            <ContactItem icon={<MapPin size={14} color={yellow}/>} text={personalInfo?.location} />
                         </div>
                     </SidebarSection>
                     {education && education.length > 0 && (
@@ -417,7 +418,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
 // STANDARD LAYOUTS (RECONSTRUCTED)
 // -----------------------------------------------------------------------------
 const ModernLayout = ({ data, variant, customization }) => {
-    const { personalInfo, experience, skills, education } = data;
+    const { personalInfo, experience, skills, education, projects, certifications } = data;
     const color = customization.themeColor || '#4f46e5';
     return (
         <div style={{ padding: '4rem' }}>
@@ -455,6 +456,30 @@ const ModernLayout = ({ data, variant, customization }) => {
                     ))}
                 </Section>
             )}
+            {projects && projects.length > 0 && (
+                <Section title="Projects" color={color} variant={variant}>
+                    {projects.map((proj, i) => (
+                        <div key={i} style={{ marginBottom: '2.5rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                <h4 style={{ fontWeight: 800, fontSize: '1.2rem', flex: '1 1 300px' }}>{proj.name}</h4>
+                                <span style={{ fontWeight: 700, color, flexShrink: 0 }}>{proj.startDate} - {proj.endDate}</span>
+                            </div>
+                            <p style={{ fontWeight: 700, opacity: 0.5 }}>{proj.role}</p>
+                            <p style={{ marginTop: '0.8rem' }}>{proj.description}</p>
+                        </div>
+                    ))}
+                </Section>
+            )}
+            {certifications && certifications.length > 0 && (
+                <Section title="Certifications" color={color} variant={variant}>
+                    {certifications.map((cert, i) => (
+                        <div key={i} style={{ marginBottom: '1.5rem' }}>
+                            <h4 style={{ fontWeight: 800, fontSize: '1.1rem' }}>{cert.name}</h4>
+                            <p style={{ fontWeight: 600, opacity: 0.7 }}>{cert.issuer} | {cert.issueDate}</p>
+                        </div>
+                    ))}
+                </Section>
+            )}
         </div>
     );
 };
@@ -481,6 +506,16 @@ const ExecutiveLayout = ({ data, variant, customization }) => {
                 {data.education && data.education.length > 0 && (
                     <Section title="EDUCATION" color={color}>
                         {data.education.map((edu, i) => <div key={i} style={{ marginBottom: '1rem' }}>{edu.degree} - {edu.school}</div>)}
+                    </Section>
+                )}
+                {data.projects && data.projects.length > 0 && (
+                    <Section title="PROJECTS" color={color}>
+                        {data.projects.map((proj, i) => <div key={i} style={{ marginBottom: '2rem' }}><strong>{proj.name}</strong><br/>{proj.role} | {proj.startDate} - {proj.endDate}<br/>{proj.description}</div>)}
+                    </Section>
+                )}
+                {data.certifications && data.certifications.length > 0 && (
+                    <Section title="CERTIFICATIONS" color={color}>
+                        {data.certifications.map((cert, i) => <div key={i} style={{ marginBottom: '1rem' }}><strong>{cert.name}</strong> - {cert.issuer} ({cert.issueDate})</div>)}
                     </Section>
                 )}
             </div>
