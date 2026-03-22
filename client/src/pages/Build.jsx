@@ -51,10 +51,11 @@ export default function Build() {
     const canShowSidePreview = viewportWidth >= 1024
     
     const railWidth = isCompactRail ? 92 : 260
-    // Split screen 50/50: left sidebar (actionable) | right live preview (read-only)
-    const previewWidth = (canShowSidePreview && showLivePreview) ? Math.floor(viewportWidth * 0.50) : 0
+    // Compact side preview: ~38% of screen OR fixed 420px, whichever is more comfortable
+    const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(380, Math.min(500, viewportWidth * 0.38)) : 0
+    const previewWidth = previewWidthBuffer
     // The true A4 pixel width is ~794. We scale the preview exactly to the panel.
-    const previewScale = Math.max(0.4, Math.min(1.1, (previewWidth - 48) / 794))
+    const previewScale = Math.max(0.35, Math.min(0.65, (previewWidth - 40) / 794))
 
     // Real-Time Auto-Save Functionality (LockedInAI style)
     const initialRender = useRef(true)
@@ -590,20 +591,20 @@ export default function Build() {
             {/* 3. Live Preview Panel */}
             {canShowSidePreview && showLivePreview && (
             <div style={{
-                width: `${previewWidth}px`, background: '#f1f5f9', borderLeft: '1px solid #e2e8f0',
-                overflowY: 'auto', overflowX: 'hidden', padding: '2rem 1.5rem', position: 'fixed', top: 0, right: 0, bottom: 0,
+                width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1px solid #e2e8f0',
+                overflowY: 'auto', overflowX: 'hidden', padding: '1.5rem 1rem', position: 'fixed', top: 0, right: 0, bottom: 0,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
                 animation: 'slideIn 0.3s ease-out'
             }}>
-                <div style={{ width: '100%', maxWidth: '850px', marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                        <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.5)]" />
-                        <span style={{ fontSize: '0.7rem', fontWeight: 950, color: '#475569', letterSpacing: '0.25em', textTransform: 'uppercase' }}>Preview Engine</span>
+                <div style={{ width: '100%', maxWidth: '420px', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.5)]" />
+                        <span style={{ fontSize: '0.65rem', fontWeight: 950, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Preview Engine</span>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-xl border border-slate-200 shadow-sm">
-                        <Zap size={13} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
-                        <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#334155', letterSpacing: '0.05em' }}>ATS Score:</span>
-                        <span className={`text-xs font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
+                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 shadow-sm">
+                        <Zap size={11} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
+                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#475569', letterSpacing: '0.05em' }}>ATS:</span>
+                        <span className={`text-[11px] font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
                     </div>
                 </div>
 
