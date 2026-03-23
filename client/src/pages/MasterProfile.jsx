@@ -526,26 +526,47 @@ export default function MasterProfile() {
                 const payload = { ...initialPayload }
 
                 for (let attempt = 0; attempt < 8; attempt += 1) {
-                    const result = await supabase
-                        .from('profiles')
-                        .upsert(payload, { onConflict: 'user_id' })
+                    try {
+                        const result = await supabase
+                            .from('profiles')
+                            .upsert(payload)
 
-                    if (!result.error) return
+                        if (!result.error) return
+                        
+                        const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                            .filter(Boolean)
+                            .join(' | ')
 
-                    const fullMessage = [result.error.message, result.error.details, result.error.hint]
-                        .filter(Boolean)
-                        .join(' | ')
+                        const missingColumnMatch =
+                            fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                            fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
 
-                    const missingColumnMatch =
-                        fullMessage.match(/Could not find the '([^']+)' column/i) ||
-                        fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+                        if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
+                            delete payload[missingColumnMatch[1]]
+                            continue
+                        }
 
-                    if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
-                        delete payload[missingColumnMatch[1]]
-                        continue
+                        throw new Error(fullMessage || 'Failed to save profile')
+                    } catch (err) {
+                        // If upsert fails, try update then insert
+                        if (profileId) {
+                            const updateResult = await supabase
+                                .from('profiles')
+                                .update(payload)
+                                .eq('id', profileId)
+                            
+                            if (!updateResult.error) return
+                        }
+                        
+                        // Try insert as fallback
+                        const insertResult = await supabase
+                            .from('profiles')
+                            .insert([payload])
+                        
+                        if (!insertResult.error) return
+                        
+                        throw err
                     }
-
-                    throw new Error(fullMessage || 'Failed to save profile')
                 }
 
                 throw new Error('Failed to save profile after schema adaptation attempts')

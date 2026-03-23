@@ -221,28 +221,6 @@ export default function AdminDashboard() {
         })
     }
 
-    const handleSyncAdmin = async () => {
-        try {
-            const { data, error } = await supabase
-                .from('admins')
-                .insert([{
-                    id: 'admin@gmail.com',
-                    password: 'admin@123',
-                    email: 'admin@gmail.com',
-                    name: 'Main Administrator'
-                }], { onConflict: 'id' })
-
-            if (!error) {
-                showSuccess('Admin account synced successfully!')
-            } else {
-                showError(error.message || 'Cloud synchronization failed.')
-            }
-        } catch (err) {
-            console.error("Database Sync Error:", err)
-            showError('Cloud synchronization failed.')
-        }
-    }
-
     const downloadSample = () => {
         const headers = ["StudentID", "Name", "Email", "Password"]
         const csvContent = headers.join(",") + "\nSTU101,John Doe,john@example.com,pass123\nSTU102,Jane Smith,jane@example.com,secure456"

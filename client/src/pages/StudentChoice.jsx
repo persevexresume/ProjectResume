@@ -209,30 +209,6 @@ export default function StudentChoice() {
                                         {savedProfile ? 'Update your permanent professional identity.' : 'Build a master profile from scratch.'}
                                     </p>
                                 </motion.div>
-
-                                <motion.div
-                                    whileHover={{ y: -10, scale: 1.02 }}
-                                    onClick={handleViewAllResumes}
-                                    style={{
-                                        background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
-                                        cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
-                                        border: '2px solid transparent', transition: 'all 0.3s'
-                                    }}
-                                    onMouseOver={e => e.currentTarget.style.borderColor = '#f59e0b'}
-                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
-                                >
-                                    <div style={{
-                                        width: '70px', height: '70px', background: '#f59e0b',
-                                        borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px #f59e0b'
-                                    }}>
-                                        <FileText size={28} />
-                                    </div>
-                                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>Dashboard</h3>
-                                    <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
-                                        View all resumes and cover letters.
-                                    </p>
-                                </motion.div>
                             </div>
                         </>
 

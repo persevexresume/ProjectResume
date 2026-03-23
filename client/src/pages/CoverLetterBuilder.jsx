@@ -40,43 +40,81 @@ export default function CoverLetterBuilder() {
 
         setIsAILoading(true);
         try {
-            const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-            const response = await fetch(`${apiBaseUrl}/api/generate-cover-letter`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    jobDescription: jobDescription,
-                    senderFirstName: coverLetter.senderFirstName,
-                    senderLastName: coverLetter.senderLastName,
-                    senderEmail: coverLetter.senderEmail,
-                    senderPhone: coverLetter.senderPhone,
-                    companyName: coverLetter.companyName,
-                    recipientName: coverLetter.recipientName,
-                    recipientTitle: coverLetter.recipientTitle
-                })
+            // Smart template-based AI generation (offline)
+            const generated = generateSmartCoverLetter({
+                jobDescription: jobDescription.trim(),
+                senderFirstName: coverLetter.senderFirstName,
+                senderLastName: coverLetter.senderLastName,
+                companyName: coverLetter.companyName,
+                recipientName: coverLetter.recipientName,
+                recipientTitle: coverLetter.recipientTitle
             });
 
-            const data = await response.json();
-            if (!response.ok || !data.success) {
-                throw new Error(data.error || 'Failed to generate cover letter');
-            }
-
-            const aiData = data.data;
-            
             setCoverLetter(prev => ({
                 ...prev,
-                openingParagraph: aiData.openingParagraph || prev.openingParagraph,
-                bodyParagraphs: aiData.bodyParagraphs || prev.bodyParagraphs,
-                closingParagraph: aiData.closingParagraph || prev.closingParagraph
+                openingParagraph: generated.openingParagraph,
+                bodyParagraphs: generated.bodyParagraphs,
+                closingParagraph: generated.closingParagraph
             }));
 
-            success("Cover letter generated successfully!");
+            success("✨ Cover letter generated successfully!");
         } catch (err) {
-            console.error("AI Generation Error:", err);
-            showError(err.message);
+            console.error("Generation Error:", err);
+            showError(err.message || "Failed to generate cover letter.");
         } finally {
             setIsAILoading(false);
         }
+    };
+
+    const generateSmartCoverLetter = (data) => {
+        const { jobDescription, senderFirstName, senderLastName, companyName, recipientName, recipientTitle } = data;
+        
+        // Extract key skills and requirements from job description
+        const jobKeywords = extractKeywords(jobDescription);
+        const skills = jobKeywords.filter(kw => kw.length < 30).slice(0, 5);
+        const isLead = jobDescription.toLowerCase().includes('lead') || jobDescription.toLowerCase().includes('senior');
+        
+        // Opening paragraph
+        const position = jobDescription.split('\n')[0] || 'position';
+        const openingParagraph = `Dear ${recipientName || 'Hiring Manager'},
+
+I am writing to express my strong interest in the ${position} position at ${companyName || '[Company Name]'}. With my proven track record of delivering results and commitment to excellence, I am confident that my skills and experience make me an ideal candidate for this role.`;
+
+        // First body paragraph - focus on relevant experience
+        const bodyPara1 = `Throughout my professional career, I have developed a strong foundation in ${skills[0] || 'key technologies and methodologies'}${skills[1] ? ` and ${skills[1]}` : ''}. My experience has equipped me with the ability to ${extractAction(jobDescription) || 'drive impactful results'} while maintaining high standards of quality and innovation. I have consistently demonstrated my ability to ${extractSecondAction(jobDescription) || 'collaborate effectively with cross-functional teams'} to achieve organizational goals.`;
+
+        // Second body paragraph - focus on skills fit
+        const bodyPara2 = `I am particularly drawn to this opportunity because it aligns perfectly with my professional growth aspirations and values. The emphasis on ${skills[2] || 'driving innovation'} resonates deeply with my approach to problem-solving. Furthermore, my expertise in ${skills[3] || 'strategic planning'} and ${skills[4] || 'team leadership'} positions me to make immediate contributions to your organization. I am excited about the opportunity to bring my unique perspective and work ethic to ${companyName || 'your team'}.`;
+
+        // Closing paragraph
+        const closingParagraph = `Thank you for considering my application. I would welcome the opportunity to discuss how my background, skills, and enthusiasm can contribute to the continued success of ${companyName || 'your organization'}. I am available for an interview at your earliest convenience and can be reached at the contact information provided.
+
+Sincerely,
+${senderFirstName} ${senderLastName}`;
+
+        return {
+            openingParagraph,
+            bodyParagraphs: [bodyPara1, bodyPara2],
+            closingParagraph
+        };
+    };
+
+    const extractKeywords = (text) => {
+        const words = text.toLowerCase().match(/\b[a-z]+(?:\s+[a-z]+)?\b/g) || [];
+        const stopwords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'is', 'are', 'be', 'by', 'from', 'as', 'was', 'were', 'been', 'will', 'would', 'could', 'should', 'may', 'might', 'must', 'shall', 'can', 'it', 'that', 'this', 'which', 'who', 'what', 'where', 'when', 'why', 'how']);
+        return words.filter(w => !stopwords.has(w) && w.length > 4);
+    };
+
+    const extractAction = (text) => {
+        const actions = ['drive innovation', 'optimize performance', 'improve efficiency', 'enhance user experience', 'scale operations', 'solve complex problems', 'lead initiatives'];
+        const lowerText = text.toLowerCase();
+        return actions.find(action => lowerText.includes(action.split(' ')[0])) || 'deliver exceptional results';
+    };
+
+    const extractSecondAction = (text) => {
+        const actions = ['collaborate effectively', 'work cross-functionally', 'communicate clearly', 'build strong relationships', 'mentor team members', 'mentor colleagues'];
+        const lowerText = text.toLowerCase();
+        return actions.find(action => lowerText.includes(action.split(' ')[0])) || 'collaborate with diverse teams';
     };
 
     const handleInputChange = (field, value) => {
@@ -117,20 +155,27 @@ export default function CoverLetterBuilder() {
         setLoading(true)
         try {
             const dbUserId = getDbUserId(user)
-            const { error: err } = await supabase
+            if (!dbUserId) {
+                throw new Error('Unable to identify your account')
+            }
+
+            // Simple insert - no select, no extra parameters
+            const { error } = await supabase
                 .from('cover_letters')
-                .insert([{
+                .insert({
                     user_id: dbUserId,
                     title: title.trim(),
-                    data: coverLetter,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                }])
+                    data: coverLetter
+                })
 
-            if (err) {
-                throw err
+            if (error) {
+                console.error('Save error:', error)
+                throw error
             }
-            success(`Cover letter "${title}" saved successfully!`)
+
+            success(`✅ Cover letter saved!`)
+            
+            // Clear form
             setTitle('')
             setCoverLetter({
                 recipientName: '',
@@ -145,8 +190,12 @@ export default function CoverLetterBuilder() {
                 bodyParagraphs: ['', ''],
                 closingParagraph: '',
             })
+            
+            // Navigate to dashboard
+            setTimeout(() => navigate('/student'), 800)
         } catch (err) {
-            showError('Failed to save cover letter: ' + err.message)
+            console.error('Error:', err)
+            showError('Failed to save: ' + err.message)
         } finally {
             setLoading(false)
         }

@@ -800,7 +800,14 @@ export default function StudentDashboard() {
                                 <div>
                                     <h3 className="text-xl font-black text-slate-900">{previewCoverLetter.title || 'Cover Letter Preview'}</h3>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                        Created {new Date(previewCoverLetter.created_at).toLocaleDateString()}
+                                        Created {new Date(previewCoverLetter.created_at).toLocaleString('en-US', { 
+                                            year: 'numeric', 
+                                            month: '2-digit', 
+                                            day: '2-digit',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            hour12: true
+                                        })}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -1148,6 +1155,21 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
 }
 
 function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange, onDuplicate }) {
+    // Parse cover letter data properly
+    let clData = coverLetter.data
+    if (typeof clData === 'string') {
+        try {
+            clData = JSON.parse(clData)
+        } catch (e) {
+            clData = {}
+        }
+    }
+    
+    const senderName = `${clData?.senderFirstName || ''} ${clData?.senderLastName || ''}`.trim()
+    const recipientName = clData?.recipientName || 'Hiring Manager'
+    const companyName = clData?.companyName || 'Company'
+    const openingText = clData?.openingParagraph || ''
+    
     return (
         <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -1157,20 +1179,24 @@ function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, is
             className="group relative bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:border-emerald-100 h-full flex flex-col"
         >
             <div className="aspect-[4/5] bg-gradient-to-br from-emerald-50 to-teal-50 relative overflow-hidden group-hover:from-emerald-100 group-hover:to-teal-100 transition-colors cursor-pointer border-b border-emerald-100 p-4 flex flex-col" onClick={onPreview}>
-                {/* Text Preview */}
-                <div className="absolute inset-0 p-4 overflow-hidden flex flex-col justify-start opacity-40 group-hover:opacity-60 transition-all pointer-events-none">
-                    <p className="text-[10px] font-bold text-slate-700 mb-2 truncate">{coverLetter.data?.senderFirstName} {coverLetter.data?.senderLastName}</p>
-                    <p className="text-[9px] text-slate-600 line-clamp-3">To: {coverLetter.data?.recipientName}</p>
-                    <p className="text-[9px] text-slate-600 line-clamp-2">{coverLetter.data?.companyName}</p>
-                    <div className="mt-2 pt-2 border-t border-slate-300">
-                        <p className="text-[8px] text-slate-500 line-clamp-4 leading-tight">{coverLetter.data?.openingParagraph}</p>
-                    </div>
+                {/* Text Preview - Always visible, more visible on hover */}
+                <div className="absolute inset-0 p-4 overflow-hidden flex flex-col justify-start opacity-70 group-hover:opacity-100 transition-all pointer-events-none">
+                    {senderName && <p className="text-[10px] font-bold text-slate-700 mb-2 truncate">{senderName}</p>}
+                    <p className="text-[9px] text-slate-600 line-clamp-1">To: {recipientName}</p>
+                    <p className="text-[9px] text-slate-600 line-clamp-1 font-semibold">{companyName}</p>
+                    {openingText && (
+                        <div className="mt-2 pt-2 border-t border-slate-300">
+                            <p className="text-[8px] text-slate-500 line-clamp-5 leading-tight">{openingText}</p>
+                        </div>
+                    )}
                 </div>
 
-                {/* Icon Fallback */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-0 transition-all">
-                    <Briefcase size={80} className="text-emerald-200 group-hover:text-emerald-300 transition-colors" />
-                </div>
+                {/* Icon Fallback - only show if no opening text */}
+                {!openingText && (
+                    <div className="absolute inset-0 flex items-center justify-center opacity-20 group-hover:opacity-0 transition-all">
+                        <Briefcase size={80} className="text-emerald-200 group-hover:text-emerald-300 transition-colors" />
+                    </div>
+                )}
 
                 {/* Quick Actions Overlay */}
                 <div className="absolute inset-0 bg-emerald-900/60 flex items-center justify-center gap-3 opacity-0 group-hover:opacity-100 transition-all backdrop-blur-[2px]">
@@ -1207,9 +1233,19 @@ function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, is
                         <h4 className="text-base font-black text-slate-900 truncate mb-0.5 cursor-pointer hover:text-emerald-600" onClick={onStartEdit}>{coverLetter.title || 'Untitled Cover Letter'}</h4>
                     )}
                     <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                        <span className="flex items-center gap-1"><Clock size={10} /> {new Date(coverLetter.created_at).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1">
+                            <Clock size={10} /> 
+                            {new Date(coverLetter.created_at).toLocaleString('en-US', { 
+                                year: 'numeric', 
+                                month: '2-digit', 
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                            })}
+                        </span>
                         <span>•</span>
-                        <span className="text-emerald-600">Company: {coverLetter.data?.companyName || 'N/A'}</span>
+                        <span className="text-emerald-600">Company: {companyName || 'N/A'}</span>
                     </div>
                 </div>
 
