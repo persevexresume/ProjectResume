@@ -57,8 +57,8 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 1. DIAGONAL HERO (t01, t20)
   const renderDiagonalHero = () => (
-    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#333', fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '220px', background: finalPrimary, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 70%)', zjoin: 'miter' }} />
+    <div style={{ width: '794px', background: bg, color: '#333', fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '220px', background: finalPrimary, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 70%)' }} />
       <div style={{ position: 'absolute', top: 0, left: 0, width: '120px', height: '220px', background: finalAccent, clipPath: 'polygon(0 0, 100% 0, 0 70%)', opacity: 0.9 }} />
       
       <div style={{ position: 'relative', padding: '2.5rem 3rem', color: '#fff' }}>
@@ -129,7 +129,6 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
   const renderSidebarPanel = (onRight = false) => (
     <div style={{ 
         width: '794px', 
-        minHeight: '1056px', 
         display: 'flex', 
         flexDirection: onRight ? 'row-reverse' : 'row', 
         background: bg, 
@@ -139,7 +138,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
       <div style={{ width: '30%', background: finalPrimary, color: '#fff', padding: '3rem 2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: `${finalAccent}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {personalInfo.profilePhoto ? (
-            <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectCover: 'cover' }} />
+            <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
           ) : (
             <User size={50} color={finalAccent} />
           )}
@@ -220,7 +219,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 3. TECH / NEON MODE (t06, t22, dev style)
   const renderTechMode = () => (
-    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#e0e0e0', fontFamily: 'monospace', padding: '3rem' }}>
+    <div style={{ width: '794px', background: bg, color: '#e0e0e0', fontFamily: 'monospace', padding: '3rem' }}>
         <div style={{ borderTop: `4px solid ${finalAccent}`, paddingTop: '1rem', marginBottom: '3rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                 <Terminal color={finalAccent} size={32} style={{ flexShrink: 0 }} />
@@ -298,7 +297,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 4. MAGAZINE / EDITORIAL (t07, t30, news style)
   const renderMagazineMode = () => (
-    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: '#111', fontFamily: fonts.heading, padding: '4rem' }}>
+    <div style={{ width: '794px', background: bg, color: '#111', fontFamily: fonts.heading, padding: '4rem' }}>
         <div style={{ borderLeft: `8px solid ${finalAccent}`, paddingLeft: '2rem', marginBottom: '4rem' }}>
             <h1 style={{ fontSize: '4rem', fontWeight: 950, lineHeight: 0.9, marginBottom: '0.5rem' }}>{personalInfo.firstName}<br />{personalInfo.lastName}</h1>
             <div style={{ fontSize: '1.2rem', fontWeight: 800, color: finalAccent, textTransform: 'uppercase', letterSpacing: '0.2em' }}>{personalInfo.title}</div>
@@ -350,7 +349,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 5. CARD GRID (t19, studio style)
   const renderCardGrid = () => (
-    <div style={{ width: '794px', minHeight: '1056px', background: bg, padding: '3rem', fontFamily: fonts.body }}>
+    <div style={{ width: '794px', background: bg, padding: '3rem', fontFamily: fonts.body }}>
         <div style={{ background: finalPrimary, color: '#fff', padding: '3rem', borderRadius: '24px', marginBottom: '2rem' }}>
             <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
             <p style={{ fontSize: '1.2rem', opacity: 0.8, marginTop: '0.5rem' }}>{personalInfo.title}</p>
@@ -394,7 +393,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 6. EXECUTIVE / FORMAL (t11, t13, t23, corp, ib, legal, prof)
   const renderExecutiveMode = () => (
-    <div style={{ width: '794px', minHeight: '1056px', background: bg, color: (template.id || '').includes('dark') || bg === '#0d1b2a' || bg === '#111' ? '#fff' : '#111', padding: '96px', fontFamily: fonts.heading }}>
+    <div style={{ width: '794px', background: bg, color: (template.id || '').includes('dark') || bg === '#0d1b2a' || bg === '#111' ? '#fff' : '#111', padding: '96px', fontFamily: fonts.heading }}>
         <div style={{ textAlign: 'center', borderBottom: `2px solid ${finalAccent}`, paddingBottom: '2rem', marginBottom: '3rem' }}>
             <h1 style={{ fontSize: '2.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
             <div style={{ fontSize: '1rem', fontWeight: 600, color: finalAccent, margin: '0.5rem 0' }}>{personalInfo.title}</div>
@@ -451,15 +450,15 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
   // Specific layout exceptions or groups
   // DIAGONAL / HERO styles
   if (['t01', 't03', 't10', 't16', 't20', 't21', 't24', 'bso', 'rose', 'pastel', 'b01', 'b10', 'b17', 'b24', 'b25', 'b27', 'b29', 'b30', 'b33', 'b35', 'b38', 'b40', 'b43', 'b46', 'b49', 'b50'].includes(layoutStyle) || 
-      ['t01', 't03', 't10', 't16', 't20', 't21', 't24', 't37', 't56', 't65', 't72', 't79', 't80', 't82', 't84', 't85', 't88', 't90', 't93', 't95', 't98', 't101', 't104', 't105'].includes(tid)) return renderDiagonalHero();
+      ['t01', 't03', 't10', 't16', 't20', 't21', 't24', 't37', 't56', 't65', 't72', 't79', 't80', 't82', 't84', 't85', 't88', 't90', 't93', 't95', 't98', 't101', 't104', 't105', 'rt02', 'rt11'].includes(tid)) return renderDiagonalHero();
 
   // SIDEBAR / PANEL styles
   if (['t02', 't05', 't08', 't12', 't14', 't25', 'sidebar', 'split', 'sage', 'nordic', 'coastal', 'hr', 'bio', 'b02', 'b03', 'b05', 'b08', 'b16', 'b19', 'b22', 'b26', 'b34', 'b36', 'b41', 'b45', 'b48'].includes(layoutStyle) || 
-      ['t02', 't05', 't08', 't12', 't14', 't25', 't31', 't39', 't46', 't50', 't52', 't53', 't57', 't58', 't60', 't63', 't71', 't74', 't77', 't81', 't89', 't91', 't96', 't100', 't103'].includes(tid)) return renderSidebarPanel();
+      ['t02', 't05', 't08', 't12', 't14', 't25', 't31', 't39', 't46', 't50', 't52', 't53', 't57', 't58', 't60', 't63', 't71', 't74', 't77', 't81', 't89', 't91', 't96', 't100', 't103', 'rt01', 'rt03', 'rt07', 'rt12'].includes(tid)) return renderSidebarPanel();
 
   // TECH / DARK / MODERN styles
   if (['t06', 't17', 't22', 'dev', 'startup', 'indigo', 'arch', 'ats', 'b04', 'b07'].includes(layoutStyle) || 
-      ['t06', 't17', 't22', 't29', 't33', 't41', 't42', 't40', 't15', 't59', 't62'].includes(tid)) return renderTechMode();
+      ['t06', 't17', 't22', 't29', 't33', 't41', 't42', 't40', 't15', 't59', 't62', 'rt05', 'rt08', 'rt14'].includes(tid)) return renderTechMode();
 
   // MAGAZINE / EDITORIAL styles
   if (['t07', 't30', 'news', 'warm', 'director', 'free', 'b14'].includes(layoutStyle) || 
@@ -467,15 +466,15 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // CARD / GRID styles
   if (['t09', 't19', 'studio', 'video', 'b06', 'b12', 'b15'].includes(layoutStyle) || 
-      ['t19', 't51', 't48', 't09', 't61', 't67', 't70'].includes(tid)) return renderCardGrid();
+      ['t19', 't51', 't48', 't09', 't61', 't67', 't70', 'rt10'].includes(tid)) return renderCardGrid();
 
   // EXECUTIVE / CLASSIC styles
   if (['t11', 't13', 't23', 'corp', 'ib', 'legal', 'prof', 'eu', 'academic', 'polar', 'mono', 'b09', 'b11', 'b13', 'b18', 'b20', 'b21', 'b23', 'b28', 'b31', 'b32', 'b37', 'b39', 'b42', 'b44', 'b47'].includes(layoutStyle) || 
-      ['t11', 't13', 't23', 't38', 't47', 't32', 't49', 't55', 't43', 't36', 't27', 't35', 't64', 't66', 't68', 't73', 't75', 't76', 't78', 't83', 't86', 't87', 't92', 't94', 't97', 't99', 't102'].includes(tid)) return renderExecutiveMode();
+      ['t11', 't13', 't23', 't38', 't47', 't32', 't49', 't55', 't43', 't36', 't27', 't35', 't64', 't66', 't68', 't73', 't75', 't76', 't78', 't83', 't86', 't87', 't92', 't94', 't97', 't99', 't102', 'rt04', 'rt06', 'rt09', 'rt13'].includes(tid)) return renderExecutiveMode();
 
   // DEFAULT FALLBACK (Minimalist/Standard)
   return (
-    <div style={{ width: '794px', minHeight: '1056px', padding: '96px', background: bg, color: '#333', fontFamily: fonts.body }}>
+    <div style={{ width: '794px', padding: '96px', background: bg, color: '#333', fontFamily: fonts.body }}>
        <h1 style={{ fontSize: '2.5rem', fontWeight: 900, color: finalPrimary, margin: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: finalAccent, borderBottom: `1px solid ${finalAccent}`, paddingBottom: '0.5rem', marginBottom: '2rem' }}>{personalInfo.title}</div>
        

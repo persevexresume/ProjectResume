@@ -6,11 +6,12 @@ import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
 import { supabase, isMock } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { user, selectedTemplate, customization, setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { user, selectedTemplate, customization, setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, setMasterProfile } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -259,15 +260,16 @@ export default function UploadResume() {
     }
 
     const extractTextFromPdf = async (selectedFile) => {
-        const pdfjsLib = await import('pdfjs-dist')
+        const pdfjsModule = await import('pdfjs-dist')
+        const pdfjsLib = (pdfjsModule?.GlobalWorkerOptions && pdfjsModule?.getDocument)
+            ? pdfjsModule
+            : pdfjsModule.default
+        if (!pdfjsLib?.getDocument || !pdfjsLib?.GlobalWorkerOptions) {
+            throw new Error('PDF parser failed to initialize.')
+        }
 
-        if (!pdfjsLib.GlobalWorkerOptions.workerSrc) {
-            try {
-                const workerModule = await import('pdfjs-dist/build/pdf.worker.min.mjs?url')
-                pdfjsLib.GlobalWorkerOptions.workerSrc = workerModule.default
-            } catch {
-                pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`
-            }
+        if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
+            pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker()
         }
 
         const fileBuffer = await selectedFile.arrayBuffer()
@@ -595,6 +597,23 @@ export default function UploadResume() {
 
             setEditingResumeId(savedResumeId)
             setUploadedResumePrefill(true)
+
+            // Update Master Profile
+            const dbUserId = getDbUserId(user)
+            if (dbUserId) {
+                try {
+                    await supabase
+                        .from('profiles')
+                        .upsert({ 
+                            user_id: dbUserId, 
+                            resume_data: normalized,
+                            updated_at: new Date().toISOString()
+                        }, { onConflict: 'user_id' })
+                    setMasterProfile(normalized)
+                } catch (err) {
+                    console.error("Error updating master profile:", err)
+                }
+            }
 
             // Update local store with AI-parsed data
             updatePersonalInfo(normalized.personalInfo)

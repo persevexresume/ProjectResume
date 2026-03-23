@@ -358,23 +358,46 @@ ${jobDescription}`;
 
 app.post('/api/generate-cover-letter', async (req, res) => {
     try {
-        const { resumeData, jobDescription, companyName, recipientName, recipientTitle } = req.body;
+        const {
+            resumeData,
+            jobDescription,
+            companyName,
+            recipientName,
+            recipientTitle,
+            senderFirstName,
+            senderLastName,
+            senderEmail,
+            senderPhone
+        } = req.body;
 
-        if (!resumeData || !jobDescription) {
-            return res.status(400).json({ error: 'resumeData and jobDescription are required.' });
+        if (!jobDescription || typeof jobDescription !== 'string') {
+            return res.status(400).json({ error: 'jobDescription is required.' });
         }
 
-        const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
-        if (!anthropicApiKey) {
-            return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured.' });
+        const { GoogleGenerativeAI } = require('@google/generative-ai');
+        const genieApiKey = process.env.GEMINI_API_KEY;
+        if (!genieApiKey) {
+            return res.status(500).json({ error: 'GEMINI_API_KEY is not configured.' });
         }
+
+        const genAI = new GoogleGenerativeAI(genieApiKey);
+        const model = genAI.getGenerativeModel({ 
+            model: "gemini-2.0-flash",
+            generationConfig: { responseMimeType: "application/json" }
+        });
 
         const prompt = `You are an expert career coach and professional copywriter.
-Write a highly compelling, tailored cover letter based on the provided resume and job description.
+Write a highly compelling, tailored cover letter based on the provided job description and candidate context.
 The cover letter should match the tone and strict formatting required.
 
-Resume:
-${JSON.stringify(resumeData, null, 2)}
+Candidate Context:
+${JSON.stringify({
+    senderFirstName: senderFirstName || '',
+    senderLastName: senderLastName || '',
+    senderEmail: senderEmail || '',
+    senderPhone: senderPhone || '',
+    resumeData: resumeData || null
+}, null, 2)}
 
 Job Description:
 ${jobDescription}
@@ -395,25 +418,17 @@ Return ONLY valid JSON (no markdown, no preamble) with this exact schema:
 
 Ensure the paragraphs are professional, engaging, and directly connect the user's resume achievements to the job description's requirements.`;
 
-        const anthropic = new Anthropic({ apiKey: anthropicApiKey });
-        const message = await anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20241022',
-            max_tokens: 1500,
-            temperature: 0.7,
-            system: "You are an expert career coach and resume writer. Respond ONLY with valid JSON.",
-            messages: [{ role: 'user', content: prompt }]
-        });
-
-        const rawText = message.content[0].text;
+        const result = await model.generateContent(prompt);
+        let responseText = result.response.text();
         
         let clResult;
         try {
-            const firstBrace = rawText.indexOf('{');
-            const lastBrace = rawText.lastIndexOf('}');
-            const jsonStr = rawText.slice(firstBrace, lastBrace + 1);
-            clResult = JSON.parse(jsonStr);
+            // Remove markdown formatting if present
+            const jsonMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)\s*```/) || [null, responseText];
+            const cleanSource = jsonMatch[1].trim();
+            clResult = JSON.parse(cleanSource);
         } catch (parseError) {
-            console.error('Failed to parse Claude cover letter response:', rawText);
+            console.error('Failed to parse Gemini cover letter response:', responseText);
             return res.status(500).json({ 
                 error: 'Failed to parse AI cover letter response',
                 details: parseError.message 

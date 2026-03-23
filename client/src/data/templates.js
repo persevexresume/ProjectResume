@@ -196,4 +196,130 @@ export const resumeTemplates = [
     style: 'studio',
     colors: { bg: '#111111', primary: '#111111', accent: '#c6f135' }
   },
+  {
+    id: 'rt01',
+    name: 'Executive Onyx',
+    category: 'Executive',
+    description: 'Ultra-clean two-column layout with a sophisticated slate sidebar.',
+    style: 'rt01',
+    colors: { bg: '#ffffff', primary: '#1e293b', accent: '#3b82f6' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt02',
+    name: 'Modern Sapphire',
+    category: 'Modern',
+    description: 'Bold top-header design with sapphire gradients and balanced white space.',
+    style: 'rt03', // Map to a header-heavy layout
+    colors: { bg: '#ffffff', primary: '#1e3a8a', accent: '#60a5fa' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt03',
+    name: 'Creative Mint',
+    category: 'Creative',
+    description: 'Vibrant and fresh design with mint accents and geometric profile motifs.',
+    style: 'rt02', // Map to a Creative sidebar layout
+    colors: { bg: '#f0fdf4', primary: '#065f46', accent: '#10b981' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Outfit, sans-serif' }
+  },
+  {
+    id: 'rt04',
+    name: 'Minimal Pearl',
+    category: 'Minimalist',
+    description: 'Pure, refined typography with a focus on ease of reading and elegance.',
+    style: 'rt01',
+    colors: { bg: '#ffffff', primary: '#0f172a', accent: '#64748b' },
+    fonts: { heading: 'DM Sans, sans-serif', body: 'DM Sans, sans-serif' }
+  },
+  {
+    id: 'rt05',
+    name: 'Tech Obsidian',
+    category: 'Tech',
+    description: 'High-contrast dark mode with neon accents for software engineers.',
+    style: 'rt06', // Map to a Tech layout
+    colors: { bg: '#020617', primary: '#0ea5e9', accent: '#0ea5e9' },
+    fonts: { heading: 'Space Mono, monospace', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt06',
+    name: 'London Finance',
+    category: 'Executive',
+    description: 'Classical, high-authority layout used by finance and legal professionals.',
+    style: 'rt01',
+    colors: { bg: '#ffffff', primary: '#000000', accent: '#8b0000' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Lora, serif' }
+  },
+  {
+    id: 'rt07',
+    name: 'Studio Coral',
+    category: 'Creative',
+    description: 'Artistic layout with coral highlights and unconventional sectioning.',
+    style: 'rt02',
+    colors: { bg: '#fffaf8', primary: '#c2410c', accent: '#f97316' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Outfit, sans-serif' }
+  },
+  {
+    id: 'rt08',
+    name: 'Silicon Valley',
+    category: 'Tech',
+    description: 'Fast-paced, data-rich layout with horizontal skill visualizations.',
+    style: 'rt04', // Map to a grid/modern layout
+    colors: { bg: '#ffffff', primary: '#2563eb', accent: '#2563eb' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt09',
+    name: 'Monaco Prestige',
+    category: 'Executive',
+    description: 'Luxury aesthetic with deep navy and gold-leaf accenting.',
+    style: 'rt01',
+    colors: { bg: '#ffffff', primary: '#1e1b4b', accent: '#d97706' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt10',
+    name: 'Grid Master',
+    category: 'Modern',
+    description: 'Perfectly aligned grid system for complex, multi-section profiles.',
+    style: 'rt19', // Card based
+    colors: { bg: '#f8fafc', primary: '#0f172a', accent: '#4f46e5' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt11',
+    name: 'Sunset Creative',
+    category: 'Creative',
+    description: 'Warm, engaging palette inspired by modern design portfolios.',
+    style: 'rt20', // Gradient mesh
+    colors: { bg: '#ffffff', primary: '#431407', accent: '#f97316' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Outfit, sans-serif' }
+  },
+  {
+    id: 'rt12',
+    name: 'Nordic Clean',
+    category: 'Minimalist',
+    description: 'Scandinavian-inspired minimalism with soft grays and icy blues.',
+    style: 'rt01',
+    colors: { bg: '#f9fafb', primary: '#1f2937', accent: '#0ea5e9' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'rt13',
+    name: 'Royal Heritage',
+    category: 'Classic',
+    description: 'Traditional centered layout with deep royal blue accents.',
+    style: 'rt13',
+    colors: { bg: '#ffffff', primary: '#1e3a8a', accent: '#1e3a8a' },
+    fonts: { heading: 'Garamond, serif', body: 'Garamond, serif' }
+  },
+  {
+    id: 'rt14',
+    name: 'Developer Indigo',
+    category: 'Tech',
+    description: 'Balanced tech layout with high information density.',
+    style: 'rt17',
+    colors: { bg: '#eef2ff', primary: '#312e81', accent: '#4f46e5' },
+    fonts: { heading: 'Roboto Mono, monospace', body: 'Inter, sans-serif' }
+  }
 ];

@@ -19,6 +19,8 @@ const useStore = create(
       user: null,
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
+      masterProfile: null,
+      setMasterProfile: (data) => set({ masterProfile: data }),
       setUser: (user) => {
         const previousUser = get().user;
         const previousUserId = previousUser?.studentId || previousUser?.uid || previousUser?.id || '';
@@ -38,6 +40,19 @@ const useStore = create(
           user,
           ...(switchedAccounts ? { editingResumeId: null, resumeData: initialResumeData } : {})
         });
+      },
+
+      loadMasterProfile: (data) => {
+        set({
+          resumeData: {
+            ...initialResumeData,
+            ...(data || {}),
+            personalInfo: {
+              ...initialResumeData.personalInfo,
+              ...(data?.personalInfo || {})
+            }
+          }
+        })
       },
       clearUser: () => {
         try {

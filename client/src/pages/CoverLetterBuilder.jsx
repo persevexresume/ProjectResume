@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Save, Download, Plus, Trash2, Sparkles, ChevronDown } from 'lucide-react'
+import { ArrowLeft, Save, Download, Plus, Trash2, Sparkles } from 'lucide-react'
 import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
 import { supabase } from '../supabase'
@@ -28,54 +28,28 @@ export default function CoverLetterBuilder() {
         closingParagraph: '',
     })
     const [isGenerating, setIsGenerating] = useState(false)
-    const [resumes, setResumes] = useState([])
-    const [selectedResumeId, setSelectedResumeId] = useState('')
+    const [showAI, setShowAI] = useState(false)
     const [jobDescription, setJobDescription] = useState('')
     const [isAILoading, setIsAILoading] = useState(false)
 
-    useEffect(() => {
-        const fetchResumes = async () => {
-            if (!user) return;
-            try {
-                const dbUserId = getDbUserId(user);
-                const { data, error } = await supabase
-                    .from('resumes')
-                    .select('id, title, data')
-                    .eq('user_id', dbUserId)
-                    .order('created_at', { ascending: false });
-                
-                if (!error && data) {
-                    setResumes(data);
-                    if (data.length > 0) setSelectedResumeId(data[0].id);
-                }
-            } catch (err) {
-                console.error("Error fetching resumes for AI:", err);
-            }
-        };
-        fetchResumes();
-    }, [user]);
-
     const handleGenerateAI = async () => {
-        if (!selectedResumeId) {
-            showError("Please select a resume first.");
-            return;
-        }
         if (!jobDescription.trim()) {
             showError("Please provide a job description.");
             return;
         }
 
-        const selectedResume = resumes.find(r => r.id === selectedResumeId);
-        if (!selectedResume) return;
-
         setIsAILoading(true);
         try {
-            const response = await fetch('http://localhost:5000/api/generate-cover-letter', {
+            const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+            const response = await fetch(`${apiBaseUrl}/api/generate-cover-letter`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    resumeData: selectedResume.data,
                     jobDescription: jobDescription,
+                    senderFirstName: coverLetter.senderFirstName,
+                    senderLastName: coverLetter.senderLastName,
+                    senderEmail: coverLetter.senderEmail,
+                    senderPhone: coverLetter.senderPhone,
                     companyName: coverLetter.companyName,
                     recipientName: coverLetter.recipientName,
                     recipientTitle: coverLetter.recipientTitle
@@ -235,68 +209,6 @@ export default function CoverLetterBuilder() {
                             <p style={{ color: '#64748b', fontWeight: 500 }}>Create a professional cover letter that gets you hired.</p>
                         </div>
 
-                        {/* AI Generator Section */}
-                        <div style={{ background: 'linear-gradient(135deg, #f0fdfa, #f8fafc)', padding: '2rem', borderRadius: '16px', marginBottom: '3rem', border: '1px solid #ccfbf1', position: 'relative', overflow: 'hidden' }}>
-                            <div style={{ position: 'absolute', top: '-20px', right: '-20px', opacity: 0.1, pointerEvents: 'none' }}>
-                                <Sparkles size={120} color="#0d9488" />
-                            </div>
-                            <div style={{ position: 'relative', zIndex: 1 }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ width: '40px', height: '40px', background: '#0d9488', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', boxShadow: '0 4px 12px rgba(13, 148, 136, 0.25)' }}>
-                                        <Sparkles size={20} />
-                                    </div>
-                                    <div>
-                                        <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900, color: '#0f172a' }}>AI Cover Letter Generator</h3>
-                                        <p style={{ margin: 0, fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Craft a tailored letter in seconds based on your resume and job description</p>
-                                    </div>
-                                </div>
-                                
-                                <div style={{ display: 'grid', gap: '1.25rem' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                                        <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Select Base Resume</label>
-                                        <select 
-                                            value={selectedResumeId}
-                                            onChange={(e) => setSelectedResumeId(e.target.value)}
-                                            style={{ padding: '0.8rem 1rem', borderRadius: '12px', border: '1.5px solid #e2e8f0', fontSize: '0.85rem', fontWeight: 500, outline: 'none', background: '#fff', cursor: 'pointer', appearance: 'none' }}
-                                        >
-                                            {resumes.length === 0 ? (
-                                                <option value="">No resumes found. Create one first!</option>
-                                            ) : (
-                                                resumes.map(r => (
-                                                    <option key={r.id} value={r.id}>{r.title || 'Untitled Resume'}</option>
-                                                ))
-                                            )}
-                                        </select>
-                                    </div>
-                                    <InputField 
-                                        label="Target Job Description" 
-                                        value={jobDescription}
-                                        onChange={(e) => setJobDescription(e.target.value)}
-                                        placeholder="Paste the job description here..."
-                                        multiline
-                                        rows={4}
-                                    />
-                                    <button 
-                                        onClick={handleGenerateAI}
-                                        disabled={isAILoading || resumes.length === 0 || !jobDescription.trim()}
-                                        style={{ 
-                                            background: '#0f172a', color: 'white', padding: '1rem', borderRadius: '12px', 
-                                            fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', 
-                                            alignItems: 'center', justifyContent: 'center', gap: '0.5rem', marginTop: '0.5rem',
-                                            opacity: (isAILoading || resumes.length === 0 || !jobDescription.trim()) ? 0.7 : 1,
-                                            transition: 'all 0.2s'
-                                        }}
-                                    >
-                                        {isAILoading ? (
-                                            <>Generating Magic...</>
-                                        ) : (
-                                            <><Sparkles size={18} /> Generate Cover Letter</>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-
                         {/* Title Section */}
                         <SectionTitle title="Document Title" />
                         <div style={{ marginBottom: '2.5rem' }}>
@@ -304,60 +216,134 @@ export default function CoverLetterBuilder() {
                                 label="Give your cover letter a name" 
                                 value={title} 
                                 onChange={(e) => setTitle(e.target.value)} 
-                                placeholder="e.g. Google - Software Engineer, Tech Lead Position" 
+                                placeholder="e.g. Google - Software Engineer" 
                             />
                         </div>
-                        <SectionTitle title="Recipient Information" />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
-                            <InputField 
-                                label="Recipient Name" 
-                                value={coverLetter.recipientName} 
-                                onChange={(e) => handleInputChange('recipientName', e.target.value)} 
-                                placeholder="e.g. Hiring Manager" 
-                            />
-                            <InputField 
-                                label="Recipient Title" 
-                                value={coverLetter.recipientTitle} 
-                                onChange={(e) => handleInputChange('recipientTitle', e.target.value)} 
-                                placeholder="e.g. HR Director" 
-                            />
-                            <div style={{ gridColumn: 'span 2' }}>
-                                <InputField 
-                                    label="Company Name" 
-                                    value={coverLetter.companyName} 
-                                    onChange={(e) => handleInputChange('companyName', e.target.value)} 
-                                    placeholder="e.g. Google, Inc." 
-                                />
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem' }}>
+                            <div>
+                                <SectionTitle title="Recipient Information" />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1rem', marginBottom: '2.5rem' }}>
+                                    <InputField 
+                                        label="Recipient Name" 
+                                        value={coverLetter.recipientName} 
+                                        onChange={(e) => handleInputChange('recipientName', e.target.value)} 
+                                        placeholder="e.g. Hiring Manager" 
+                                    />
+                                    <InputField 
+                                        label="Recipient Title" 
+                                        value={coverLetter.recipientTitle} 
+                                        onChange={(e) => handleInputChange('recipientTitle', e.target.value)} 
+                                        placeholder="e.g. Head of Talent" 
+                                    />
+                                    <InputField 
+                                        label="Company Name" 
+                                        value={coverLetter.companyName} 
+                                        onChange={(e) => handleInputChange('companyName', e.target.value)} 
+                                        placeholder="e.g. Google, Inc." 
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <SectionTitle title="Your Contact Details" />
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
+                                    <InputField 
+                                        label="First Name" 
+                                        value={coverLetter.senderFirstName} 
+                                        onChange={(e) => handleInputChange('senderFirstName', e.target.value)} 
+                                        placeholder="John" 
+                                    />
+                                    <InputField 
+                                        label="Last Name" 
+                                        value={coverLetter.senderLastName} 
+                                        onChange={(e) => handleInputChange('senderLastName', e.target.value)} 
+                                        placeholder="Doe" 
+                                    />
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                        <InputField 
+                                            label="Email Address" 
+                                            value={coverLetter.senderEmail} 
+                                            onChange={(e) => handleInputChange('senderEmail', e.target.value)} 
+                                            placeholder="john.doe@example.com" 
+                                        />
+                                    </div>
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                        <InputField 
+                                            label="Phone Number" 
+                                            value={coverLetter.senderPhone} 
+                                            onChange={(e) => handleInputChange('senderPhone', e.target.value)} 
+                                            placeholder="+1 (555) 000-0000" 
+                                        />
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
-                        {/* Personal Section */}
-                        <SectionTitle title="Your Contact Details" />
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '2.5rem' }}>
-                            <InputField 
-                                label="First Name" 
-                                value={coverLetter.senderFirstName} 
-                                onChange={(e) => handleInputChange('senderFirstName', e.target.value)} 
-                                placeholder="John" 
-                            />
-                            <InputField 
-                                label="Last Name" 
-                                value={coverLetter.senderLastName} 
-                                onChange={(e) => handleInputChange('senderLastName', e.target.value)} 
-                                placeholder="Doe" 
-                            />
-                            <InputField 
-                                label="Email Address" 
-                                value={coverLetter.senderEmail} 
-                                onChange={(e) => handleInputChange('senderEmail', e.target.value)} 
-                                placeholder="john.doe@example.com" 
-                            />
-                            <InputField 
-                                label="Phone Number" 
-                                value={coverLetter.senderPhone} 
-                                onChange={(e) => handleInputChange('senderPhone', e.target.value)} 
-                                placeholder="+1 (555) 000-0000" 
-                            />
+                        {/* AI Generator Toggle */}
+                        <div style={{ 
+                            marginBottom: '2.5rem', 
+                            padding: '1.5rem', 
+                            background: showAI ? '#f0fdfa' : '#f8fafc',
+                            borderRadius: '16px',
+                            border: showAI ? '1px solid #ccfbf1' : '1px solid #e2e8f0',
+                            transition: 'all 0.3s ease'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <div style={{ width: '32px', height: '32px', background: showAI ? '#0d9488' : '#64748b', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div>
+                                        <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>AI Content Helper</h3>
+                                        <p style={{ margin: 0, fontSize: '0.75rem', color: '#64748b', fontWeight: 500 }}>Let Gemini AI draft your letter based on your resume</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={() => setShowAI(!showAI)}
+                                    style={{ 
+                                        padding: '0.5rem 1rem', background: showAI ? '#0d9488' : '#fff', color: showAI ? '#fff' : '#0f172a', 
+                                        border: '1px solid #e2e8f0', borderRadius: '8px', fontWeight: 700, cursor: 'pointer',
+                                        fontSize: '0.8rem', transition: 'all 0.2s'
+                                    }}
+                                >
+                                    {showAI ? 'Hide AI Options' : 'Use AI Generator'}
+                                </button>
+                            </div>
+
+                            {showAI && (
+                                <motion.div 
+                                    initial={{ height: 0, opacity: 0 }}
+                                    animate={{ height: 'auto', opacity: 1 }}
+                                    style={{ marginTop: '1.5rem', pt: '1.5rem', borderTop: '1px solid #ccfbf1' }}
+                                >
+                                    <div style={{ display: 'grid', gap: '1.25rem', marginTop: '1.5rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                                                <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#475569' }}>Target Job Description</label>
+                                            </div>
+                                            <InputField
+                                            label="Target Job Description" 
+                                            value={jobDescription}
+                                            onChange={(e) => setJobDescription(e.target.value)}
+                                            placeholder="Paste the job description here..."
+                                            multiline
+                                            rows={4}
+                                        />
+                                        <button 
+                                            onClick={handleGenerateAI}
+                                            disabled={isAILoading || !jobDescription.trim()}
+                                            style={{ 
+                                                background: '#0d9488', color: 'white', padding: '0.8rem', borderRadius: '10px', 
+                                                fontWeight: 800, border: 'none', cursor: 'pointer', display: 'flex', 
+                                                alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                                                opacity: (isAILoading || !jobDescription.trim()) ? 0.7 : 1
+                                            }}
+                                        >
+                                            {isAILoading ? "Generating with Gemini..." : <><Sparkles size={16} /> Generate with AI</>}
+                                        </button>
+                                    </div>
+                                </motion.div>
+                            )}
                         </div>
 
                         {/* Content Section */}

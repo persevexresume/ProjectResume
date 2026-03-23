@@ -36,6 +36,7 @@ import {
     LifeBuoy,
     MessageSquare,
     Briefcase,
+    ChevronDown,
     Zap,
     Archive,
     FilePen
@@ -139,12 +140,26 @@ export function Header() {
                                     Dashboard
                                 </Link>
 
-                                <Link
-                                    to="/student"
-                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
-                                >
-                                    Career Vault
-                                </Link>
+                                <div className="relative group">
+                                    <button
+                                        type="button"
+                                        className="px-5 h-10 flex items-center gap-2 font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                    >
+                                        Career Vault
+                                        <ChevronDown size={14} className="text-slate-500 transition-transform group-hover:rotate-180" />
+                                    </button>
+                                    <div className="absolute left-0 top-full mt-2 min-w-[220px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl opacity-0 pointer-events-none translate-y-1 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 transition-all z-50">
+                                        <a
+                                            href="https://www.persevex.com/job-portal"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+                                        >
+                                            <Briefcase size={15} className="text-blue-600" />
+                                            Job Portal
+                                        </a>
+                                    </div>
+                                </div>
 
                                 <Link
                                     to="/templates"
@@ -153,12 +168,6 @@ export function Header() {
                                     Templates
                                 </Link>
 
-                                <Link
-                                    to="/cover-letter"
-                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
-                                >
-                                    Cover Letter
-                                </Link>
 
                                 <Link
                                     to="/student/choice"
@@ -167,15 +176,6 @@ export function Header() {
                                     Master Profile
                                 </Link>
 
-                                <a
-                                    href="https://www.persevex.com/job-portal"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="ml-2 flex items-center gap-2 px-6 h-10 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-full shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] active:scale-95"
-                                >
-                                    <Briefcase size={16} />
-                                    Job Portal
-                                </a>
                             </>
                         ) : (
                             <>
@@ -296,26 +296,20 @@ export function Header() {
                                 <FileStack className="size-5 text-blue-600" />
                                 Dashboard
                             </Link>
-                            <Link to="/student" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-teal-50">
-                                <Archive className="size-5 text-teal-600" />
-                                Career Vault
-                            </Link>
+                            <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
+                                <a href="https://www.persevex.com/job-portal" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl text-slate-700 font-bold transition-colors hover:bg-blue-50">
+                                    <Briefcase className="size-5 text-blue-600" />
+                                    Job Portal
+                                </a>
+                            </div>
                             <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-indigo-50">
                                 <Layout className="size-5 text-indigo-600" />
                                 Templates
-                            </Link>
-                            <Link to="/cover-letter" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-emerald-50">
-                                <FilePen className="size-5 text-emerald-600" />
-                                Cover Letter
                             </Link>
                             <Link to="/student/choice" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
                                 <UserCircle className="size-5 text-violet-600" />
                                 Master Profile
                             </Link>
-                            <a href="https://www.persevex.com/job-portal" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl bg-blue-600 text-white font-bold shadow-lg shadow-blue-200 active:scale-[0.98] transition-transform">
-                                <Briefcase className="size-5" />
-                                Job Portal
-                            </a>
                         </div>
                     ) : !user ? (
                         <div className="flex flex-col gap-2">

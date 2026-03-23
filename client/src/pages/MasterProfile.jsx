@@ -1,20 +1,35 @@
-import { motion } from 'framer-motion'
-import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, User, MapPin, Phone, Mail, Pin, ArrowRight, Plus, Trash2 } from 'lucide-react'
+import { 
+    ArrowLeft, User, MapPin, Phone, Mail, Pin, ArrowRight, Plus, Trash2, 
+    Upload, UserPlus, FileText, CheckCircle2, Loader2, X, Briefcase, 
+    GraduationCap, Wrench, Award, PenTool, Sparkles, AlertCircle
+} from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
 import { useToast } from '../context/ToastContext'
+import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 
 export default function MasterProfile() {
     const navigate = useNavigate()
-    const { success: toastSuccess, error: toastError } = useToast()
-    const { user, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+    const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
+    const { 
+        user, updatePersonalInfo, setExperience, setEducation, 
+        setSkills, setProjects, setCertifications, setMasterProfile 
+    } = useStore()
+
     const [loading, setLoading] = useState(false)
-    const [success, setSuccess] = useState(false)
+    const [saveSuccess, setSaveSuccess] = useState(false)
     const [statusMessage, setStatusMessage] = useState('')
     const [statusType, setStatusType] = useState('info')
+    const [profileId, setProfileId] = useState(null)
+    
+    // Parsing states
+    const [parseStatus, setParseStatus] = useState('idle') // idle, uploading, parsing, success, error
+    const [parseError, setParseError] = useState('')
+    const fileInputRef = useRef(null)
 
     const [personal, setPersonal] = useState({
         firstName: '',
@@ -25,7 +40,10 @@ export default function MasterProfile() {
         phone: '',
         email: user?.email || '',
         title: '',
-        summary: ''
+        summary: '',
+        website: '',
+        linkedin: '',
+        github: ''
     })
 
     const [experience, setLocalExperience] = useState([])
@@ -42,77 +60,508 @@ export default function MasterProfile() {
             const dbUserId = getDbUserId(user)
             if (!dbUserId) return
 
-            const tableCandidates = ['profiles']
-
-            for (const tableName of tableCandidates) {
-                const { data, error } = await supabase
-                    .from(tableName)
+            try {
+                // Use profiles table as the canonical source to avoid 404s when master_profiles is absent.
+                const { data: pData } = await supabase
+                    .from('profiles')
                     .select('*')
                     .eq('user_id', dbUserId)
                     .maybeSingle()
+                
+                if (pData) {
+                    setProfileId(pData.id)
+                    if (pData.resume_data) {
+                        const parsed = typeof pData.resume_data === 'string' ? JSON.parse(pData.resume_data) : pData.resume_data
+                        populateForm(parsed)
+                        return
+                    }
 
-                if (data) {
-                    const city = data.city || data.location?.split(',')[0]?.trim() || ''
-                    const country = data.country || data.location?.split(',')[1]?.trim() || ''
-
+                    const city = pData.city || pData.location?.split(',')[0]?.trim() || ''
+                    const country = pData.country || pData.location?.split(',')[1]?.trim() || ''
+                    
                     setPersonal({
-                        firstName: data.first_name || '',
-                        lastName: data.last_name || '',
+                        firstName: pData.first_name || '',
+                        lastName: pData.last_name || '',
                         city,
                         country,
-                        pinCode: data.pin_code || '',
-                        phone: data.phone || '',
-                        email: data.email || user?.email || '',
-                        title: data.title || '',
-                        summary: data.summary || ''
+                        pinCode: pData.pin_code || '',
+                        phone: pData.phone || '',
+                        email: pData.email || user?.email || '',
+                        title: pData.title || '',
+                        summary: pData.summary || '',
+                        website: pData.website || '',
+                        linkedin: pData.linkedin || '',
+                        github: pData.github || ''
                     })
 
-                    setLocalExperience(Array.isArray(data.experience_data) ? data.experience_data : [])
-                    setLocalEducation(Array.isArray(data.education_data) ? data.education_data : [])
-                    setLocalSkills(Array.isArray(data.skills_data) ? data.skills_data : [])
-                    setLocalProjects(Array.isArray(data.projects_data) ? data.projects_data : [])
-                    setLocalCertifications(Array.isArray(data.certifications_data) ? data.certifications_data : [])
-                    return
+                    setLocalExperience(Array.isArray(pData.experience_data) ? pData.experience_data : [])
+                    setLocalEducation(Array.isArray(pData.education_data) ? pData.education_data : [])
+                    setLocalSkills(Array.isArray(pData.skills_data) ? pData.skills_data : [])
+                    setLocalProjects(Array.isArray(pData.projects_data) ? pData.projects_data : [])
+                    setLocalCertifications(Array.isArray(pData.certifications_data) ? pData.certifications_data : [])
                 }
-
-                if (!error) continue
-
-                const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-                const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
-                const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
-                if (relationMissing || noRows) continue
+            } catch (err) {
+                console.error("Error loading profile:", err)
             }
         }
 
         loadProfile()
     }, [user])
 
-    const handleSave = async (e) => {
-        e.preventDefault()
+    const populateForm = (data) => {
+        if (!data) return
+        
+        const personalInfo = data.personalInfo || {}
+        setPersonal({
+            firstName: personalInfo.firstName || '',
+            lastName: personalInfo.lastName || '',
+            email: personalInfo.email || user?.email || '',
+            phone: personalInfo.phone || '',
+            city: personalInfo.location?.split(',')[0]?.trim() || '',
+            country: personalInfo.location?.split(',')[1]?.trim() || '',
+            pinCode: personalInfo.pinCode || '',
+            title: personalInfo.title || '',
+            summary: personalInfo.summary || '',
+            website: personalInfo.website || '',
+            linkedin: personalInfo.linkedin || '',
+            github: personalInfo.github || ''
+        })
+
+        setLocalExperience(Array.isArray(data.experience) ? data.experience : [])
+        setLocalEducation(Array.isArray(data.education) ? data.education : [])
+        setLocalSkills(Array.isArray(data.skills) ? data.skills : [])
+        setLocalProjects(Array.isArray(data.projects) ? data.projects : [])
+        setLocalCertifications(Array.isArray(data.certifications) ? data.certifications : [])
+    }
+
+    const handleCreateFresh = () => {
+        setPersonal({
+            firstName: '',
+            lastName: '',
+            city: '',
+            country: '',
+            pinCode: '',
+            phone: '',
+            email: user?.email || '',
+            title: '',
+            summary: '',
+            website: '',
+            linkedin: '',
+            github: ''
+        })
+        setLocalExperience([])
+        setLocalEducation([])
+        setLocalSkills([])
+        setLocalProjects([])
+        setLocalCertifications([])
+        toastInfo("Started fresh. Fill in your details.")
+    }
+
+    const resetProfileState = () => {
+        setPersonal({
+            firstName: '',
+            lastName: '',
+            city: '',
+            country: '',
+            pinCode: '',
+            phone: '',
+            email: user?.email || '',
+            title: '',
+            summary: '',
+            website: '',
+            linkedin: '',
+            github: ''
+        })
+        setLocalExperience([])
+        setLocalEducation([])
+        setLocalSkills([])
+        setLocalProjects([])
+        setLocalCertifications([])
+    }
+
+    const handleDeleteProfile = async () => {
+        if (!user) {
+            toastError('Please sign in first')
+            return
+        }
+
+        const confirmed = window.confirm('Delete all Master Profile data? This will clear your saved profile details.')
+        if (!confirmed) return
+
         setLoading(true)
         setStatusMessage('')
         try {
-            if (!user) {
-                throw new Error('Please sign in first')
+            const dbUserId = getDbUserId(user)
+            if (!dbUserId) throw new Error('Unable to identify your account')
+
+            const clearPayload = {
+                resume_data: null,
+                first_name: '',
+                last_name: '',
+                phone: '',
+                city: '',
+                country: '',
+                title: '',
+                summary: '',
+                website: '',
+                linkedin: '',
+                github: '',
+                experience_data: [],
+                education_data: [],
+                skills_data: [],
+                projects_data: [],
+                certifications_data: [],
+                updated_at: new Date().toISOString()
             }
+
+            const updateProfileAdaptive = async (initialPayload) => {
+                const payload = { ...initialPayload }
+
+                for (let attempt = 0; attempt < 8; attempt += 1) {
+                    const result = await supabase
+                        .from('profiles')
+                        .update(payload)
+                        .eq('user_id', dbUserId)
+
+                    if (!result.error) return
+
+                    const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                        .filter(Boolean)
+                        .join(' | ')
+
+                    const missingColumnMatch =
+                        fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                        fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+                    if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
+                        delete payload[missingColumnMatch[1]]
+                        continue
+                    }
+
+                    throw new Error(fullMessage || 'Failed to delete profile data')
+                }
+
+                throw new Error('Failed to delete profile data after schema adaptation attempts')
+            }
+
+            await updateProfileAdaptive(clearPayload)
+
+            const emptyProfile = {
+                personalInfo: {
+                    firstName: '',
+                    lastName: '',
+                    email: user?.email || '',
+                    phone: '',
+                    location: '',
+                    pinCode: '',
+                    title: '',
+                    summary: '',
+                    website: '',
+                    linkedin: '',
+                    github: ''
+                },
+                experience: [],
+                education: [],
+                skills: [],
+                projects: [],
+                certifications: []
+            }
+
+            setMasterProfile(emptyProfile)
+            updatePersonalInfo(emptyProfile.personalInfo)
+            setExperience([])
+            setEducation([])
+            setSkills([])
+            setProjects([])
+            setCertifications([])
+            resetProfileState()
+            toastSuccess('Master Profile data deleted successfully.')
+        } catch (error) {
+            console.error('Delete Error:', error)
+            toastError(error.message || 'Failed to delete profile data.')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    // --- PDF PARSING LOGIC (Simplified from UploadResume.jsx) ---
+    
+    const SECTION_HEADERS = {
+        summary: ['summary', 'profile', 'objective', 'about me', 'professional summary', 'executive summary', 'professional profile'],
+        experience: ['experience', 'work experience', 'employment', 'professional experience', 'work history', 'career history', 'employment history', 'professional background'],
+        education: ['education', 'academic background', 'academics', 'qualification', 'academic profile', 'educational background', 'academic qualifications'],
+        skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies', 'technologies', 'technical expertise', 'key skills'],
+        projects: ['projects', 'personal projects', 'key projects', 'academic projects', 'recent projects'],
+        certifications: ['certifications', 'awards', 'honors', 'achievements', 'certifications & awards', 'licenses', 'professional certifications']
+    }
+
+    const isLikelySectionHeader = (line) => {
+        const value = line.trim().toLowerCase()
+        return Object.values(SECTION_HEADERS).flat().some((header) => value === header || value === header + ':')
+    }
+
+    const getSectionContent = (lines, headers) => {
+        const startIndex = lines.findIndex((line) => 
+            headers.includes(line.trim().toLowerCase().replace(/:$/, ''))
+        )
+        if (startIndex < 0) return []
+        const content = []
+        for (let i = startIndex + 1; i < lines.length; i += 1) {
+            const current = lines[i]
+            if (isLikelySectionHeader(current)) break
+            content.push(current)
+        }
+        return content
+    }
+
+    const parsePersonalInfo = (text, lines) => {
+        const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)
+        const phoneMatch = text.match(/((?:\+|00)\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/)
+        const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[A-Za-z0-9\-_/]+/i)
+        const githubMatch = text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[A-Za-z0-9\-_/]+/i)
+        const websiteMatch = text.match(/(?:https?:\/\/)?(?:www\.)?([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?:\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]*)?/i)
+        const nameLine = lines.find((line) => {
+            const clean = line.trim()
+            if (/[@\d]/.test(clean)) return false
+            if (clean.toLowerCase().includes('http')) return false
+            if (isLikelySectionHeader(clean)) return false
+            return /^[A-Za-z][A-Za-z\s.'-]+$/.test(clean)
+        }) || ''
+        const nameParts = nameLine.trim().split(/\s+/).filter(Boolean)
+        const firstName = nameParts[0] || ''
+        const lastName = nameParts.slice(1).join(' ') || ''
+        const locationLine = lines.find((line) => {
+            const clean = line.trim()
+            if (clean.length > 100) return false
+            return (/,\s*[A-Za-z]{2,}$/.test(clean) || /[A-Za-z\s]+,\s*[A-Za-z\s]+/.test(clean)) && !clean.includes('@')
+        })
+        const summaryLines = getSectionContent(lines, SECTION_HEADERS.summary)
+        return {
+            firstName, lastName, email: emailMatch?.[0] || '', phone: phoneMatch?.[0]?.trim() || '',
+            location: locationLine || '', summary: summaryLines.join(' '), 
+            linkedin: linkedinMatch?.[0] || '', github: githubMatch?.[0] || '', website: websiteMatch?.[0] || ''
+        }
+    }
+
+    const parseSkills = (lines) => {
+        const skillSectionLines = getSectionContent(lines, SECTION_HEADERS.skills)
+        if (skillSectionLines.length === 0) return []
+        const skillTokens = skillSectionLines.join(' | ').split(/[|,•·\n\t;]/).map((item) => item.trim()).filter((item) => item.length >= 2 && item.length <= 50)
+        return [...new Set(skillTokens)].map((name, index) => ({ id: Date.now() + index, name, level: 'Advanced' }))
+    }
+
+    const parseEducation = (lines) => {
+        const eduSectionLines = getSectionContent(lines, SECTION_HEADERS.education)
+        const chunks = eduSectionLines.filter((line) => line.trim().length > 0)
+        const degreeRegex = /(b\.?tech|b\.?e|bachelor|master|m\.?tech|mba|ph\.?d|diploma|certificate|secondary|ssc|hsc)/i
+        const entries = []
+        for (let i = 0; i < chunks.length; i += 1) {
+            const current = chunks[i]; if (!degreeRegex.test(current)) continue;
+            entries.push({ id: Date.now() + i, school: chunks[i+1] || '', degree: current, startDate: '', endDate: '', description: '' })
+            i++
+        }
+        return entries
+    }
+
+    const parseExperience = (lines) => {
+        const expSectionLines = getSectionContent(lines, SECTION_HEADERS.experience)
+        const chunks = expSectionLines.filter((line) => line.trim().length > 0)
+        const dateRegex = /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})\s*(?:[-–—]|to)\s*((?:Present|Current|Till Date|Ongoing)|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})/i
+        const entries = []
+        for (let i = 0; i < chunks.length; i += 1) {
+            if (!dateRegex.test(chunks[i])) continue
+            const dateParts = chunks[i].split(/[-–—]|to/i)
+            entries.push({ id: Date.now() + i, role: chunks[i-1] || 'Role', company: chunks[i-2] || 'Company', startDate: (dateParts[0] || '').trim(), endDate: (dateParts[1] || '').trim(), description: chunks[i+1] || '' })
+        }
+        return entries
+    }
+
+    const extractTextFromPdf = async (selectedFile) => {
+        const pdfjsModule = await import('pdfjs-dist')
+        const pdfjsLib = (pdfjsModule?.GlobalWorkerOptions && pdfjsModule?.getDocument)
+            ? pdfjsModule
+            : pdfjsModule.default
+        if (!pdfjsLib?.getDocument || !pdfjsLib?.GlobalWorkerOptions) {
+            throw new Error('PDF parser failed to initialize.')
+        }
+
+        if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
+            pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker()
+        }
+
+        const fileBuffer = await selectedFile.arrayBuffer()
+        const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise
+        let text = ''
+
+        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+            const page = await pdf.getPage(pageNumber)
+            const content = await page.getTextContent()
+
+            const items = content.items
+                .map((item) => ({
+                    str: item.str || '',
+                    x: item.transform?.[4] || 0,
+                    y: item.transform?.[5] || 0
+                }))
+                .filter((item) => item.str.trim().length > 0)
+                .sort((a, b) => {
+                    if (Math.abs(b.y - a.y) > 2) return b.y - a.y
+                    return a.x - b.x
+                })
+
+            const lines = []
+            for (const item of items) {
+                const line = lines.find((entry) => Math.abs(entry.y - item.y) <= 2.5)
+                if (line) {
+                    line.items.push(item)
+                } else {
+                    lines.push({ y: item.y, items: [item] })
+                }
+            }
+
+            const pageText = lines
+                .sort((a, b) => b.y - a.y)
+                .map((line) => line.items
+                    .sort((a, b) => a.x - b.x)
+                    .map((item) => item.str)
+                    .join(' ')
+                    .replace(/\s+/g, ' ')
+                    .trim())
+                .filter(Boolean)
+                .join('\n')
+
+            text += `\n${pageText}`
+        }
+
+        return text
+    }
+
+    const handleFileChange = async (e) => {
+        const selectedFile = e.target.files[0]
+        if (!selectedFile) return
+        
+        try {
+            setParseStatus('uploading')
+            setParseError('')
+            
+            // Extract text (Requires pdfjs-dist and mammoth to be installed)
+            let rawText = ''
+            const fileName = selectedFile.name.toLowerCase()
+            
+            if (fileName.endsWith('.pdf')) {
+                rawText = await extractTextFromPdf(selectedFile)
+            } else if (fileName.endsWith('.docx')) {
+                const mammoth = await import('mammoth')
+                const arrayBuffer = await selectedFile.arrayBuffer()
+                const result = await mammoth.extractRawText({ arrayBuffer })
+                rawText = result.value
+            } else {
+                rawText = await selectedFile.text()
+            }
+
+            if (!rawText || rawText.length < 50) throw new Error("Could not read enough text from file.")
+
+            setParseStatus('parsing')
+            const text = rawText.replace(/\r/g, '\n').replace(/\n{2,}/g, '\n')
+            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+            
+            const extracted = {
+                personalInfo: parsePersonalInfo(text, lines),
+                experience: parseExperience(lines),
+                education: parseEducation(lines),
+                skills: parseSkills(lines),
+                projects: [],
+                certifications: []
+            }
+
+            const hasExtractedData = Boolean(
+                extracted.personalInfo.firstName ||
+                extracted.personalInfo.lastName ||
+                extracted.personalInfo.email ||
+                extracted.personalInfo.phone ||
+                extracted.personalInfo.summary ||
+                extracted.experience.length ||
+                extracted.education.length ||
+                extracted.skills.length
+            )
+            if (!hasExtractedData) {
+                throw new Error('Could not extract usable details from this PDF. Please try another file.')
+            }
+
+            populateForm(extracted)
+            setParseStatus('success')
+            toastSuccess("Resume parsed! Adjust the details as needed.")
+            setTimeout(() => setParseStatus('idle'), 2000)
+        } catch (err) {
+            console.error("Parse Error:", err)
+            setParseStatus('error')
+            setParseError(err.message || "Failed to parse resume.")
+            toastError("Failed to parse resume.")
+        }
+    }
+
+    const handleSave = async (e) => {
+        if (e) e.preventDefault()
+        setLoading(true)
+        setStatusMessage('')
+        try {
+            if (!user) throw new Error('Please sign in first')
 
             const dbUserId = getDbUserId(user)
-            if (!dbUserId) {
-                throw new Error('Unable to identify your account')
+            if (!dbUserId) throw new Error('Unable to identify your account')
+
+            const normalizedData = {
+                personalInfo: {
+                    ...personal,
+                    location: `${personal.city}, ${personal.country}`
+                },
+                experience,
+                education,
+                skills,
+                projects,
+                certifications
             }
 
-            const profileData = {
+            const upsertProfileAdaptive = async (initialPayload) => {
+                const payload = { ...initialPayload }
+
+                for (let attempt = 0; attempt < 8; attempt += 1) {
+                    const result = await supabase
+                        .from('profiles')
+                        .upsert(payload, { onConflict: 'user_id' })
+
+                    if (!result.error) return
+
+                    const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                        .filter(Boolean)
+                        .join(' | ')
+
+                    const missingColumnMatch =
+                        fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                        fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+                    if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
+                        delete payload[missingColumnMatch[1]]
+                        continue
+                    }
+
+                    throw new Error(fullMessage || 'Failed to save profile')
+                }
+
+                throw new Error('Failed to save profile after schema adaptation attempts')
+            }
+
+            const payload = {
                 user_id: dbUserId,
+                resume_data: normalizedData,
                 first_name: personal.firstName,
                 last_name: personal.lastName,
+                email: personal.email,
+                phone: personal.phone,
                 city: personal.city,
                 country: personal.country,
-                pin_code: personal.pinCode,
-                phone: personal.phone,
-                email: personal.email,
                 title: personal.title,
                 summary: personal.summary,
-                location: [personal.city, personal.country].filter(Boolean).join(', '),
                 experience_data: experience,
                 education_data: education,
                 skills_data: skills,
@@ -121,75 +570,25 @@ export default function MasterProfile() {
                 updated_at: new Date().toISOString()
             }
 
-            const saveMasterProfile = async (basePayload) => {
-                const tableCandidates = ['profiles']
+            if (profileId) payload.id = profileId
 
-                for (const tableName of tableCandidates) {
-                    const attemptPayload = { ...basePayload }
+            await upsertProfileAdaptive(payload)
 
-                    for (let attempt = 0; attempt < 8; attempt += 1) {
-                        const { error } = await supabase
-                            .from(tableName)
-                            .upsert([attemptPayload], { onConflict: 'user_id' })
+            // Update local store
+            setMasterProfile(normalizedData)
+            updatePersonalInfo(normalizedData.personalInfo)
+            setExperience(experience)
+            setEducation(education)
+            setSkills(skills)
+            setProjects(projects)
+            setCertifications(certifications)
 
-                        if (!error) return { error: null, tableName }
-
-                        const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-                        // PGRST205 is Supabase's error code for "table not found"
-                        const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
-                        const missingColumnMatch = fullMessage.match(/Could not find the '([^']+)' column/i) || fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-                        if (missingColumnMatch && attemptPayload[missingColumnMatch[1]] !== undefined) {
-                            delete attemptPayload[missingColumnMatch[1]]
-                            continue
-                        }
-
-                        if (relationMissing) {
-                            break
-                        }
-
-                        return { error }
-                    }
-                }
-
-                return { error: { message: 'Master profile table is not available in Supabase schema.' }, tableName: null }
-            }
-
-            const { error, tableName } = await saveMasterProfile(profileData)
-
-            if (!error) {
-                // Update the local store with all data
-                updatePersonalInfo({
-                    firstName: personal.firstName,
-                    lastName: personal.lastName,
-                    email: personal.email,
-                    phone: personal.phone,
-                    location: `${personal.city}, ${personal.country}`,
-                    title: personal.title,
-                    summary: personal.summary
-                })
-                setExperience(experience)
-                setEducation(education)
-                setSkills(skills)
-                setProjects(projects)
-                setCertifications(certifications)
-
-                setSuccess(true)
-                const message = `Profile saved successfully${tableName ? ` (${tableName})` : ''}. Redirecting...`
-                setStatusType('success')
-                setStatusMessage(message)
-                toastSuccess(message)
-                setTimeout(() => navigate('/student'), 2000)
-            } else {
-                const details = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-                throw new Error(details || 'Master Profile save failed')
-            }
+            setSaveSuccess(true)
+            toastSuccess("Master Profile saved for life!")
+            setTimeout(() => setSaveSuccess(false), 3000)
         } catch (error) {
-            console.error("Master Profile Save Error:", error)
-            const message = `Failed to save profile: ${error.message || 'Unknown error'}`
-            setStatusType('error')
-            setStatusMessage(message)
-            toastError(message)
+            console.error("Save Error:", error)
+            toastError(error.message || "Failed to save profile.")
         } finally {
             setLoading(false)
         }
@@ -198,276 +597,257 @@ export default function MasterProfile() {
     return (
         <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            style={{ minHeight: '100vh', background: '#f8fafc', padding: 'clamp(1rem, 4vw, 3rem) clamp(0.75rem, 3vw, 1.5rem) 2.5rem', width: '100%', boxSizing: 'border-box' }}
+            className="min-h-screen bg-[#f8fafc] w-full"
+            style={{ padding: 'clamp(2rem, 5vw, 4rem) 2rem 5rem' }}
         >
-            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
-                <Link to="/student/choice" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-secondary)', textDecoration: 'none', marginBottom: '2rem', fontWeight: 700 }}>
-                    <ArrowLeft size={18} /> Back
-                </Link>
+            <div className="max-w-[1400px] mx-auto">
+                <div className="flex items-center justify-between mb-12">
+                    <Link to="/student/choice" className="flex items-center gap-2 text-slate-500 font-bold hover:text-indigo-600 transition-colors">
+                        <ArrowLeft size={20} /> Back
+                    </Link>
+                    <div className="text-center flex-1 pr-[100px]">
+                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Master <span className="text-indigo-600">Profile</span></h1>
+                        <p className="text-slate-500 mt-2 font-medium">Your permanent professional identity, saved for a lifetime.</p>
+                    </div>
+                </div>
 
-                <div style={{ background: '#fff', padding: 'clamp(1.25rem, 3vw, 2.25rem)', borderRadius: '24px', boxShadow: '0 20px 50px rgba(0,0,0,0.05)', width: '100%', boxSizing: 'border-box' }}>
-                    <h2 style={{ fontSize: 'clamp(1.5rem, 5vw, 2.5rem)', fontWeight: 900, marginBottom: '0.5rem', letterSpacing: '-0.03em' }}>Create your <span className="text-gradient">Master Profile</span></h2>
-                    <p style={{ color: 'var(--color-text-secondary)', marginBottom: '3rem', fontSize: 'clamp(0.875rem, 2vw, 1rem)' }}>This information will be used as the default for all your future resumes.</p>
-
-                    {statusMessage && (
-                        <div style={{
-                            marginBottom: '1.5rem',
-                            borderRadius: '12px',
-                            padding: '0.85rem 1rem',
-                            fontWeight: 700,
-                            fontSize: '0.9rem',
-                            border: statusType === 'success' ? '1px solid #86efac' : '1px solid #fca5a5',
-                            background: statusType === 'success' ? '#f0fdf4' : '#fef2f2',
-                            color: statusType === 'success' ? '#166534' : '#991b1b'
-                        }}>
-                            {statusMessage}
-                        </div>
-                    )}
-
-                    <form onSubmit={handleSave} className="form-grid-2col">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>First Name</label>
-                            <div style={{ position: 'relative' }}>
-                                <User size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
-                                <input
-                                    required value={personal.firstName} onChange={e => setPersonal({ ...personal, firstName: e.target.value })}
-                                    style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Surname / Last Name</label>
-                            <input
-                                required value={personal.lastName} onChange={e => setPersonal({ ...personal, lastName: e.target.value })}
-                                style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                            />
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>City</label>
-                            <div style={{ position: 'relative' }}>
-                                <MapPin size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
-                                <input
-                                    required value={personal.city} onChange={e => setPersonal({ ...personal, city: e.target.value })}
-                                    style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Country</label>
-                            <input
-                                required value={personal.country} onChange={e => setPersonal({ ...personal, country: e.target.value })}
-                                style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                            />
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Pin Code</label>
-                            <div style={{ position: 'relative' }}>
-                                <Pin size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
-                                <input
-                                    required value={personal.pinCode} onChange={e => setPersonal({ ...personal, pinCode: e.target.value })}
-                                    style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Phone</label>
-                            <div style={{ position: 'relative' }}>
-                                <Phone size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
-                                <input
-                                    required value={personal.phone} onChange={e => setPersonal({ ...personal, phone: e.target.value })}
-                                    style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Email Address</label>
-                            <div style={{ position: 'relative' }}>
-                                <Mail size={16} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', opacity: 0.3 }} />
-                                <input
-                                    required value={personal.email} readOnly
-                                    style={{ width: '100%', padding: '1rem 1rem 1rem 3rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', opacity: 0.7 }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Professional Title</label>
-                            <input
-                                value={personal.title}
-                                onChange={e => setPersonal({ ...personal, title: e.target.value })}
-                                placeholder="Software Engineer"
-                                style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                            />
-                        </div>
-
-                        <div className="span-2" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            <label style={{ fontSize: '0.8rem', fontWeight: 800, textTransform: 'uppercase', opacity: 0.6 }}>Professional Summary</label>
-                            <textarea
-                                value={personal.summary}
-                                onChange={e => setPersonal({ ...personal, summary: e.target.value })}
-                                placeholder="Write a short professional summary"
-                                rows={4}
-                                style={{ width: '100%', padding: '1rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none', resize: 'vertical' }}
-                            />
-                        </div>
-
-                        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.5rem', paddingTop: '1.25rem' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569', marginBottom: '0.75rem' }}>Skills</h3>
-                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                <input
-                                    value={skillInput}
-                                    onChange={(e) => setSkillInput(e.target.value)}
-                                    onKeyDown={(e) => {
-                                        if (e.key === 'Enter' && skillInput.trim()) {
-                                            e.preventDefault()
-                                            setLocalSkills([...(skills || []), { name: skillInput.trim() }])
-                                            setSkillInput('')
-                                        }
-                                    }}
-                                    placeholder="Add skill and press Enter"
-                                    style={{ flex: 1, padding: '0.9rem', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: '12px', outline: 'none' }}
-                                />
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        if (!skillInput.trim()) return
-                                        setLocalSkills([...(skills || []), { name: skillInput.trim() }])
-                                        setSkillInput('')
-                                    }}
-                                    style={{ padding: '0.9rem 1rem', background: '#e0e7ff', color: '#4338ca', borderRadius: '12px', fontWeight: 800 }}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                    {/* LEFT COLUMN: Options */}
+                    <div className="lg:col-span-3 flex flex-col gap-6">
+                        <div className="bg-white p-6 rounded-[32px] border-2 border-slate-100 shadow-xl shadow-slate-200/40">
+                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 px-2">Fill Methods</h3>
+                            
+                            <div className="flex flex-col gap-4">
+                                {/* Upload PDF Option */}
+                                <motion.div
+                                    whileHover={{ y: -5, scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => fileInputRef.current.click()}
+                                    className="p-5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl cursor-pointer group transition-all hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/10"
                                 >
-                                    <Plus size={16} />
-                                </button>
+                                    <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-200 transition-transform group-hover:rotate-6">
+                                        {parseStatus === 'uploading' || parseStatus === 'parsing' ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
+                                    </div>
+                                    <h4 className="text-lg font-black text-indigo-900">Upload PDF</h4>
+                                    <p className="text-xs text-indigo-600/70 font-bold mt-1">Auto-extract your existing details</p>
+                                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.docx,.txt" className="hidden" />
+                                </motion.div>
+
+                                {/* Create Profile Option */}
+                                <motion.div
+                                    whileHover={{ y: -5, scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={handleCreateFresh}
+                                    className="p-5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl cursor-pointer group transition-all hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10"
+                                >
+                                    <div className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-200 transition-transform group-hover:-rotate-6">
+                                        <UserPlus size={24} />
+                                    </div>
+                                    <h4 className="text-lg font-black text-emerald-900">Create Profile</h4>
+                                    <p className="text-xs text-emerald-600/70 font-bold mt-1">Start fresh with a blank identity</p>
+                                </motion.div>
                             </div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                {(skills || []).map((skill, idx) => {
-                                    const name = typeof skill === 'string' ? skill : (skill?.name || '')
-                                    if (!name) return null
-                                    return (
-                                        <div key={`skill-${idx}`} style={{ background: '#dbeafe', color: '#1e40af', padding: '0.35rem 0.7rem', borderRadius: '999px', display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 700, fontSize: '0.8rem' }}>
-                                            {name}
-                                            <button
-                                                type="button"
-                                                onClick={() => setLocalSkills((skills || []).filter((_, i) => i !== idx))}
-                                                style={{ color: '#1e3a8a' }}
-                                            >
-                                                ×
+
+                            <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-[11px] text-slate-500 font-medium leading-relaxed">
+                                <AlertCircle size={14} className="inline mr-1 mb-0.5 text-slate-400" />
+                                All details from these options are populated in the form on the right and saved for your account.
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* MIDDLE: Arrow */}
+                    <div className="hidden lg:flex lg:col-span-1 items-center justify-center h-[500px]">
+                        <motion.div
+                            animate={{ x: [0, 5, 0] }}
+                            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
+                            className="text-slate-300"
+                        >
+                            <ArrowRight size={60} strokeWidth={3} />
+                        </motion.div>
+                    </div>
+
+                    {/* RIGHT COLUMN: Form */}
+                    <div className="lg:col-span-8">
+                        <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
+                            <div className="px-8 py-10 md:px-12 md:py-12">
+                                <div className="flex items-center justify-between mb-10">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-900">Personal Details</h2>
+                                        <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mt-1">Foundational Info</p>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button
+                                            type="button"
+                                            onClick={handleDeleteProfile}
+                                            disabled={loading}
+                                            className="px-5 py-3 rounded-2xl font-black text-sm text-rose-600 border-2 border-rose-100 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                                        >
+                                            Delete Profile
+                                        </button>
+                                        <motion.button
+                                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+                                            onClick={handleSave} disabled={loading}
+                                            className={`px-8 py-3.5 rounded-2xl font-black text-sm transition-all shadow-xl flex items-center gap-2 ${saveSuccess ? 'bg-green-600 shadow-green-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}
+                                        >
+                                            {loading ? <Loader2 size={18} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={18} /> : <Sparkles size={18} />}
+                                            {loading ? 'Saving...' : saveSuccess ? 'Profile Saved!' : 'Save Profile'}
+                                        </motion.button>
+                                    </div>
+                                </div>
+
+                                <form className="space-y-12">
+                                    {/* Personal Info Grid */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">First Name</label>
+                                            <div className="relative">
+                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.firstName} onChange={e => setPersonal({...personal, firstName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Last Name</label>
+                                            <input value={personal.lastName} onChange={e => setPersonal({...personal, lastName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Title</label>
+                                            <div className="relative">
+                                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.title} onChange={e => setPersonal({...personal, title: e.target.value})} placeholder="Software Engineer" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
+                                            <div className="relative">
+                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.phone} onChange={e => setPersonal({...personal, phone: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">City</label>
+                                            <div className="relative">
+                                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.city} onChange={e => setPersonal({...personal, city: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
+                                            <input value={personal.country} onChange={e => setPersonal({...personal, country: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Summary</label>
+                                            <textarea value={personal.summary} onChange={e => setPersonal({...personal, summary: e.target.value})} rows={4} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[24px] px-6 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all resize-none" placeholder="Describe your career highlights..." />
+                                        </div>
+                                    </div>
+
+                                    {/* Experience Section */}
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900">Work History</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Where you've been</p>
+                                            </div>
+                                            <button type="button" onClick={() => setLocalExperience([...experience, { role: '', company: '', startDate: '', endDate: '', description: '' }])} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
+                                                <Plus size={20} />
                                             </button>
                                         </div>
-                                    )
-                                })}
+                                        <div className="space-y-4">
+                                            <AnimatePresence>
+                                                {experience.map((exp, idx) => (
+                                                    <motion.div key={`exp-${idx}`} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, x: 20 }} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
+                                                        <button onClick={() => setLocalExperience(experience.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                            <Trash2 size={18} />
+                                                        </button>
+                                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                                            <input value={exp.role} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, role: e.target.value} : it))} placeholder="Role" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                            <input value={exp.company} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, company: e.target.value} : it))} placeholder="Company" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        </div>
+                                                        <div className="grid grid-cols-2 gap-4">
+                                                            <input value={exp.startDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                            <input value={exp.endDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        </div>
+                                                    </motion.div>
+                                                ))}
+                                            </AnimatePresence>
+                                            {experience.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No experience added yet.</div>}
+                                        </div>
+                                    </div>
+
+                                    {/* Education Section */}
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900">Education</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Your qualifications</p>
+                                            </div>
+                                            <button type="button" onClick={() => setLocalEducation([...education, { school: '', degree: '', startDate: '', endDate: '' }])} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all">
+                                                <Plus size={20} />
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {education.map((edu, idx) => (
+                                                <div key={`edu-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
+                                                    <button onClick={() => setLocalEducation(education.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={edu.school} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, school: e.target.value} : it))} placeholder="University / School" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={edu.degree} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, degree: e.target.value} : it))} placeholder="Degree / Major" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {education.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No education added yet.</div>}
+                                        </div>
+                                    </div>
+
+                                    {/* Skills Section */}
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <h3 className="text-xl font-black text-slate-900 mb-6">Master Skills</h3>
+                                        <div className="flex gap-3 mb-6">
+                                            <input 
+                                                value={skillInput} onChange={e => setSkillInput(e.target.value)} 
+                                                onKeyDown={e => { if(e.key === 'Enter'){ e.preventDefault(); if(skillInput.trim()){ setLocalSkills([...skills, {name: skillInput.trim()}]); setSkillInput(''); } } }}
+                                                placeholder="Type a skill and press Enter" 
+                                                className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-5 py-3 font-bold text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all" 
+                                            />
+                                            <button type="button" onClick={() => { if(skillInput.trim()){ setLocalSkills([...skills, {name: skillInput.trim()}]); setSkillInput(''); } }} className="bg-indigo-600 text-white px-6 rounded-xl font-black hover:bg-slate-900 transition-all">Add</button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-2">
+                                            {skills.map((skill, idx) => (
+                                                <div key={`skill-${idx}`} className="px-4 py-2 bg-white border-2 border-slate-100 rounded-full flex items-center gap-2 group hover:border-indigo-200 transition-all">
+                                                    <span className="text-sm font-black text-slate-700">{skill.name}</span>
+                                                    <button type="button" onClick={() => setLocalSkills(skills.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500 transition-colors"><X size={14} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="pt-12">
+                                        <motion.button
+                                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
+                                            onClick={handleSave} disabled={loading}
+                                            className={`w-full py-5 rounded-[24px] font-black text-lg transition-all shadow-2xl flex items-center justify-center gap-3 ${saveSuccess ? 'bg-green-600 shadow-green-400/20' : 'bg-slate-900 shadow-slate-900/20'} text-white`}
+                                        >
+                                            {loading ? <Loader2 size={24} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={24} /> : <SaveIcon />}
+                                            {loading ? 'Committing to cloud...' : saveSuccess ? 'Success! Details locked in.' : 'Lock My Professional Profile'}
+                                        </motion.button>
+                                    </div>
+                                </form>
                             </div>
                         </div>
-
-                        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.25rem', paddingTop: '1.25rem' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569', marginBottom: '0.75rem' }}>Experience</h3>
-                            {(experience || []).map((exp, idx) => (
-                                <div key={`exp-${idx}`} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem', marginBottom: '0.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={exp.role || ''} onChange={(e) => setLocalExperience(experience.map((it, i) => i === idx ? { ...it, role: e.target.value } : it))} placeholder="Role" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={exp.company || ''} onChange={(e) => setLocalExperience(experience.map((it, i) => i === idx ? { ...it, company: e.target.value } : it))} placeholder="Company" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={exp.startDate || ''} onChange={(e) => setLocalExperience(experience.map((it, i) => i === idx ? { ...it, startDate: e.target.value } : it))} placeholder="Start Date" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={exp.endDate || ''} onChange={(e) => setLocalExperience(experience.map((it, i) => i === idx ? { ...it, endDate: e.target.value } : it))} placeholder="End Date" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <textarea value={exp.description || ''} onChange={(e) => setLocalExperience(experience.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))} placeholder="Description" rows={3} style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff', marginBottom: '0.5rem', resize: 'vertical' }} />
-                                    <button type="button" onClick={() => setLocalExperience(experience.filter((_, i) => i !== idx))} style={{ color: '#dc2626', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <Trash2 size={14} /> Remove
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setLocalExperience([...(experience || []), { role: '', company: '', startDate: '', endDate: '', description: '' }])} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#2563eb', fontWeight: 800 }}>
-                                <Plus size={14} /> Add Experience
-                            </button>
-                        </div>
-
-                        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.25rem', paddingTop: '1.25rem' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569', marginBottom: '0.75rem' }}>Education</h3>
-                            {(education || []).map((edu, idx) => (
-                                <div key={`edu-${idx}`} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem', marginBottom: '0.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={edu.degree || ''} onChange={(e) => setLocalEducation(education.map((it, i) => i === idx ? { ...it, degree: e.target.value } : it))} placeholder="Degree" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={edu.school || edu.institution || ''} onChange={(e) => setLocalEducation(education.map((it, i) => i === idx ? { ...it, school: e.target.value, institution: e.target.value } : it))} placeholder="School / Institution" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={edu.startDate || ''} onChange={(e) => setLocalEducation(education.map((it, i) => i === idx ? { ...it, startDate: e.target.value } : it))} placeholder="Start Date" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={edu.endDate || edu.year || ''} onChange={(e) => setLocalEducation(education.map((it, i) => i === idx ? { ...it, endDate: e.target.value, year: e.target.value } : it))} placeholder="End Date / Year" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <textarea value={edu.description || ''} onChange={(e) => setLocalEducation(education.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))} placeholder="Description" rows={2} style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff', marginBottom: '0.5rem', resize: 'vertical' }} />
-                                    <button type="button" onClick={() => setLocalEducation(education.filter((_, i) => i !== idx))} style={{ color: '#dc2626', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <Trash2 size={14} /> Remove
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setLocalEducation([...(education || []), { degree: '', school: '', startDate: '', endDate: '', description: '' }])} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#2563eb', fontWeight: 800 }}>
-                                <Plus size={14} /> Add Education
-                            </button>
-                        </div>
-
-                        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.25rem', paddingTop: '1.25rem' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569', marginBottom: '0.75rem' }}>Projects</h3>
-                            {(projects || []).map((project, idx) => (
-                                <div key={`project-${idx}`} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem', marginBottom: '0.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={project.name || ''} onChange={(e) => setLocalProjects(projects.map((it, i) => i === idx ? { ...it, name: e.target.value } : it))} placeholder="Project Name" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={project.link || ''} onChange={(e) => setLocalProjects(projects.map((it, i) => i === idx ? { ...it, link: e.target.value } : it))} placeholder="Project Link" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <textarea value={project.description || ''} onChange={(e) => setLocalProjects(projects.map((it, i) => i === idx ? { ...it, description: e.target.value } : it))} placeholder="Project Description" rows={3} style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff', marginBottom: '0.5rem', resize: 'vertical' }} />
-                                    <button type="button" onClick={() => setLocalProjects(projects.filter((_, i) => i !== idx))} style={{ color: '#dc2626', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <Trash2 size={14} /> Remove
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setLocalProjects([...(projects || []), { name: '', link: '', description: '' }])} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#2563eb', fontWeight: 800 }}>
-                                <Plus size={14} /> Add Project
-                            </button>
-                        </div>
-
-                        <div className="span-2" style={{ borderTop: '1px solid #e2e8f0', marginTop: '0.25rem', paddingTop: '1.25rem' }}>
-                            <h3 style={{ fontSize: '0.9rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#475569', marginBottom: '0.75rem' }}>Certifications</h3>
-                            {(certifications || []).map((cert, idx) => (
-                                <div key={`cert-${idx}`} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '0.85rem', marginBottom: '0.75rem' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={cert.name || ''} onChange={(e) => setLocalCertifications(certifications.map((it, i) => i === idx ? { ...it, name: e.target.value } : it))} placeholder="Certification Name" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={cert.issuer || ''} onChange={(e) => setLocalCertifications(certifications.map((it, i) => i === idx ? { ...it, issuer: e.target.value } : it))} placeholder="Issuer" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                        <input value={cert.issueDate || ''} onChange={(e) => setLocalCertifications(certifications.map((it, i) => i === idx ? { ...it, issueDate: e.target.value } : it))} placeholder="Issue Date" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                        <input value={cert.expiryDate || ''} onChange={(e) => setLocalCertifications(certifications.map((it, i) => i === idx ? { ...it, expiryDate: e.target.value } : it))} placeholder="Expiry Date" style={{ width: '100%', padding: '0.75rem', border: '1px solid #dbeafe', borderRadius: '10px', background: '#fff' }} />
-                                    </div>
-                                    <button type="button" onClick={() => setLocalCertifications(certifications.filter((_, i) => i !== idx))} style={{ color: '#dc2626', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                        <Trash2 size={14} /> Remove
-                                    </button>
-                                </div>
-                            ))}
-                            <button type="button" onClick={() => setLocalCertifications([...(certifications || []), { name: '', issuer: '', issueDate: '', expiryDate: '' }])} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#2563eb', fontWeight: 800 }}>
-                                <Plus size={14} /> Add Certification
-                            </button>
-                        </div>
-
-                        <button
-                            type="submit" disabled={loading}
-                            className="span-2"
-                            style={{
-                                padding: '1.2rem', background: success ? '#10b981' : 'var(--color-accent-primary)',
-                                color: '#fff', border: 'none', borderRadius: '16px', fontWeight: 900, fontSize: '1rem',
-                                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
-                                transition: 'all 0.3s'
-                            }}
-                        >
-                            {loading ? 'Saving...' : (success ? 'Profile Saved! Redirecting...' : 'Save & Pick a Template')}
-                            {!loading && !success && <ArrowRight size={20} />}
-                        </button>
-                    </form>
+                    </div>
                 </div>
             </div>
         </motion.div>
+    )
+}
+
+function SaveIcon() {
+    return (
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16L21 8V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0393 20.7893 19.5304 21 19 21Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M17 21V13H7V21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M7 3V8H15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
     )
 }

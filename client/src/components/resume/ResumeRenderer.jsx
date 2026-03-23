@@ -58,12 +58,10 @@ export default function ResumeRenderer({ data, templateId, customization: custom
             lineHeight: 1.6,
             width: '794px',
             maxWidth: '794px',
-            minHeight: '1123px',
             background: '#fff',
             margin: '0 auto',
             padding: '0',
-            boxSizing: 'border-box',
-            overflow: 'hidden'
+            boxSizing: 'border-box'
         }}>
             {getTemplate()}
         </div>
@@ -127,7 +125,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
         const yellow = '#FBBF24';
         const dark = '#0f172a';
         return (
-            <div style={{ display: 'grid', gridTemplateColumns: '32% 1fr', minHeight: '1120px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '32% 1fr', minHeight: '1123px' }}>
                 <div style={{ background: dark, color: '#fff', padding: '5rem 3rem' }}>
                     <div style={{ width: '120px', height: '120px', background: yellow, borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', fontWeight: 900, marginBottom: '3rem', color: dark }}>
                         {personalInfo.firstName?.charAt(0)}
@@ -176,7 +174,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
     // 2. ELITE WATSON (Elegant Academic)
     if (templateId === 'elite-watson') {
         return (
-            <div style={{ padding: '6rem 12%', minHeight: '1120px', fontFamily: '"Playfair Display", serif' }}>
+            <div style={{ padding: '6rem 12%', minHeight: '1123px', fontFamily: '"Playfair Display", serif' }}>
                 <header style={{ textAlign: 'center', marginBottom: '6rem' }}>
                     <h1 style={{ fontSize: '4.5rem', fontWeight: 400, margin: 0, letterSpacing: '-0.02em' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
                     <div style={{ height: '1px', width: '100px', background: '#e2e8f0', margin: '2rem auto' }}></div>
@@ -215,7 +213,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-robertson') {
         const neon = '#10b981';
         return (
-            <div style={{ background: '#0a0a0a', color: '#fff', minHeight: '1120px', display: 'grid', gridTemplateColumns: '350px 1fr' }}>
+            <div style={{ background: '#0a0a0a', color: '#fff', minHeight: '1123px', display: 'grid', gridTemplateColumns: '350px 1fr' }}>
                 <div style={{ borderRight: '1px solid #1f2937', padding: '5rem 3rem' }}>
                     <div style={{ marginBottom: '5rem' }}>
                         <h1 style={{ fontSize: '3.5rem', fontWeight: 900, color: neon, margin: 0 }}>{personalInfo.firstName?.charAt(0)}</h1>
@@ -272,7 +270,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-waldo') {
         const brand = '#2563eb';
         return (
-            <div style={{ padding: '8rem 15%', minHeight: '1120px', textAlign: 'center' }}>
+            <div style={{ padding: '8rem 15%', minHeight: '1123px', textAlign: 'center' }}>
                 <header style={{ marginBottom: '8rem' }}>
                     <h1 style={{ fontSize: '5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.05em', lineHeight: 0.9 }}>{personalInfo.firstName}<br/>{personalInfo.lastName}</h1>
                     <p style={{ fontSize: '1.5rem', fontWeight: 500, color: '#64748b', marginTop: '2rem' }}>{personalInfo.title}</p>
@@ -318,7 +316,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-mariana') {
         const primary = '#1e3a8a';
         return (
-            <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', minHeight: '1120px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', minHeight: '1123px' }}>
                 <div style={{ background: primary, color: '#fff', padding: '6rem 3rem', clipPath: 'polygon(0 0, 100% 0, 85% 100%, 0 100%)' }}>
                     <h1 style={{ fontSize: '3.5rem', fontWeight: 900, marginBottom: '1rem' }}>{personalInfo.firstName}</h1>
                     <h1 style={{ fontSize: '3.5rem', fontWeight: 300, marginBottom: '4rem' }}>{personalInfo.lastName}</h1>
@@ -358,7 +356,7 @@ const EliteLayout = ({ data, templateId, customization }) => {
     if (templateId === 'elite-smith') {
         const accent = '#ef4444';
         return (
-            <div style={{ padding: '6rem', minHeight: '1120px', background: '#f5f5f5', color: '#1a1a1a' }}>
+            <div style={{ padding: '6rem', minHeight: '1123px', background: '#f5f5f5', color: '#1a1a1a' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '2rem' }}>
                     <div style={{ gridColumn: 'span 8', borderBottom: '4px solid #1a1a1a', paddingBottom: '4rem' }}>
                         <h1 style={{ fontSize: '5rem', fontWeight: 900, letterSpacing: '-0.04em', lineHeight: 0.8 }}>{personalInfo.firstName}<br/>{personalInfo.lastName}</h1>
@@ -527,7 +525,7 @@ const ExecutiveLayout = ({ data, variant, customization }) => {
 const StartupLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#10b981';
     return (
-        <div style={{ background: '#f8fafc', padding: '4rem', minHeight: '1120px' }}>
+        <div style={{ background: '#f8fafc', padding: '4rem', minHeight: '1123px' }}>
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '24px', overflow: 'hidden', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.05)' }}>
                 <div style={{ background: color, color: '#fff', padding: '4rem 3rem' }}>
                     <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
@@ -579,7 +577,7 @@ const StartupLayout = ({ data, variant, customization }) => {
 const CreativeLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#f43f5e';
     return (
-        <div style={{ minHeight: '1120px', background: '#fff', color: '#111' }}>
+        <div style={{ minHeight: '1123px', background: '#fff', color: '#111' }}>
             <div style={{ display: 'grid', gridTemplateColumns: '1.5fr 1fr', height: '400px', background: '#fecdd3' }}>
                 <div style={{ padding: '5rem', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
                     <h1 style={{ fontSize: '5rem', fontWeight: 900, lineHeight: 0.8, color: '#fb7185' }}>{data.personalInfo.firstName}</h1>
@@ -633,7 +631,7 @@ const CreativeLayout = ({ data, variant, customization }) => {
 
 const AcademicLayout = ({ data, variant, customization }) => {
     return (
-        <div style={{ padding: '8rem', minHeight: '1120px', fontFamily: '"Times New Roman", serif', background: '#fff' }}>
+        <div style={{ padding: '8rem', minHeight: '1123px', fontFamily: '"Times New Roman", serif', background: '#fff' }}>
             <div style={{ textAlign: 'center', marginBottom: '6rem', borderBottom: '2px double #000', paddingBottom: '3rem' }}>
                 <h1 style={{ fontSize: '3.5rem', fontWeight: 400, margin: '0 0 1rem 0' }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
                 <p style={{ fontSize: '1.1rem', letterSpacing: '1px' }}>{data.personalInfo.email} • {data.personalInfo.phone} • {data.personalInfo.location}</p>
@@ -672,7 +670,7 @@ const AcademicLayout = ({ data, variant, customization }) => {
 const FunctionalLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#475569';
     return (
-        <div style={{ padding: '5rem', minHeight: '1120px', background: '#fff' }}>
+        <div style={{ padding: '5rem', minHeight: '1123px', background: '#fff' }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(250px, 30%) 1fr', gap: '5rem' }}>
                 <aside>
                     <div style={{ background: color, color: '#fff', padding: '3rem 2rem', borderRadius: '16px' }}>
@@ -721,7 +719,7 @@ const FunctionalLayout = ({ data, variant, customization }) => {
 const ClassicLayout = ({ data, variant, customization }) => {
     const color = customization.themeColor || '#1a1a1a';
     return (
-        <div style={{ padding: '5rem 4rem', minHeight: '1120px' }}>
+        <div style={{ padding: '5rem 4rem', minHeight: '1123px' }}>
             <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
                 <h1 style={{ fontSize: '3rem', fontWeight: 900, margin: 0 }}>{data.personalInfo.firstName} {data.personalInfo.lastName}</h1>
                 <p style={{ fontSize: '1.1rem', marginTop: '1rem', fontStyle: 'italic' }}>{data.personalInfo.location} | {data.personalInfo.phone} | {data.personalInfo.email}</p>

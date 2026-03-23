@@ -37,12 +37,16 @@ export default function Build() {
     const [statusType, setStatusType] = useState('info')
     const [themeColor, setThemeColor] = useState('#2563eb')
     const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
+    const [viewportHeight, setViewportHeight] = useState(() => window.innerHeight)
     const [showATSChecker, setShowATSChecker] = useState(false)
     const [showPreviewModal, setShowPreviewModal] = useState(false)
-    const [showLivePreview, setShowLivePreview] = useState(true)
+    const [showLivePreview] = useState(true)
 
     useEffect(() => {
-        const handleResize = () => setViewportWidth(window.innerWidth)
+        const handleResize = () => {
+            setViewportWidth(window.innerWidth)
+            setViewportHeight(window.innerHeight)
+        }
         window.addEventListener('resize', handleResize)
         return () => window.removeEventListener('resize', handleResize)
     }, [])
@@ -54,23 +58,15 @@ export default function Build() {
     // Compact side preview: ~38% of screen OR fixed 420px, whichever is more comfortable
     const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(380, Math.min(500, viewportWidth * 0.38)) : 0
     const previewWidth = previewWidthBuffer
-    // The true A4 pixel width is ~794. We scale the preview exactly to the panel.
-    const previewScale = Math.max(0.35, Math.min(0.65, (previewWidth - 40) / 794))
-
-    // Real-Time Auto-Save Functionality (LockedInAI style)
-    const initialRender = useRef(true)
-    useEffect(() => {
-        if (initialRender.current) {
-            initialRender.current = false
-            return
-        }
-        if (viewMode === 'form' && selectedTemplate) {
-            const timeout = setTimeout(() => {
-                handleSave(true)
-            }, 1200)
-            return () => clearTimeout(timeout)
-        }
-    }, [resumeData, selectedTemplate, customization])
+    
+    // Calculate scales for both width and height to ensure full visibility
+    const horizontalScale = (previewWidth - 32) / 794
+    // Reserve space for panel chrome (header, card spacing, and save panel)
+    const availableHeight = Math.max(420, viewportHeight - 300)
+    const verticalScale = availableHeight / 1123
+    
+    // The true A4 pixel width is ~794. We scale the preview to fit BOTH width and height.
+    const previewScale = Math.max(0.22, Math.min(0.6, horizontalScale, verticalScale))
 
     useEffect(() => {
         const resolvedTemplateId = templateFromQuery || selectedTemplate
@@ -100,6 +96,49 @@ export default function Build() {
         }
     }, [templateFromQuery, selectedTemplate, setSelectedTemplate, editingResumeId, forceNewFromQuery])
 
+    useEffect(() => {
+        const fetchMaster = async () => {
+            const dbUserId = getDbUserId(user)
+            if (!dbUserId || editingResumeId) return
+
+            try {
+                // Use profiles as canonical profile source to avoid missing-table 404 noise.
+                let { data, error } = await supabase
+                    .from('profiles')
+                    .select('resume_data')
+                    .eq('user_id', dbUserId)
+                    .single()
+
+                if (!data) {
+                    // Fallback 3: Latest resume from 'resumes' table
+                    const { data: rData, error: rError } = await supabase
+                        .from('resumes')
+                        .select('data')
+                        .eq('user_id', dbUserId)
+                        .order('updated_at', { ascending: false })
+                        .limit(1)
+                        .single()
+                    if (!rError && rData) {
+                        data = { resume_data: rData.data }
+                    }
+                }
+
+                if (data?.resume_data) {
+                    const parsed = typeof data.resume_data === 'string' ? JSON.parse(data.resume_data) : data.resume_data
+                    // Only load if current resume data is empty to avoid overwriting user edits
+                    const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
+                    if (isEmpty) {
+                        useStore.getState().loadMasterProfile(parsed)
+                        setMasterProfile(parsed)
+                    }
+                }
+            } catch (err) {
+                console.error("Error fetching master profile:", err)
+            }
+        }
+        fetchMaster()
+    }, [user, editingResumeId])
+
     // Get the selected template from the templates data
     const activeTemplateId = templateFromQuery || selectedTemplate
     const currentTemplate = resumeTemplates.find(t => t.id === activeTemplateId)
@@ -115,24 +154,6 @@ export default function Build() {
         },
         {
             id: 2,
-            label: 'Experience',
-            icon: <Briefcase size={18} />,
-            title: "Describe your work history",
-            description: "List your previous roles and key achievements.",
-            hasIntro: true,
-            intro: {
-                title: "Work Experience",
-                icon: Briefcase,
-                text: "Your work history shows employers that you have the skills and experience to do the job.",
-                tips: [
-                    "Use strong action verbs like 'Managed', 'Developed', or 'Optimized'.",
-                    "Focus on your measurable achievements (e.g., 'Increased sales by 20%').",
-                    "Tailor your descriptions to the job you're applying for."
-                ]
-            }
-        },
-        {
-            id: 3,
             label: 'Education',
             icon: <GraduationCap size={18} />,
             title: "Tell us about your education",
@@ -150,7 +171,43 @@ export default function Build() {
             }
         },
         {
+            id: 3,
+            label: 'Experience',
+            icon: <Briefcase size={18} />,
+            title: "Describe your work history",
+            description: "List your previous roles and key achievements.",
+            hasIntro: true,
+            intro: {
+                title: "Work Experience",
+                icon: Briefcase,
+                text: "Your work history shows employers that you have the skills and experience to do the job.",
+                tips: [
+                    "Use strong action verbs like 'Managed', 'Developed', or 'Optimized'.",
+                    "Focus on your measurable achievements (e.g., 'Increased sales by 20%').",
+                    "Tailor your descriptions to the job you're applying for."
+                ]
+            }
+        },
+        {
             id: 4,
+            label: 'Project',
+            icon: <FileText size={18} />,
+            title: 'Showcase your key projects',
+            description: 'Add your strongest project work with outcomes and links.',
+            hasIntro: true,
+            intro: {
+                title: 'Projects',
+                icon: PenTool,
+                text: 'Projects make your resume concrete and prove what you can actually build or deliver.',
+                tips: [
+                    'Focus on impact and measurable outcomes.',
+                    'Link to live demo or repository when possible.',
+                    'Keep each project to 2-4 concise bullet points.'
+                ]
+            }
+        },
+        {
+            id: 5,
             label: 'Skills',
             icon: <Wrench size={18} />,
             title: "What are your top skills?",
@@ -168,26 +225,8 @@ export default function Build() {
             }
         },
         {
-            id: 5,
-            label: 'Projects',
-            icon: <FileText size={18} />,
-            title: 'Showcase your key projects',
-            description: 'Add your strongest project work with outcomes and links.',
-            hasIntro: true,
-            intro: {
-                title: 'Projects',
-                icon: PenTool,
-                text: 'Projects make your resume concrete and prove what you can actually build or deliver.',
-                tips: [
-                    'Focus on impact and measurable outcomes.',
-                    'Link to live demo or repository when possible.',
-                    'Keep each project to 2-4 concise bullet points.'
-                ]
-            }
-        },
-        {
             id: 6,
-            label: 'Certs',
+            label: 'Certificate',
             icon: <Award size={18} />,
             title: 'Add certifications',
             description: 'Include certifications that strengthen your role credibility.',
@@ -514,18 +553,6 @@ export default function Build() {
                     {!isCompactRail && 'ATS Check'}
                 </button>
 
-                {canShowSidePreview && (
-                    <button
-                        onClick={() => setShowLivePreview(!showLivePreview)}
-                        className={`w-full flex items-center gap-2 p-3 ${showLivePreview ? 'bg-slate-100 text-slate-600' : 'bg-blue-600 text-white'} rounded-xl font-bold text-xs uppercase tracking-widest transition-all`}
-                        style={{ justifyContent: isCompactRail ? 'center' : 'flex-start', marginBottom: '1rem' }}
-                        title={showLivePreview ? "Hide Preview" : "Show Preview"}
-                    >
-                        <Search size={14} />
-                        {!isCompactRail && (showLivePreview ? 'Hide Preview' : 'Show Preview')}
-                    </button>
-                )}
-
                 <button
                     onClick={() => navigate('/student')}
                     className="mt-auto w-full flex items-center gap-2 p-3 text-slate-400 hover:text-slate-900 font-bold text-xs uppercase tracking-widest transition-colors"
@@ -577,10 +604,10 @@ export default function Build() {
                     >
                         <div className="bg-white p-2">
                             {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} />}
-                            {activeStep === 2 && <ExperienceSection experience={resumeData.experience} setExp={setExperience} />}
-                            {activeStep === 3 && <EducationSection education={resumeData.education} setEdu={setEducation} />}
-                            {activeStep === 4 && <SkillsSection skills={resumeData.skills} setSkills={setSkills} />}
-                            {activeStep === 5 && <ProjectsSection projects={resumeData.projects} setProjects={setProjects} />}
+                            {activeStep === 2 && <EducationSection education={resumeData.education} setEdu={setEducation} />}
+                            {activeStep === 3 && <ExperienceSection experience={resumeData.experience} setExp={setExperience} />}
+                            {activeStep === 4 && <ProjectsSection projects={resumeData.projects} setProjects={setProjects} />}
+                            {activeStep === 5 && <SkillsSection skills={resumeData.skills} setSkills={setSkills} />}
                             {activeStep === 6 && <CertificationsSection certifications={resumeData.certifications} setCertifications={setCertifications} />}
                             {activeStep === 7 && <SummarySection data={resumeData.personalInfo} update={updatePersonalInfo} />}
                         </div>
@@ -611,12 +638,12 @@ export default function Build() {
                 {/* THE DOCUMENT CARD */}
                 <div style={{
                     width: 'fit-content',
-                    minWidth: `${Math.min(previewWidth - 64, PAGE_WIDTH * previewScale)}px`,
+                    minWidth: `${Math.min(previewWidth - 32, PAGE_WIDTH * previewScale)}px`,
                     background: '#fff',
                     boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0,0,0,0.1)',
                     borderRadius: '4px',
                     position: 'relative',
-                    marginBottom: '6rem',
+                    marginBottom: '2rem',
                     transition: 'transform 0.3s ease'
                 }}>
                     {activeTemplateId && (
@@ -627,7 +654,7 @@ export default function Build() {
                                 customization={{ ...customization, themeColor }}
                                 previewScale={previewScale}
                                 paged={false}
-                            />
+                             />
                         </div>
                     )}
                     
@@ -650,9 +677,9 @@ export default function Build() {
                         disabled={saving}
                         className="w-full flex items-center justify-center gap-2 p-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
                     >
-                        {saving ? <><Loader2 size={16} className="animate-spin" /> Auto-Saving...</> : saveSuccess ? <><CheckCircle2 size={16} /> Cloud Synced</> : <><Save size={16} /> Save Progress Now</>}
+                        {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : saveSuccess ? <><CheckCircle2 size={16} /> Cloud Synced</> : <><Save size={16} /> Save Progress Now</>}
                     </button>
-                    <p className="text-center text-[9px] text-slate-400 mt-3 uppercase tracking-[0.2em] font-black">All edits are backed up in real-time</p>
+                    <p className="text-center text-[9px] text-slate-400 mt-3 uppercase tracking-[0.2em] font-black">Saved only when you click save</p>
                 </div>
             </div>
             )}
@@ -735,8 +762,8 @@ export default function Build() {
                             templateId={activeTemplateId}
                             customization={{ ...customization, themeColor }}
                             previewScale={0.82}
-                            paged={true}
-                        />
+                            paged={false}
+                         />
                     </div>
                 </div>
             )}
@@ -747,11 +774,13 @@ export default function Build() {
 const PagedResumePreview = ({ data, templateId, customization, previewScale, paged }) => {
     const measureRef = useRef(null)
     const [pageCount, setPageCount] = useState(1)
+    const [measuredHeight, setMeasuredHeight] = useState(PAGE_HEIGHT)
 
     useEffect(() => {
         const refreshPages = () => {
-            const measuredHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
-            const computedPages = Math.max(1, Math.ceil(measuredHeight / PAGE_HEIGHT))
+            const currentHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
+            setMeasuredHeight(currentHeight)
+            const computedPages = Math.max(1, Math.ceil(currentHeight / PAGE_HEIGHT))
             setPageCount(Math.min(computedPages, 8))
         }
 
@@ -767,17 +796,21 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
         return (
             <div style={{
                 position: 'relative',
-                width: '100%',
-                aspectRatio: '1/1.41',
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                background: '#fff'
+                width: `${PAGE_WIDTH * previewScale}px`,
+                height: `${measuredHeight * previewScale}px`,
+                background: '#fff',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                overflow: 'hidden',
+                borderRadius: '4px',
             }}>
                 <div style={{
                     transform: `scale(${previewScale})`,
                     transformOrigin: 'top left',
                     width: `${PAGE_WIDTH}px`,
-                    minHeight: `${PAGE_HEIGHT}px`
+                    height: `${measuredHeight}px`,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0
                 }}>
                     <ResumeRenderer data={data} templateId={templateId} customization={customization} />
                 </div>

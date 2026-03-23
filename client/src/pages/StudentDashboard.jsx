@@ -866,7 +866,7 @@ export default function StudentDashboard() {
 
             {/* Hidden Render Engine for PDFs - Only active when downloading */}
             {isGenerating && (downloadTarget || previewResume) && (
-                <div style={{ position: 'fixed', top: '-10000px', left: '-10000px', opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
+                <div style={{ position: 'fixed', top: '-10000px', left: '-10000px', opacity: 1, pointerEvents: 'none', zIndex: -1 }}>
                     <div
                         id="resume-preview-download"
                         style={{
