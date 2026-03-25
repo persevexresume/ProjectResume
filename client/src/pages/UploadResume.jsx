@@ -642,6 +642,27 @@ export default function UploadResume() {
         fileInputRef.current.click()
     }
 
+    const handleDragOver = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+    }
+
+    const handleDragLeave = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+    }
+
+    const handleDrop = (e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        const droppedFiles = e.dataTransfer.files
+        if (droppedFiles && droppedFiles.length > 0) {
+            const selectedFile = droppedFiles[0]
+            setFile(selectedFile)
+            handleUpload(selectedFile)
+        }
+    }
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -697,6 +718,9 @@ export default function UploadResume() {
                                 whileHover={{ scale: 1.02 }}
                                 whileTap={{ scale: 0.98 }}
                                 onClick={triggerFileInput}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
                                 style={{
                                     padding: '3rem', border: '2px dashed #e2e8f0', borderRadius: '24px',
                                     cursor: 'pointer', transition: 'all 0.3s', background: '#f8fafc'
