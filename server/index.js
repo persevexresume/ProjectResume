@@ -195,9 +195,16 @@ app.post('/api/parse-resume', async (req, res) => {
             generationConfig: { responseMimeType: "application/json" }
         });
 
-        const prompt = `You are a world-class resume parser. Extract ALL information from the resume text below into a structured JSON object. 
-Be absolutely thorough. Accuracy is paramount. 
-Extract every experience, education and skill. 
+        const prompt = `You are a world-class resume parser. Extract ALL information from the resume text below into a structured JSON object.
+    Be absolutely exhaustive and do NOT omit any detail.
+    Accuracy is paramount.
+
+    Rules:
+    - Capture every section from the resume, even if titles differ (e.g., internships, leadership, achievements, coursework, training, publications).
+    - For experience, projects, education and certifications, include ALL entries found in the resume.
+    - Preserve details from bullet points inside each entry by combining them into description text.
+    - Extract every skill token (tools, technologies, frameworks, platforms, soft skills where listed).
+    - If a value is not found, return an empty string (or empty array for lists), never null.
 
 JSON Schema:
 {
@@ -206,6 +213,10 @@ JSON Schema:
     "lastName": "String",
     "email": "String",
     "phone": "String",
+        "address": "Street/Local address if available",
+        "city": "City name if available",
+        "country": "Country name if available",
+        "pinCode": "Postal/ZIP code if available",
     "location": "City, Country",
     "title": "Current Job Title or Headline",
     "summary": "Professional Summary",
@@ -236,10 +247,10 @@ JSON Schema:
     { "name": "Skill Name", "level": "Beginner|Intermediate|Advanced|Expert" }
   ],
   "projects": [
-    { "name": "Name", "description": "Story", "link": "URL" }
+        { "name": "Name", "description": "Story with all bullet details", "link": "URL", "startDate": "Date", "endDate": "Date" }
   ],
   "certifications": [
-    { "name": "Name", "issuer": "Org", "issueDate": "Date", "link": "URL" }
+        { "name": "Name", "issuer": "Org", "issueDate": "Date", "expiryDate": "Date", "credentialId": "String", "link": "URL" }
   ]
 }
 

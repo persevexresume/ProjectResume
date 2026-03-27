@@ -13,7 +13,8 @@ export const TemplateRenderer = ({ template = {}, resumeData, themeColor }) => {
             fontFamily: fonts.body,
             lineHeight: spacing.lineHeight,
             padding: `${spacing.padding}px`,
-            color: '#333'
+            color: '#333',
+            minHeight: '1123px'
         }}>
             <header style={{ marginBottom: `${spacing.margin}px`, textAlign: 'center' }}>
                 <h1 style={{ fontFamily: fonts.heading, fontSize: '24px', margin: 0 }}>

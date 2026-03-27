@@ -18,6 +18,8 @@ import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
 
 const getResumeTemplateId = (resume) => resume?.template_id || resume?.template || resume?.templateId || 'prof-sebastian'
+const PAGE_WIDTH = 794
+const PAGE_HEIGHT = 1123
 
 const getObject = (value) => {
     if (!value) return {}
@@ -60,13 +62,54 @@ const normalizeResumeData = (rawData) => {
     const data = Object.keys(nested).length ? nested : source
     const personalInfoSource = getObject(data.personalInfo || data.personal_info || data.profile)
 
+    const mapExperience = (items) => ensureArray(items).map((item = {}) => {
+        const details = ensureArray(item.details || item.highlights || item.responsibilities)
+        const description = item.description || item.summary || details.join(' ')
+        const startDate = item.startDate || item.from || item.start || ''
+        const endDate = item.endDate || item.to || item.end || ''
+
+        return {
+            ...item,
+            role: item.role || item.position || item.title || item.designation || '',
+            company: item.company || item.organization || item.employer || '',
+            date: item.date || [startDate, endDate].filter(Boolean).join(' - '),
+            startDate,
+            endDate,
+            description: description || ''
+        }
+    })
+
+    const mapEducation = (items) => ensureArray(items).map((item = {}) => ({
+        ...item,
+        degree: item.degree || item.program || item.qualification || item.course || '',
+        institution: item.institution || item.school || item.college || item.university || '',
+        year: item.year || item.endDate || item.graduationDate || ''
+    }))
+
+    const mapProjects = (items) => ensureArray(items).map((item = {}) => ({
+        ...item,
+        name: item.name || item.title || '',
+        role: item.role || item.position || item.contribution || '',
+        description: item.description || item.summary || ''
+    }))
+
+    const mapCertifications = (items) => ensureArray(items).map((item = {}) => ({
+        ...item,
+        name: item.name || item.title || item.certificate || '',
+        issuer: item.issuer || item.organization || item.institution || '',
+        issueDate: item.issueDate || item.date || item.year || ''
+    }))
+
+    const summary = data.summary || source.summary || personalInfoSource.summary || personalInfoSource.about || personalInfoSource.objective || ''
+
     const personalInfo = {
+        ...personalInfoSource,
         firstName: personalInfoSource.firstName || personalInfoSource.first_name || '',
         lastName: personalInfoSource.lastName || personalInfoSource.last_name || '',
         email: personalInfoSource.email || '',
         title: personalInfoSource.title || personalInfoSource.headline || '',
         phone: personalInfoSource.phone || personalInfoSource.phoneNumber || personalInfoSource.mobile || '',
-        summary: personalInfoSource.summary || personalInfoSource.about || personalInfoSource.objective || '',
+        summary,
         location: personalInfoSource.location || personalInfoSource.address || '',
         github: personalInfoSource.github || '',
         linkedin: personalInfoSource.linkedin || personalInfoSource.linkedIn || '',
@@ -75,12 +118,14 @@ const normalizeResumeData = (rawData) => {
     }
 
     const normalized = {
+        ...data,
         personalInfo,
-        experience: ensureArray(data.experience || data.workExperience || data.work_experience),
-        education: ensureArray(data.education),
+        summary,
+        experience: mapExperience(data.experience || data.workExperience || data.work_experience),
+        education: mapEducation(data.education),
         skills: normalizeSkills(data.skills),
-        projects: ensureArray(data.projects),
-        certifications: ensureArray(data.certifications)
+        projects: mapProjects(data.projects),
+        certifications: mapCertifications(data.certifications)
     }
 
     return normalized
@@ -507,7 +552,7 @@ export default function StudentDashboard() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50 text-[#1E293B] font-sans">
 
-            <main className="max-w-[1400px] mx-auto px-6 pt-32 pb-12">
+            <main className="max-w-[1400px] mx-auto px-6 pt-40 pb-12">
                 {/* Header Section */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
                     <div>
@@ -766,15 +811,10 @@ export default function StudentDashboard() {
                                 </div>
                             </div>
                             <div className="flex-1 overflow-auto p-4 sm:p-8 md:p-12 bg-slate-50 flex justify-center">
-                                <div className="bg-white shadow-2xl w-full">
-                                    <div className="a4-paper">
-                                        <ResumeRenderer
-                                            data={previewResume.data}
-                                            templateId={getResumeTemplateId(previewResume)}
-                                            customization={previewResume.customization}
-                                        />
-                                    </div>
-                                </div>
+                                <SavedResumePreview
+                                    resume={previewResume}
+                                    templateId={getResumeTemplateId(previewResume)}
+                                />
                             </div>
                         </motion.div>
                     </motion.div>
@@ -881,7 +921,7 @@ export default function StudentDashboard() {
                             width: '794px',
                             maxWidth: '794px',
                             height: 'auto',
-                            minHeight: 0,
+                            minHeight: '1123px',
                             aspectRatio: 'auto',
                             margin: 0,
                             padding: 0,
@@ -919,6 +959,174 @@ export default function StudentDashboard() {
                 onCancel={closeConfirmDialog}
                 onConfirm={() => confirmDialog.onConfirm?.()}
             />
+        </div>
+    )
+}
+
+function SavedResumePreview({ resume, templateId }) {
+    const measureRef = useRef(null)
+    const [pageOffsets, setPageOffsets] = useState([0])
+    const [previewScale, setPreviewScale] = useState(0.7)
+
+    const PAGE_TOP_MARGIN = 28
+    const PAGE_BOTTOM_MARGIN = 24
+    const CONTENT_HEIGHT = PAGE_HEIGHT - PAGE_TOP_MARGIN - PAGE_BOTTOM_MARGIN
+
+    const computeSmartPageOffsets = (container) => {
+        if (!container) return [0]
+
+        const contentHeight = Math.max(
+            PAGE_HEIGHT,
+            container.scrollHeight || 0,
+            container.offsetHeight || 0
+        )
+
+        const rootTop = container.getBoundingClientRect().top
+        const blockNodes = Array.from(container.querySelectorAll('section, article, h1, h2, h3, h4, h5, p, li, div'))
+
+        const blockStarts = blockNodes
+            .map((node) => {
+                const rect = node.getBoundingClientRect()
+                return Math.max(0, Math.floor(rect.top - rootTop))
+            })
+            .filter((value) => Number.isFinite(value) && value > 0 && value < contentHeight)
+            .sort((a, b) => a - b)
+
+        const offsets = [0]
+        const maxPages = 12
+        const minContentChunk = Math.floor(CONTENT_HEIGHT * 0.62)
+        const cutoffPadding = 20
+
+        while (offsets.length < maxPages) {
+            const start = offsets[offsets.length - 1]
+            const idealEnd = start + CONTENT_HEIGHT
+            if (idealEnd >= contentHeight) break
+
+            const searchMin = start + minContentChunk
+            const searchMax = idealEnd - cutoffPadding
+            const candidates = blockStarts.filter((pos) => pos > searchMin && pos <= searchMax)
+
+            let nextOffset = idealEnd
+            if (candidates.length > 0) {
+                nextOffset = candidates[candidates.length - 1]
+            }
+
+            if (nextOffset <= start + 120) {
+                nextOffset = idealEnd
+            }
+
+            offsets.push(nextOffset)
+        }
+
+        return offsets
+    }
+
+    useEffect(() => {
+        const refreshPages = () => {
+            const measuredNode = measureRef.current
+            const nextOffsets = computeSmartPageOffsets(measuredNode)
+            setPageOffsets(nextOffsets)
+        }
+
+        const frame = window.requestAnimationFrame(() => {
+            refreshPages()
+            window.setTimeout(refreshPages, 120)
+        })
+
+        return () => window.cancelAnimationFrame(frame)
+    }, [resume, templateId])
+
+    useEffect(() => {
+        const updateScale = () => {
+            const maxWidth = window.innerWidth < 768 ? window.innerWidth - 72 : 860
+            const nextScale = Math.max(0.32, Math.min(1, maxWidth / PAGE_WIDTH))
+            setPreviewScale(nextScale)
+        }
+
+        updateScale()
+        window.addEventListener('resize', updateScale)
+        return () => window.removeEventListener('resize', updateScale)
+    }, [])
+
+    return (
+        <div className="w-full flex justify-center">
+            <div
+                style={{
+                    position: 'absolute',
+                    left: '-20000px',
+                    top: 0,
+                    width: `${PAGE_WIDTH}px`,
+                    visibility: 'hidden',
+                    pointerEvents: 'none'
+                }}
+                aria-hidden="true"
+            >
+                <div ref={measureRef}>
+                    <ResumeRenderer
+                        data={resume?.data}
+                        templateId={templateId}
+                        customization={resume?.customization}
+                    />
+                </div>
+            </div>
+
+            <div className="w-full max-h-full overflow-y-auto">
+                <div className="flex flex-col items-center gap-6 pb-4">
+                    {pageOffsets.map((offset, pageIndex) => (
+                        <div
+                            key={`saved-preview-page-${pageIndex}-${offset}`}
+                            style={{
+                                width: `${PAGE_WIDTH * previewScale}px`,
+                                height: `${PAGE_HEIGHT * previewScale}px`,
+                                overflow: 'hidden',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '10px',
+                                background: '#fff',
+                                boxShadow: '0 14px 28px -14px rgba(15, 23, 42, 0.5)'
+                            }}
+                        >
+                            <div
+                                style={{
+                                    width: `${PAGE_WIDTH}px`,
+                                    height: `${PAGE_HEIGHT}px`,
+                                    transform: `scale(${previewScale})`,
+                                    transformOrigin: 'top left',
+                                    overflow: 'hidden'
+                                }}
+                            >
+                                <div
+                                    style={{
+                                        position: 'relative',
+                                        width: `${PAGE_WIDTH}px`,
+                                        height: `${PAGE_HEIGHT}px`,
+                                        background: '#fff',
+                                        overflow: 'hidden'
+                                    }}
+                                >
+                                    <div
+                                        style={{
+                                            position: 'absolute',
+                                            top: `${PAGE_TOP_MARGIN}px`,
+                                            left: 0,
+                                            width: `${PAGE_WIDTH}px`,
+                                            height: `${CONTENT_HEIGHT}px`,
+                                            overflow: 'hidden'
+                                        }}
+                                    >
+                                        <div style={{ transform: `translateY(-${offset}px)` }}>
+                                            <ResumeRenderer
+                                                data={resume?.data}
+                                                templateId={templateId}
+                                                customization={resume?.customization}
+                                            />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     )
 }
@@ -1038,7 +1246,7 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
             transition={{ delay: idx * 0.05 }}
             className="group relative bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:border-indigo-100 h-full flex flex-col"
         >
-            <div className="aspect-[4/5] bg-slate-50 relative overflow-hidden group-hover:bg-indigo-50 transition-colors cursor-pointer border-b border-slate-50" onClick={onPreview}>
+            <div className="aspect-[210/297] bg-slate-50 relative overflow-hidden group-hover:bg-indigo-50 transition-colors cursor-pointer border-b border-slate-50" onClick={onPreview}>
                 <LazyResumeThumbnail resume={resume} />
 
                 <div className="absolute inset-0 flex items-center justify-center opacity-10 group-hover:opacity-0 transition-all pointer-events-none">

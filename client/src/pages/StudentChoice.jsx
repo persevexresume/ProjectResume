@@ -96,32 +96,51 @@ export default function StudentChoice() {
             animate={{ opacity: 1 }}
             style={{
                 minHeight: '100vh',
-                background: 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%)',
+                background: '#f8fafc',
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                padding: 'clamp(1rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem)',
+                justifyContent: 'center',
+                padding: '1.5rem 1.5rem 4rem',
                 width: '100%',
                 boxSizing: 'border-box',
-                overflowX: 'hidden'
+                overflowX: 'hidden',
+                position: 'relative'
             }}
         >
-            {/* Top Buttons */}
-            <div style={{
-                position: 'absolute', top: 'clamp(0.75rem, 3vw, 2rem)',
-                left: 'clamp(0.75rem, 3vw, 2rem)', right: 'clamp(0.75rem, 3vw, 2rem)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                zIndex: 10
-            }}>
+            {/* Animated Background Blobs */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, overflow: 'hidden', zIndex: 0, pointerEvents: 'none' }}>
+                <motion.div
+                    animate={{ x: [0, 50, 0], y: [0, 30, 0] }}
+                    transition={{ duration: 20, repeat: Infinity, ease: 'linear' }}
+                    style={{ position: 'absolute', top: '-10%', left: '-10%', width: '40vw', height: '40vw', background: 'radial-gradient(circle, rgba(79, 70, 229, 0.08) 0%, transparent 70%)', borderRadius: '50%' }}
+                />
+                <motion.div
+                    animate={{ x: [0, -40, 0], y: [0, 50, 0] }}
+                    transition={{ duration: 25, repeat: Infinity, ease: 'linear' }}
+                    style={{ position: 'absolute', bottom: '-5%', right: '-5%', width: '35vw', height: '35vw', background: 'radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, transparent 70%)', borderRadius: '50%' }}
+                />
+            </div>
+            <motion.div 
+                initial={{ y: -20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ duration: 0.5 }}
+                style={{
+                    position: 'absolute', top: '1.5rem',
+                    left: '1.5rem', right: '1.5rem',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    zIndex: 10
+                }}
+            >
                 <Link
                     to="/student"
                     style={{
                         display: 'flex', alignItems: 'center', gap: '0.5rem',
                         color: 'var(--color-text-primary)', textDecoration: 'none',
                         fontWeight: 700, fontSize: '0.9rem',
-                        padding: '0.6rem 1rem', background: '#fff', borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
-                        transition: 'all 0.2s'
+                        padding: '0.6rem 1.25rem', background: '#fff', borderRadius: '14px',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                 >
                     <ArrowLeft size={18} /> Dashboard
@@ -133,17 +152,22 @@ export default function StudentChoice() {
                         display: 'flex', alignItems: 'center', gap: '0.5rem',
                         color: '#ef4444', textDecoration: 'none',
                         fontWeight: 700, fontSize: '0.9rem',
-                        padding: '0.6rem 1rem', background: '#fff', border: 'none', borderRadius: '12px',
-                        boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                        padding: '0.6rem 1.25rem', background: '#fff', border: 'none', borderRadius: '14px',
+                        boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
                         cursor: 'pointer',
-                        transition: 'all 0.2s'
+                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
                     }}
                 >
                     <LogOut size={18} /> Sign Out
                 </button>
-            </div>
+            </motion.div>
 
-            <div style={{ maxWidth: '1000px', width: '100%', marginTop: '3rem', boxSizing: 'border-box' }}>
+            <motion.div 
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                style={{ maxWidth: '1000px', width: '100%', marginTop: '0', boxSizing: 'border-box', position: 'relative', zIndex: 1 }}
+            >
                 {loading ? (
                     <div style={{ textAlign: 'center', padding: '3rem' }}>
                         <Loader size={40} style={{ margin: '0 auto', animation: 'spin 1s linear infinite' }} />
@@ -152,24 +176,28 @@ export default function StudentChoice() {
                 ) : (
                     <>
                         {/* Quick Actions Section */}
-                        <>
+                        <div style={{ marginBottom: '3rem' }}>
                             <h3 style={{
-                                fontSize: '1.3rem', fontWeight: 800, marginTop: '3rem',
-                                marginBottom: '1.5rem', textAlign: 'center', color: 'var(--color-text-primary)'
+                                fontSize: '1.1rem', fontWeight: 600, marginTop: '1rem',
+                                marginBottom: '2rem', textAlign: 'center', color: '#64748b',
+                                letterSpacing: '0.1em', textTransform: 'uppercase'
                             }}>
-                                Quick Actions
+                                Choose your next step
                             </h3>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.25rem' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '2rem' }}>
                                 <motion.div
-                                    whileHover={{ y: -10, scale: 1.02 }}
-                                    onClick={() => navigate('/master-profile')}
+                                    whileHover={{ y: -8, scale: 1.01 }}
+                                    initial={{ opacity: 0, x: -20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.3 }}
+                                    onClick={() => navigate('/upload-resume')}
                                     style={{
-                                        background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
-                                        cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
-                                        border: '2px solid transparent', transition: 'all 0.3s'
+                                        background: 'rgba(255, 255, 255, 0.8)', padding: '3rem 2rem', borderRadius: '32px',
+                                        cursor: 'pointer', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.08)',
+                                        border: '1px solid rgba(255,255,255,0.7)', backdropFilter: 'blur(20px)',
+                                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center'
                                     }}
-                                    onMouseOver={e => e.currentTarget.style.borderColor = 'var(--color-accent-primary)'}
-                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
                                 >
                                     <div style={{
                                         width: '70px', height: '70px', background: 'var(--color-accent-primary)',
@@ -185,59 +213,82 @@ export default function StudentChoice() {
                                 </motion.div>
 
                                 <motion.div
-                                    whileHover={{ y: -10, scale: 1.02 }}
+                                    whileHover={{ y: -8, scale: 1.01 }}
+                                    initial={{ opacity: 0, x: 20 }}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ delay: 0.4 }}
                                     onClick={() => navigate('/master-profile')}
                                     style={{
-                                        background: '#fff', padding: '2.5rem 1.5rem', borderRadius: '24px',
-                                        cursor: 'pointer', boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)',
-                                        border: '2px solid transparent', transition: 'all 0.3s'
+                                        background: 'rgba(255, 255, 255, 0.8)', padding: '3rem 2rem', borderRadius: '32px',
+                                        cursor: 'pointer', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.08)',
+                                        border: '1px solid rgba(255,255,255,0.7)', backdropFilter: 'blur(20px)',
+                                        transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center'
                                     }}
-                                    onMouseOver={e => e.currentTarget.style.borderColor = '#10b981'}
-                                    onMouseOut={e => e.currentTarget.style.borderColor = 'transparent'}
                                 >
                                     <div style={{
-                                        width: '70px', height: '70px', background: '#10b981',
-                                        borderRadius: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        margin: '0 auto 1.5rem', color: '#fff', boxShadow: '0 10px 20px -5px #10b981'
+                                        width: '80px', height: '80px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                        borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        margin: '0 auto 2rem', color: '#fff', boxShadow: '0 15px 30px -10px rgba(16, 185, 129, 0.4)'
                                     }}>
-                                        <UserPlus size={28} />
+                                        <UserPlus size={32} />
                                     </div>
-                                    <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center' }}>
-                                        {savedProfile ? 'Edit Master Profile' : 'Create Master Profile'}
+                                    <h3 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.75rem', textAlign: 'center', color: '#1e293b' }}>
+                                        {savedProfile ? 'Edit Master Profile' : 'Create Profile'}
                                     </h3>
-                                    <p style={{ color: 'var(--color-text-secondary)', lineHeight: 1.6, fontSize: '0.95rem', textAlign: 'center' }}>
-                                        {savedProfile ? 'Update your permanent professional identity.' : 'Build a master profile from scratch.'}
+                                    <p style={{ color: '#64748b', lineHeight: 1.7, fontSize: '1rem', textAlign: 'center' }}>
+                                        {savedProfile ? 'Update your permanent professional identity for future resumes.' : 'Build your master profile from scratch to unlock all features.'}
                                     </p>
                                 </motion.div>
                             </div>
-                        </>
+                        </div>
 
-                        {/* Empty State */}
-                        {!savedResume && !savedProfile && (
+                        {/* Additional Info Section */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem', marginTop: '1rem' }}>
                             <motion.div
-                                initial={{ y: 20, opacity: 0 }}
-                                animate={{ y: 0, opacity: 1 }}
-                                transition={{ delay: 0.3 }}
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.5 }}
                                 style={{
-                                    textAlign: 'center',
-                                    padding: '3rem 2rem',
-                                    background: '#fff',
-                                    borderRadius: '24px',
-                                    marginTop: '2rem',
-                                    boxShadow: '0 20px 40px -10px rgba(0,0,0,0.05)'
+                                    background: 'rgba(255,255,255,0.4)', padding: '2rem', borderRadius: '24px',
+                                    border: '1px solid rgba(255,255,255,0.5)', backdropFilter: 'blur(5px)'
                                 }}
                             >
-                                <h2 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '1rem' }}>
-                                    Welcome, {user?.email?.split('@')[0]}! 👋
-                                </h2>
-                                <p style={{ color: 'var(--color-text-secondary)', fontSize: '1.1rem', lineHeight: 1.8 }}>
-                                    No resume or profile yet. Choose an option above to get started with your professional documents.
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(79, 70, 229, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4f46e5' }}>
+                                        <FileText size={18} />
+                                    </div>
+                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>Expert Tip</span>
+                                </div>
+                                <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                    The Master Profile is the heart of Persevex. Keeping it updated ensures every new resume you build starts with 90% completion.
                                 </p>
                             </motion.div>
-                        )}
+
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.6 }}
+                                style={{
+                                    background: 'rgba(255,255,255,0.4)', padding: '2rem', borderRadius: '24px',
+                                    border: '1px solid rgba(255,255,255,0.5)', backdropFilter: 'blur(5px)'
+                                }}
+                            >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                    <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#10b981' }}>
+                                        <ChevronRight size={18} />
+                                    </div>
+                                    <span style={{ fontWeight: 700, color: '#1e293b' }}>Fast Track</span>
+                                </div>
+                                <p style={{ color: '#64748b', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                                    Already have a resume? The "Upload & Populate" option uses AI to extract your skills, experience, and education automatically.
+                                </p>
+                            </motion.div>
+                        </div>
+
                     </>
                 )}
-            </div>
+            </motion.div>
         </motion.div>
     )
 }

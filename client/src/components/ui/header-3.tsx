@@ -110,27 +110,28 @@ export function Header() {
 
     return (
         <header
-            className={cn('fixed top-0 z-50 w-full border-b border-transparent transition-all duration-300', {
-                'bg-white/80 supports-[backdrop-filter]:bg-white/50 border-slate-200/50 backdrop-blur-lg shadow-sm py-2':
-                    scrolled,
-                'bg-transparent py-2': !scrolled
+            className={cn('fixed top-0 z-50 w-full border-b transition-all duration-300', {
+                'bg-white/95 border-slate-200/60 backdrop-blur-xl shadow-lg py-0':
+                    scrolled || location.pathname !== '/',
+                'bg-transparent border-transparent py-2': 
+                    !scrolled && location.pathname === '/'
             })}
         >
-            <nav className="flex h-20 w-full items-center justify-between px-6 lg:px-8">
+            <nav className="flex h-20 w-full items-center justify-between px-6 lg:px-10 container mx-auto">
                 {/* 1. Logo */}
                 <div className="flex-shrink-0">
                     <Link to="/" className="flex items-center no-underline">
                         <img
                             src="/logo.png"
                             alt="Persevex"
-                            className="h-20 md:h-24 w-auto object-contain scale-125 origin-left transition-transform"
+                            className="h-14 md:h-16 w-auto object-contain transition-transform hover:scale-105"
                         />
                     </Link>
                 </div>
 
                 {/* 2. Main Navigation Island */}
                 {!isAdminPage && (
-                    <div className="hidden lg:flex items-center mx-10 bg-white/90 border border-slate-200/60 backdrop-blur-xl rounded-full px-2 py-2 gap-1 shadow-lg shadow-blue-500/5 ring-1 ring-black/5">
+                    <div className="hidden lg:flex items-center bg-white/95 border border-slate-200/80 backdrop-blur-2xl rounded-full px-2 py-1.5 gap-1 shadow-xl shadow-blue-500/5 ring-1 ring-black/5">
                         {user ? (
                             <>
                                 <Link

@@ -7,6 +7,7 @@ import { useToast } from '../context/ToastContext'
 import { supabase, isMock } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
+import * as resumeParser from '../lib/resumeParser'
 
 export default function UploadResume() {
     const navigate = useNavigate()
@@ -23,7 +24,7 @@ export default function UploadResume() {
         education: ['education', 'academic background', 'academics', 'qualification', 'academic profile', 'educational background', 'academic qualifications'],
         skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies', 'technologies', 'technical expertise', 'key skills'],
         projects: ['projects', 'personal projects', 'key projects', 'academic projects', 'recent projects'],
-        certifications: ['certifications', 'awards', 'honors', 'achievements', 'certifications & awards', 'licenses', 'professional certifications']
+        certifications: ['certifications', 'certification', 'certificates', 'certificate', 'awards', 'honors', 'achievements', 'achievement', 'certifications & awards', 'licenses', 'professional certifications', 'credentials']
     }
 
     const isLikelySectionHeader = (line) => {
@@ -548,7 +549,7 @@ export default function UploadResume() {
         try {
             setErrorMessage('')
             setStatus('uploading')
-            const extractedText = await extractResumeText(selectedFile)
+            const extractedText = await resumeParser.extractResumeText(selectedFile)
 
             if (!extractedText || extractedText.trim().length < 50) {
                 throw new Error('The file appears to be empty or could not be read. Please try a different file.')
@@ -568,11 +569,11 @@ export default function UploadResume() {
             }
 
             // Always run local extraction as baseline/fallback
-            const localParsed = parseResumeText(extractedText)
+            const localParsed = resumeParser.parseResumeText(extractedText)
             
             // Merge AI results into local results if available, else use local only
-            const finalParsed = aiParsed ? mergeParsedResume(localParsed, aiParsed) : localParsed
-            const normalized = normalizeParsedResume(finalParsed)
+            const finalParsed = aiParsed ? resumeParser.mergeParsedResume(localParsed, aiParsed) : localParsed
+            const normalized = resumeParser.normalizeParsedResume(finalParsed)
 
             const hasExtractedData = Boolean(
                 normalized.personalInfo.firstName ||
@@ -593,22 +594,67 @@ export default function UploadResume() {
             // If we relied on fallback, show a small success toast but mention it's local only? 
             // Better to just let it succeed for the "fix it now" requirement.
             
-            const savedResumeId = await saveParsedResumeDraft(normalized)
-
-            setEditingResumeId(savedResumeId)
+            // Do not auto-create a resume row here; only create when user explicitly saves in Build.
+            setEditingResumeId(null)
             setUploadedResumePrefill(true)
 
             // Update Master Profile
             const dbUserId = getDbUserId(user)
             if (dbUserId) {
                 try {
-                    await supabase
-                        .from('profiles')
-                        .upsert({ 
-                            user_id: dbUserId, 
-                            resume_data: normalized,
-                            updated_at: new Date().toISOString()
-                        }, { onConflict: 'user_id' })
+                    const profilePayload = {
+                        user_id: dbUserId,
+                        resume_data: normalized,
+                        first_name: normalized.personalInfo.firstName || '',
+                        last_name: normalized.personalInfo.lastName || '',
+                        email: normalized.personalInfo.email || '',
+                        phone: normalized.personalInfo.phone || '',
+                        address: normalized.personalInfo.address || '',
+                        city: normalized.personalInfo.city || '',
+                        country: normalized.personalInfo.country || '',
+                        pin_code: normalized.personalInfo.pinCode || '',
+                        title: normalized.personalInfo.title || '',
+                        summary: normalized.personalInfo.summary || '',
+                        website: normalized.personalInfo.website || '',
+                        linkedin: normalized.personalInfo.linkedin || '',
+                        github: normalized.personalInfo.github || '',
+                        experience_data: normalized.experience,
+                        education_data: normalized.education,
+                        skills_data: normalized.skills,
+                        projects_data: normalized.projects,
+                        certifications_data: normalized.certifications,
+                        updated_at: new Date().toISOString()
+                    }
+
+                    const adaptiveUpsertProfile = async (initialPayload) => {
+                        const payload = { ...initialPayload }
+                        for (let attempt = 0; attempt < 8; attempt += 1) {
+                            const result = await supabase
+                                .from('profiles')
+                                .upsert(payload, { onConflict: 'user_id' })
+
+                            if (!result.error) return
+
+                            const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                                .filter(Boolean)
+                                .join(' | ')
+
+                            const missingColumnMatch =
+                                fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                                fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+                            if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
+                                delete payload[missingColumnMatch[1]]
+                                continue
+                            }
+
+                            throw new Error(fullMessage || 'Error updating profile from uploaded resume')
+                        }
+
+                        throw new Error('Profile upsert failed after schema adaptation attempts')
+                    }
+
+                    await adaptiveUpsertProfile(profilePayload)
                     setMasterProfile(normalized)
                 } catch (err) {
                     console.error("Error updating master profile:", err)
@@ -652,7 +698,7 @@ export default function UploadResume() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                padding: 'clamp(1rem, 4vw, 2rem) clamp(0.75rem, 3vw, 1.5rem)',
+                padding: '2rem 2rem 5rem',
                 width: '100%',
                 boxSizing: 'border-box',
                 overflowX: 'hidden'
@@ -661,7 +707,7 @@ export default function UploadResume() {
             <Link
                 to="/student/choice"
                 style={{
-                    position: 'absolute', top: 'clamp(0.75rem, 3vw, 2rem)', left: 'clamp(0.75rem, 3vw, 2rem)',
+                    position: 'absolute', top: '1.5rem', left: '2rem',
                     display: 'flex', alignItems: 'center', gap: '0.5rem',
                     color: '#64748b', textDecoration: 'none', fontWeight: 700
                 }}

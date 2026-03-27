@@ -297,6 +297,10 @@ button {
    NATIVE PRINT OUT (A4 PDF FIX)
    ============================================ */
 @media print {
+  body {
+    margin: 40px;
+  }
+
   body.is-printing * {
     visibility: hidden;
   }
@@ -314,10 +318,28 @@ button {
   }
   
   /* Prevent awkward cutoffs mid-element */
-  h1, h2, h3, h4, h5, h6 { page-break-after: avoid; break-after: avoid; }
-  .resume-section, .resume-entry, p, li { 
+  .resume-section {
+    page-break-inside: avoid;
+    break-inside: avoid;
+    page-break-before: auto;
+    break-before: auto;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .resume-section-heading,
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+    break-after: avoid;
+    orphans: 3;
+    widows: 3;
+  }
+
+  .resume-entry, p, li, ul {
     page-break-inside: avoid; 
     break-inside: avoid; 
+    orphans: 3;
+    widows: 3;
   }
 
   /* Force background graphics and colors to print */
@@ -329,7 +351,7 @@ button {
   
   @page {
     size: A4 portrait;
-    margin: 0 !important;
+    margin: 15mm 10mm 15mm 10mm !important;
   }
 }
 

@@ -3,6 +3,186 @@
 
 export const resumeTemplates = [
   {
+    id: 'nt01',
+    name: 'Red Border Minimal',
+    category: 'Modern',
+    description: 'Minimalist split with bold red bottom accent.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#111111', accent: '#ef4444' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt02',
+    name: 'Mustard Professional',
+    category: 'Executive',
+    description: 'Sophisticated top-header with mustard yellow accents.',
+    style: 'top-accent',
+    colors: { bg: '#ffffff', primary: '#27272a', accent: '#eab308' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt03',
+    name: 'Green Sidebar Modern',
+    category: 'Modern',
+    description: 'Clean right-sidebar layout with fresh green highlights.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#1e293b', accent: '#22c55e' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt04',
+    name: 'Centered Minimalist',
+    category: 'Minimalist',
+    description: 'Pure typography focus with centered elegant profile.',
+    style: 'elegant',
+    colors: { bg: '#ffffff', primary: '#111111', accent: '#94a3b8' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Lora, serif' }
+  },
+  {
+    id: 'nt05',
+    name: 'Beige Classic Panel',
+    category: 'Classic',
+    description: 'Soft beige sidebar with professional charcoal text.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#334155', accent: '#d6d3d1' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt06',
+    name: 'Tan Typography Focus',
+    category: 'Minimalist',
+    description: 'Warm tan aesthetic focusing on large clean fonts.',
+    style: 'top-accent',
+    colors: { bg: '#fef3c7', primary: '#451a03', accent: '#d97706' },
+    fonts: { heading: 'Syne, sans-serif', body: 'DM Sans, sans-serif' }
+  },
+  {
+    id: 'nt07',
+    name: 'Charcoal Executive',
+    category: 'Executive',
+    description: 'Full charcoal theme for a high-authority look.',
+    style: 'geometric',
+    colors: { bg: '#ffffff', primary: '#18181b', accent: '#71717a' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt08',
+    name: 'Ultra-Clean Reveal',
+    category: 'Minimalist',
+    description: 'Maximum white space with thin hairline dividers.',
+    style: 'top-accent',
+    colors: { bg: '#ffffff', primary: '#000000', accent: '#000000' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt09',
+    name: 'Teal Line Accent',
+    category: 'Creative',
+    description: 'Modern vertical highlight line with teal accents.',
+    style: 'geometric',
+    colors: { bg: '#ffffff', primary: '#0f172a', accent: '#0d9488' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt10',
+    name: 'Forest Split',
+    category: 'Modern',
+    description: 'Earthy beige and deep forest green combination.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#064e3b', accent: '#f5f5f4' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt11',
+    name: 'Grey Separator',
+    category: 'Minimalist',
+    description: 'Subtle grey sectioning for structured clarity.',
+    style: 'top-accent',
+    colors: { bg: '#ffffff', primary: '#1e293b', accent: '#e2e8f0' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt12',
+    name: 'Blue Header Pro',
+    category: 'Corporate',
+    description: 'High-visibility blue header for corporate roles.',
+    style: 'top-accent',
+    colors: { bg: '#ffffff', primary: '#1e3a8a', accent: '#60a5fa' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt13',
+    name: 'Navy & Yellow Dash',
+    category: 'Modern',
+    description: 'Dynamic Navy background with bright yellow pops.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#172554', accent: '#eab308' },
+    fonts: { heading: 'Syne, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt14',
+    name: 'Copper Script',
+    category: 'Creative',
+    description: 'Sophisticated script typography with copper tones.',
+    style: 'elegant',
+    colors: { bg: '#fffbf2', primary: '#1c1917', accent: '#b45309' },
+    fonts: { heading: 'Playfair Display, serif', body: 'Lora, serif' }
+  },
+  {
+    id: 'nt15',
+    name: 'Neon Blue Tech',
+    category: 'Tech',
+    description: 'Cyber-inspired dark theme with neon blue accents.',
+    style: 'modern-split',
+    colors: { bg: '#020617', primary: '#020617', accent: '#38bdf8' },
+    fonts: { heading: 'Space Mono, monospace', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt16',
+    name: 'Navy Border Executive',
+    category: 'Executive',
+    description: 'Traditional centered layout with a navy frame.',
+    style: 'elegant',
+    colors: { bg: '#ffffff', primary: '#1e1b4b', accent: '#1e1b4b' },
+    fonts: { heading: 'Garamond, serif', body: 'Garamond, serif' }
+  },
+  {
+    id: 'nt17',
+    name: 'Yellow Geometric',
+    category: 'Creative',
+    description: 'Bold geometric sidebar with yellow motifs.',
+    style: 'geometric',
+    colors: { bg: '#ffffff', primary: '#ca8a04', accent: '#111111' },
+    fonts: { heading: 'Syne, sans-serif', body: 'DM Sans, sans-serif' }
+  },
+  {
+    id: 'nt18',
+    name: 'Light Blue Medical',
+    category: 'Medical',
+    description: 'Clean medical aesthetic with blue and red details.',
+    style: 'modern-split',
+    colors: { bg: '#ffffff', primary: '#0ea5e9', accent: '#ef4444' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt19',
+    name: 'Orange Graduate',
+    category: 'Academic',
+    description: 'Vibrant orange highlights for fresh graduates.',
+    style: 'top-accent',
+    colors: { bg: '#ffffff', primary: '#ea580c', accent: '#fed7aa' },
+    fonts: { heading: 'Outfit, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
+    id: 'nt20',
+    name: 'Royal Blue Corp',
+    category: 'Corporate',
+    description: 'Highly structured layout with royal blue headers.',
+    style: 'geometric',
+    colors: { bg: '#ffffff', primary: '#1d4ed8', accent: '#94a3b8' },
+    fonts: { heading: 'Inter, sans-serif', body: 'Inter, sans-serif' }
+  },
+  {
     id: 't01',
     name: 'Diagonal Hero',
     category: 'Creative',
@@ -161,7 +341,7 @@ export const resumeTemplates = [
     category: 'Tech',
     description: 'Cyberpunk analytics theme with cyan accents.',
     style: 't22',
-    colors: { bg: '#0a1628', primary: '#0d2137', accent: '#26c6da' },
+    colors: { bg: '#0a1628', primary: '#1e3a8a', accent: '#26c6da' },
     fonts: { heading: 'Roboto Mono, monospace', body: 'Roboto Mono, monospace' }
   },
   {
@@ -194,7 +374,7 @@ export const resumeTemplates = [
     category: 'Creative',
     description: 'Bold neon-on-black studio aesthetic.',
     style: 'studio',
-    colors: { bg: '#111111', primary: '#111111', accent: '#c6f135' }
+    colors: { bg: '#000000', primary: '#222222', accent: '#c6f135' }
   },
   {
     id: 'rt01',

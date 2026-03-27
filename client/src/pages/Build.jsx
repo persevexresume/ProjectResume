@@ -5,6 +5,7 @@ import useStore from '../store/useStore'
 import { supabase, isMock } from '../supabase'
 import { resumeTemplates } from '../data/templates'
 import { getDbUserId } from '../lib/userIdentity'
+import * as resumeParser from '../lib/resumeParser'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer'
 import ATSChecker from '../components/ATSChecker'
 
@@ -14,7 +15,7 @@ import WizardStep from '../components/builder/WizardStep'
 import SectionIntro from '../components/builder/SectionIntro'
 import TemplatePreview from '../components/builder/TemplatePreview'
 import { useToast } from '../context/ToastContext'
- 
+
 const PAGE_WIDTH = 794
 const PAGE_HEIGHT = 1123
 
@@ -53,18 +54,18 @@ export default function Build() {
 
     const isCompactRail = viewportWidth < 860
     const canShowSidePreview = viewportWidth >= 1024
-    
+
     const railWidth = isCompactRail ? 92 : 260
-    // Compact side preview: ~38% of screen OR fixed 420px, whichever is more comfortable
-    const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(380, Math.min(500, viewportWidth * 0.38)) : 0
+    // Narrow side preview: ~32% of screen OR fixed 350px, whichever is more comfortable
+    const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(340, Math.min(460, viewportWidth * 0.32)) : 0
     const previewWidth = previewWidthBuffer
-    
+
     // Calculate scales for both width and height to ensure full visibility
-    const horizontalScale = (previewWidth - 32) / 794
+    const horizontalScale = (previewWidth - 20) / 794
     // Reserve space for panel chrome (header, card spacing, and save panel)
     const availableHeight = Math.max(420, viewportHeight - 300)
     const verticalScale = availableHeight / 1123
-    
+
     // The true A4 pixel width is ~794. We scale the preview to fit BOTH width and height.
     const previewScale = Math.max(0.22, Math.min(0.6, horizontalScale, verticalScale))
 
@@ -105,7 +106,7 @@ export default function Build() {
                 // Use profiles as canonical profile source to avoid missing-table 404 noise.
                 let { data, error } = await supabase
                     .from('profiles')
-                    .select('resume_data')
+                    .select('resume_data, first_name, last_name, email, phone, address, city, country, pin_code, title, summary, website, linkedin, github, experience_data, education_data, skills_data, projects_data, certifications_data')
                     .eq('user_id', dbUserId)
                     .single()
 
@@ -123,13 +124,39 @@ export default function Build() {
                     }
                 }
 
-                if (data?.resume_data) {
-                    const parsed = typeof data.resume_data === 'string' ? JSON.parse(data.resume_data) : data.resume_data
+                if (data) {
+                    const parsed = data.resume_data
+                        ? (typeof data.resume_data === 'string' ? JSON.parse(data.resume_data) : data.resume_data)
+                        : {}
+                    const mergedParsed = resumeParser.normalizeParsedResume(
+                        resumeParser.mergeParsedResume(parsed, {
+                            personalInfo: {
+                                firstName: data.first_name || '',
+                                lastName: data.last_name || '',
+                                email: data.email || '',
+                                phone: data.phone || '',
+                                address: data.address || '',
+                                city: data.city || '',
+                                country: data.country || '',
+                                pinCode: data.pin_code || '',
+                                title: data.title || '',
+                                summary: data.summary || '',
+                                website: data.website || '',
+                                linkedin: data.linkedin || '',
+                                github: data.github || ''
+                            },
+                            experience: Array.isArray(data.experience_data) ? data.experience_data : [],
+                            education: Array.isArray(data.education_data) ? data.education_data : [],
+                            skills: Array.isArray(data.skills_data) ? data.skills_data : [],
+                            projects: Array.isArray(data.projects_data) ? data.projects_data : [],
+                            certifications: Array.isArray(data.certifications_data) ? data.certifications_data : []
+                        })
+                    )
                     // Only load if current resume data is empty to avoid overwriting user edits
                     const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
                     if (isEmpty) {
-                        useStore.getState().loadMasterProfile(parsed)
-                        setMasterProfile(parsed)
+                        useStore.getState().loadMasterProfile(mergedParsed)
+                        setMasterProfile(mergedParsed)
                     }
                 }
             } catch (err) {
@@ -488,9 +515,9 @@ export default function Build() {
             <div style={{ display: 'flex', minHeight: '100vh', background: '#fafafa' }}>
                 <div style={{
                     flex: 1,
-                    padding: '2rem', 
-                    display: 'flex', 
-                    flexDirection: 'column', 
+                    padding: '2rem',
+                    display: 'flex',
+                    flexDirection: 'column',
                     alignItems: 'center',
                     overflowY: 'auto'
                 }}>
@@ -566,7 +593,7 @@ export default function Build() {
             {/* 2. Main Workspace */}
             <div style={{
                 marginLeft: `${railWidth}px`, marginRight: (canShowSidePreview && showLivePreview) ? `${previewWidth}px` : 0, flex: 1,
-                padding: viewportWidth < 860 ? '1rem 1rem 1rem 1.25rem' : '2rem 2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+                padding: viewportWidth < 860 ? '2.5rem 1rem 1rem 1.25rem' : '3.5rem 2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                 transition: 'margin-right 0.3s ease-in-out'
             }}>
                 {statusMessage && (
@@ -617,71 +644,79 @@ export default function Build() {
 
             {/* 3. Live Preview Panel */}
             {canShowSidePreview && showLivePreview && (
-            <div style={{
-                width: `${previewWidth}px`, background: '#f8fafc', borderLeft: '1px solid #e2e8f0',
-                overflowY: 'auto', overflowX: 'hidden', padding: '1.5rem 1rem', position: 'fixed', top: 0, right: 0, bottom: 0,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', zIndex: 10,
-                animation: 'slideIn 0.3s ease-out'
-            }}>
-                <div style={{ width: '100%', maxWidth: '420px', marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <div className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.5)]" />
-                        <span style={{ fontSize: '0.65rem', fontWeight: 950, color: '#64748b', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Preview Engine</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 px-2.5 py-1 bg-white rounded-lg border border-slate-200 shadow-sm">
-                        <Zap size={11} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
-                        <span style={{ fontSize: '0.65rem', fontWeight: 900, color: '#475569', letterSpacing: '0.05em' }}>ATS:</span>
-                        <span className={`text-[11px] font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
-                    </div>
-                </div>
-
-                {/* THE DOCUMENT CARD */}
                 <div style={{
-                    width: 'fit-content',
-                    minWidth: `${Math.min(previewWidth - 32, PAGE_WIDTH * previewScale)}px`,
-                    background: '#fff',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0,0,0,0.1)',
-                    borderRadius: '4px',
-                    position: 'relative',
-                    marginBottom: '2rem',
-                    transition: 'transform 0.3s ease'
+                    width: `${previewWidth}px`, background: '#f1f5f9', borderLeft: '1px solid #e2e8f0',
+                    position: 'fixed', top: 0, right: 0, bottom: 0,
+                    display: 'flex', flexDirection: 'column', zIndex: 10,
+                    animation: 'slideIn 0.3s ease-out'
                 }}>
-                    {activeTemplateId && (
-                        <div style={{ padding: '0', overflow: 'hidden', borderRadius: '4px' }}>
-                            <PagedResumePreview
-                                data={resumeData}
-                                templateId={activeTemplateId}
-                                customization={{ ...customization, themeColor }}
-                                previewScale={previewScale}
-                                paged={false}
-                             />
+                    {/* Fixed Panel Header */}
+                    <div style={{
+                        padding: '1.5rem 1.25rem', background: 'rgba(255, 255, 255, 0.8)',
+                        backdropFilter: 'blur(12px)', borderBottom: '1px solid #e2e8f0',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        zIndex: 20
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
+                            <span style={{ fontSize: '0.75rem', fontWeight: 950, color: '#475569', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Preview Engine</span>
                         </div>
-                    )}
-                    
-                    {/* Floating Zoom Button - matching user reference */}
-                    <button
-                        onClick={() => setShowPreviewModal(true)}
-                        className="absolute -bottom-8 -right-8 w-16 h-16 bg-[#f7c66a] text-slate-900 rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all border-4 border-white z-20 group"
-                        title="Open full paged preview"
-                    >
-                        <div className="relative transform group-hover:rotate-12 transition-transform">
-                            <Search size={28} strokeWidth={2.5} />
-                            <Plus size={12} strokeWidth={4} style={{ position: 'absolute', top: '1px', right: '-1px' }} />
+                        <div className="flex items-center gap-2.5">
+                            <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                <Zap size={13} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
+                                <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#445163', letterSpacing: '0.05em' }}>ATS:</span>
+                                <span className={`text-[13px] font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
+                            </div>
+                            <button
+                                onClick={() => setShowPreviewModal(true)}
+                                className="p-3 bg-white text-slate-600 hover:text-blue-600 rounded-xl border border-slate-200 shadow-sm transition-all hover:scale-105"
+                                title="Full screen preview"
+                            >
+                                <div className="relative">
+                                    <Search size={18} strokeWidth={2.5} />
+                                    <Plus size={9} strokeWidth={4} style={{ position: 'absolute', top: '-1px', right: '-4px' }} />
+                                </div>
+                            </button>
                         </div>
-                    </button>
-                </div>
+                    </div>
 
-                <div className="mt-auto w-full max-w-[400px] bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mb-4">
-                    <button
-                        onClick={() => handleSave(false)}
-                        disabled={saving}
-                        className="w-full flex items-center justify-center gap-2 p-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
-                    >
-                        {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : saveSuccess ? <><CheckCircle2 size={16} /> Cloud Synced</> : <><Save size={16} /> Save Progress Now</>}
-                    </button>
-                    <p className="text-center text-[9px] text-slate-400 mt-3 uppercase tracking-[0.2em] font-black">Saved only when you click save</p>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '2.5rem 0.6rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        {activeTemplateId && (
+                            <div style={{
+                                width: 'fit-content',
+                                minWidth: `${Math.min(previewWidth - 20, PAGE_WIDTH * previewScale)}px`,
+                                background: '#fff',
+                                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.15), 0 0 1px rgba(0,0,0,0.1)',
+                                borderRadius: '4px',
+                                overflow: 'hidden'
+                            }}>
+                                <PagedResumePreview
+                                    data={resumeData}
+                                    templateId={activeTemplateId}
+                                    customization={{ ...customization, themeColor }}
+                                    previewScale={previewScale}
+                                    paged={false}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Fixed Panel Footer (Save Action) */}
+                    <div style={{
+                        padding: '1.25rem', background: 'rgba(255, 255, 255, 0.9)',
+                        backdropFilter: 'blur(10px)', borderTop: '1px solid #e2e8f0',
+                        zIndex: 20
+                    }}>
+                        <button
+                            onClick={() => handleSave(false)}
+                            disabled={saving}
+                            className="w-full flex items-center justify-center gap-2 p-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-blue-600/20"
+                        >
+                            {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : saveSuccess ? <><CheckCircle2 size={16} /> Cloud Synced</> : <><Save size={16} /> Save Progress Now</>}
+                        </button>
+                        <p className="text-center text-[9px] text-slate-400 mt-2.5 uppercase tracking-[0.2em] font-black">Your progress is automatically cached</p>
+                    </div>
                 </div>
-            </div>
             )}
 
             {/* ATS Checker Modal */}
@@ -713,12 +748,14 @@ export default function Build() {
                     <div
                         style={{
                             width: 'min(980px, 92vw)',
-                            maxHeight: '90vh',
+                            height: '90vh',
                             background: '#fff',
-                            borderRadius: '12px',
+                            borderRadius: '16px',
                             overflow: 'hidden',
                             boxShadow: '0 35px 80px -20px rgba(15, 23, 42, 0.6)',
-                            border: '1px solid #dbeafe'
+                            border: '1px solid #dbeafe',
+                            display: 'flex',
+                            flexDirection: 'column'
                         }}
                     >
                         <div style={{
@@ -757,13 +794,17 @@ export default function Build() {
                             </button>
                         </div>
 
-                        <PagedResumePreview
-                            data={resumeData}
-                            templateId={activeTemplateId}
-                            customization={{ ...customization, themeColor }}
-                            previewScale={0.82}
-                            paged={false}
-                         />
+                        <div style={{ flex: 1, overflowY: 'auto', background: '#f1f5f9', padding: '3rem 1rem', display: 'flex', justifyContent: 'center' }}>
+                            <div style={{ pointerEvents: 'none', transformOrigin: 'top center' }}>
+                                <PagedResumePreview
+                                    data={resumeData}
+                                    templateId={activeTemplateId}
+                                    customization={{ ...customization, themeColor }}
+                                    previewScale={0.9}
+                                    paged={false}
+                                />
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
@@ -779,7 +820,7 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
     useEffect(() => {
         const refreshPages = () => {
             const currentHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
-            setMeasuredHeight(currentHeight)
+            setMeasuredHeight(Math.max(currentHeight, PAGE_HEIGHT))
             const computedPages = Math.max(1, Math.ceil(currentHeight / PAGE_HEIGHT))
             setPageCount(Math.min(computedPages, 8))
         }
@@ -794,25 +835,37 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
 
     if (!paged) {
         return (
-            <div style={{
-                position: 'relative',
-                width: `${PAGE_WIDTH * previewScale}px`,
-                height: `${measuredHeight * previewScale}px`,
-                background: '#fff',
-                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                overflow: 'hidden',
-                borderRadius: '4px',
-            }}>
+            <div style={{ position: 'relative' }}>
+                {/* Hidden div to measure real resume height */}
+                <div
+                    style={{ position: 'absolute', left: '-20000px', top: 0, width: `${PAGE_WIDTH}px`, visibility: 'hidden', pointerEvents: 'none' }}
+                    aria-hidden="true"
+                >
+                    <div ref={measureRef}>
+                        <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                    </div>
+                </div>
+                {/* Scaled visible preview */}
                 <div style={{
-                    transform: `scale(${previewScale})`,
-                    transformOrigin: 'top left',
-                    width: `${PAGE_WIDTH}px`,
-                    height: `${measuredHeight}px`,
-                    position: 'absolute',
-                    top: 0,
-                    left: 0
+                    width: `${PAGE_WIDTH * previewScale}px`,
+                    height: `${measuredHeight * previewScale}px`,
+                    position: 'relative',
+                    background: '#fff',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                    borderRadius: '4px',
+                    overflow: 'visible',
                 }}>
-                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                    <div style={{
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: 'top left',
+                        width: `${PAGE_WIDTH}px`,
+                        height: `${measuredHeight}px`,
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                    }}>
+                        <ResumeRenderer data={data} templateId={templateId} customization={customization} />
+                    </div>
                 </div>
             </div>
         )
@@ -867,6 +920,7 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
 }
 
 const HeaderSection = ({ data, update }) => {
+    const photoInputRef = useRef(null)
     const handleChange = (field, value) => update({ ...data, [field]: value })
 
     const handlePhotoChange = (e) => {
@@ -877,6 +931,13 @@ const HeaderSection = ({ data, update }) => {
                 handleChange('profilePhoto', reader.result)
             }
             reader.readAsDataURL(file)
+        }
+    }
+
+    const handlePhotoRemove = () => {
+        handleChange('profilePhoto', '')
+        if (photoInputRef.current) {
+            photoInputRef.current.value = ''
         }
     }
 
@@ -895,12 +956,22 @@ const HeaderSection = ({ data, update }) => {
                     </div>
                     <label className="absolute inset-0 flex items-center justify-center bg-black/40 text-white opacity-0 group-hover:opacity-100 cursor-pointer transition-opacity rounded-full">
                         <PenTool size={20} />
-                        <input type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
+                        <input ref={photoInputRef} type="file" className="hidden" accept="image/*" onChange={handlePhotoChange} />
                     </label>
                 </div>
                 <div>
                     <h4 className="text-sm font-black text-slate-900 mb-1">Profile Photo</h4>
                     <p className="text-[10px] font-medium text-slate-500 max-w-[200px]">Add a professional photo to increase your chances of being hired.</p>
+                    {data.profilePhoto && (
+                        <button
+                            type="button"
+                            onClick={handlePhotoRemove}
+                            className="mt-2 inline-flex items-center gap-1 rounded-md border border-rose-200 bg-rose-50 px-2.5 py-1 text-[11px] font-semibold text-rose-700 transition-colors hover:bg-rose-100"
+                        >
+                            <Trash2 size={12} />
+                            Remove Photo
+                        </button>
+                    )}
                 </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
@@ -953,8 +1024,8 @@ const ExperienceSection = ({ experience, setExp }) => {
                         {step === 1 ? "Job Details" : "Role Description"}
                     </h3>
                     <div className="flex items-center gap-2">
-                         <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
-                         <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
+                        <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
+                        <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>
                             Cancel
                         </button>
                     </div>
@@ -978,16 +1049,16 @@ const ExperienceSection = ({ experience, setExp }) => {
                             <h4 className="text-sm font-black text-blue-800 mb-1">What did you achieve?</h4>
                             <p className="text-xs font-medium text-blue-600/80">Focus on measurable results and action verbs. Bullet points are highly recommended.</p>
                         </div>
-                        <InputField 
-                            label="" 
-                            value={item.description} 
-                            onChange={(e) => updateExp('description', e.target.value)} 
-                            placeholder="• Increased sales by 20%...\n• Managed a team of 5..." 
-                            multiline 
-                            rows={10} 
+                        <InputField
+                            label=""
+                            value={item.description}
+                            onChange={(e) => updateExp('description', e.target.value)}
+                            placeholder="• Increased sales by 20%...\n• Managed a team of 5..."
+                            multiline
+                            rows={10}
                             style={{ height: '100%', flex: 1 }}
                         />
-                         <div className="flex gap-3 mt-auto pt-4">
+                        <div className="flex gap-3 mt-auto pt-4">
                             <button onClick={() => setStep(1)} style={{ padding: '0.85rem 1.5rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>
                                 Back
                             </button>
@@ -1010,7 +1081,7 @@ const ExperienceSection = ({ experience, setExp }) => {
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.company} {item.startDate && `• ${item.startDate} - ${item.endDate}`}</p>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); removeExp(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                        <button onClick={(e) => { e.stopPropagation(); removeExp(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
                             <Trash2 size={16} />
                         </button>
                         <button onClick={(e) => { e.stopPropagation(); setEditingIdx(idx); }} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
@@ -1048,7 +1119,7 @@ const EducationSection = ({ education, setEdu }) => {
     if (editingIdx !== null && education[editingIdx]) {
         const item = education[editingIdx]
         return (
-             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>Education Details</h3>
                     <button onClick={() => setEditingIdx(null)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Close</button>
@@ -1072,7 +1143,7 @@ const EducationSection = ({ education, setEdu }) => {
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.degree} {item.endDate && `• ${item.endDate}`}</p>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); removeEdu(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                        <button onClick={(e) => { e.stopPropagation(); removeEdu(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                             <Trash2 size={16} />
                         </button>
                     </div>
@@ -1139,7 +1210,7 @@ const ProjectsSection = ({ projects, setProjects }) => {
         setProjects((projects || []).filter((_, i) => i !== idx))
         if (editingIdx === idx) setEditingIdx(null)
     }
-    
+
     const closeEditor = () => {
         setEditingIdx(null)
         setStep(1)
@@ -1154,8 +1225,8 @@ const ProjectsSection = ({ projects, setProjects }) => {
                         {step === 1 ? "Project Basics" : "Project Story"}
                     </h3>
                     <div className="flex items-center gap-2">
-                         <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
-                         <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Cancel</button>
+                        <span className="text-xs font-bold text-slate-400">Step {step} of 2</span>
+                        <button onClick={closeEditor} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Cancel</button>
                     </div>
                 </div>
 
@@ -1174,16 +1245,16 @@ const ProjectsSection = ({ projects, setProjects }) => {
                     </div>
                 ) : (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem', minHeight: '350px' }}>
-                        <InputField 
-                            label="What was the project and its impact?" 
-                            value={item.description || ''} 
-                            onChange={(e) => updateProject('description', e.target.value)} 
-                            placeholder="• Built a scalable backend that handled 10k RPS...\n• Reduced load time by 30%..." 
-                            multiline 
-                            rows={10} 
+                        <InputField
+                            label="What was the project and its impact?"
+                            value={item.description || ''}
+                            onChange={(e) => updateProject('description', e.target.value)}
+                            placeholder="• Built a scalable backend that handled 10k RPS...\n• Reduced load time by 30%..."
+                            multiline
+                            rows={10}
                             style={{ height: '100%', flex: 1 }}
                         />
-                         <div className="flex gap-3 mt-auto pt-4">
+                        <div className="flex gap-3 mt-auto pt-4">
                             <button onClick={() => setStep(1)} style={{ padding: '0.85rem 1.5rem', background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>Back</button>
                             <button onClick={closeEditor} style={{ flex: 1, padding: '0.85rem', background: '#10b981', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 800, cursor: 'pointer', fontSize: '0.9rem' }}>Save Project</button>
                         </div>
@@ -1202,7 +1273,7 @@ const ProjectsSection = ({ projects, setProjects }) => {
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.role}</p>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); removeProject(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                        <button onClick={(e) => { e.stopPropagation(); removeProject(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                             <Trash2 size={16} />
                         </button>
                     </div>
@@ -1237,7 +1308,7 @@ const CertificationsSection = ({ certifications, setCertifications }) => {
     if (editingIdx !== null && certifications[editingIdx]) {
         const item = certifications[editingIdx]
         return (
-             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
+            <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h3 style={{ margin: 0, fontWeight: 800, fontSize: '1.1rem', color: '#1e293b' }}>Certification Details</h3>
                     <button onClick={() => setEditingIdx(null)} style={{ background: '#f1f5f9', color: '#475569', border: 'none', padding: '0.4rem 0.8rem', borderRadius: '6px', cursor: 'pointer', fontWeight: 700, fontSize: '0.8rem' }}>Close</button>
@@ -1268,7 +1339,7 @@ const CertificationsSection = ({ certifications, setCertifications }) => {
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.issuer}</p>
                     </div>
                     <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <button onClick={(e) => { e.stopPropagation(); removeCertification(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
+                        <button onClick={(e) => { e.stopPropagation(); removeCertification(idx); }} className="p-2 text-red-500 hover:bg-red-50 rounded-lg">
                             <Trash2 size={16} />
                         </button>
                     </div>
@@ -1289,13 +1360,13 @@ const SummarySection = ({ data, update }) => {
                 <h4 className="text-sm font-black text-blue-800 mb-1">Professional Overview</h4>
                 <p className="text-xs font-medium text-blue-600/80">A strong summary uses 3-4 lines to highlight your biggest accomplishments and core value proposition.</p>
             </div>
-            <InputField 
-                label="" 
-                value={data.summary} 
-                onChange={(e) => handleChange('summary', e.target.value)} 
-                placeholder="Results-driven professional with 5+ years of experience in..." 
-                multiline 
-                rows={12} 
+            <InputField
+                label=""
+                value={data.summary}
+                onChange={(e) => handleChange('summary', e.target.value)}
+                placeholder="Results-driven professional with 5+ years of experience in..."
+                multiline
+                rows={12}
                 style={{ flex: 1, minHeight: '300px' }}
             />
         </div>

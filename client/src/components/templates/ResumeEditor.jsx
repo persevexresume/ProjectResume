@@ -304,7 +304,7 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
               width: '794px',
               maxWidth: '794px',
               height: 'auto',
-              minHeight: 0,
+              minHeight: '1123px',
               aspectRatio: 'auto',
               background: '#ffffff',
               boxSizing: 'border-box',

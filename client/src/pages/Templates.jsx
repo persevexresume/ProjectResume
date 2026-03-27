@@ -91,7 +91,7 @@ export default function Templates() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 pb-16 overflow-y-auto">
+    <div className="min-h-screen bg-[#f8fafc] pt-20 pb-20 px-6">
       {/* Sticky Header + Filters */}
       <div className="sticky top-20 z-40 bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-2" />

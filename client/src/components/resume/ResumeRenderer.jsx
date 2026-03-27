@@ -58,6 +58,7 @@ export default function ResumeRenderer({ data, templateId, customization: custom
             lineHeight: 1.6,
             width: '794px',
             maxWidth: '794px',
+            minHeight: '1123px',
             background: '#fff',
             margin: '0 auto',
             padding: '0',

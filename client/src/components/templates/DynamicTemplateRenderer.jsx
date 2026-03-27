@@ -62,7 +62,7 @@ const DynamicTemplateRenderer = ({
   if (templateDef.id.includes('neo-minimal') || templateDef.id.includes('modern')) {
     return (
       <div 
-        className={`w-full h-full ${styles.containerClass} p-8 font-sans`}
+        className={`w-full min-h-[1123px] ${styles.containerClass} p-8 font-sans`}
         style={{ fontFamily: templateDef.fonts.body, color: '#1f2937' }}
       >
         {/* Header with Left Accent Bar */}
@@ -163,7 +163,7 @@ const DynamicTemplateRenderer = ({
   if (templateDef.id.includes('classic') || templateDef.id.includes('harvard') || templateDef.id.includes('corporate')) {
     return (
       <div 
-        className="w-full h-full bg-white p-12 font-serif"
+        className="w-full min-h-[1123px] bg-white p-12 font-serif"
         style={{ fontFamily: templateDef.fonts.body, color: '#1a1a1a' }}
       >
         {/* Centered Header */}
@@ -236,7 +236,7 @@ const DynamicTemplateRenderer = ({
   if (templateDef.id.includes('minimal') || templateDef.id.includes('white') || templateDef.id.includes('whitespace')) {
     return (
       <div 
-        className="w-full h-full bg-white p-10 font-sans" 
+        className="w-full min-h-[1123px] bg-white p-10 font-sans" 
         style={{ fontFamily: templateDef.fonts.body, color: '#000' }}
       >
         {/* Header */}
@@ -308,7 +308,7 @@ const DynamicTemplateRenderer = ({
   // Fallback: Default clean template
   return (
     <div 
-      className="w-full h-full p-8 font-sans"
+      className="w-full min-h-[1123px] p-8 font-sans"
       style={{ 
         fontFamily: templateDef.fonts.body, 
         background: bgColor,

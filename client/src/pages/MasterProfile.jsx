@@ -11,6 +11,7 @@ import { supabase } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
 import { useToast } from '../context/ToastContext'
 import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
+import * as resumeParser from '../lib/resumeParser'
 
 export default function MasterProfile() {
     const navigate = useNavigate()
@@ -34,6 +35,7 @@ export default function MasterProfile() {
     const [personal, setPersonal] = useState({
         firstName: '',
         lastName: '',
+        address: '',
         city: '',
         country: '',
         pinCode: '',
@@ -72,7 +74,31 @@ export default function MasterProfile() {
                     setProfileId(pData.id)
                     if (pData.resume_data) {
                         const parsed = typeof pData.resume_data === 'string' ? JSON.parse(pData.resume_data) : pData.resume_data
-                        populateForm(parsed)
+                        const mergedParsed = resumeParser.normalizeParsedResume(
+                            resumeParser.mergeParsedResume(parsed || {}, {
+                                personalInfo: {
+                                    firstName: pData.first_name || '',
+                                    lastName: pData.last_name || '',
+                                    email: pData.email || user?.email || '',
+                                    phone: pData.phone || '',
+                                    address: pData.address || '',
+                                    city: pData.city || '',
+                                    country: pData.country || '',
+                                    pinCode: pData.pin_code || '',
+                                    title: pData.title || '',
+                                    summary: pData.summary || '',
+                                    website: pData.website || '',
+                                    linkedin: pData.linkedin || '',
+                                    github: pData.github || ''
+                                },
+                                experience: Array.isArray(pData.experience_data) ? pData.experience_data : [],
+                                education: Array.isArray(pData.education_data) ? pData.education_data : [],
+                                skills: Array.isArray(pData.skills_data) ? pData.skills_data : [],
+                                projects: Array.isArray(pData.projects_data) ? pData.projects_data : [],
+                                certifications: Array.isArray(pData.certifications_data) ? pData.certifications_data : []
+                            })
+                        )
+                        populateForm(mergedParsed)
                         return
                     }
 
@@ -82,6 +108,7 @@ export default function MasterProfile() {
                     setPersonal({
                         firstName: pData.first_name || '',
                         lastName: pData.last_name || '',
+                        address: pData.address || '',
                         city,
                         country,
                         pinCode: pData.pin_code || '',
@@ -112,14 +139,16 @@ export default function MasterProfile() {
         if (!data) return
         
         const personalInfo = data.personalInfo || {}
+        const locationParts = resumeParser.splitLocationParts(personalInfo.location || '')
         setPersonal({
             firstName: personalInfo.firstName || '',
             lastName: personalInfo.lastName || '',
             email: personalInfo.email || user?.email || '',
             phone: personalInfo.phone || '',
-            city: personalInfo.location?.split(',')[0]?.trim() || '',
-            country: personalInfo.location?.split(',')[1]?.trim() || '',
-            pinCode: personalInfo.pinCode || '',
+            address: personalInfo.address || locationParts.address || '',
+            city: personalInfo.city || locationParts.city || personalInfo.location?.split(',')[0]?.trim() || '',
+            country: personalInfo.country || locationParts.country || personalInfo.location?.split(',')[1]?.trim() || '',
+            pinCode: personalInfo.pinCode || locationParts.pinCode || '',
             title: personalInfo.title || '',
             summary: personalInfo.summary || '',
             website: personalInfo.website || '',
@@ -138,6 +167,7 @@ export default function MasterProfile() {
         setPersonal({
             firstName: '',
             lastName: '',
+            address: '',
             city: '',
             country: '',
             pinCode: '',
@@ -161,6 +191,7 @@ export default function MasterProfile() {
         setPersonal({
             firstName: '',
             lastName: '',
+            address: '',
             city: '',
             country: '',
             pinCode: '',
@@ -253,6 +284,9 @@ export default function MasterProfile() {
                     email: user?.email || '',
                     phone: '',
                     location: '',
+                    address: '',
+                    city: '',
+                    country: '',
                     pinCode: '',
                     title: '',
                     summary: '',
@@ -292,7 +326,7 @@ export default function MasterProfile() {
         education: ['education', 'academic background', 'academics', 'qualification', 'academic profile', 'educational background', 'academic qualifications'],
         skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies', 'technologies', 'technical expertise', 'key skills'],
         projects: ['projects', 'personal projects', 'key projects', 'academic projects', 'recent projects'],
-        certifications: ['certifications', 'awards', 'honors', 'achievements', 'certifications & awards', 'licenses', 'professional certifications']
+        certifications: ['certifications', 'certification', 'certificates', 'certificate', 'awards', 'honors', 'achievements', 'achievement', 'certifications & awards', 'licenses', 'professional certifications', 'credentials']
     }
 
     const isLikelySectionHeader = (line) => {
@@ -436,6 +470,22 @@ export default function MasterProfile() {
         return text
     }
 
+    const parseResumeWithAI = async (rawText) => {
+        const response = await fetch('/api/parse-resume', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ resumeText: rawText })
+        })
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}))
+            throw new Error(err.error || 'AI parsing is unavailable right now.')
+        }
+
+        const payload = await response.json()
+        return payload?.data || {}
+    }
+
     const handleFileChange = async (e) => {
         const selectedFile = e.target.files[0]
         if (!selectedFile) return
@@ -443,36 +493,23 @@ export default function MasterProfile() {
         try {
             setParseStatus('uploading')
             setParseError('')
-            
-            // Extract text (Requires pdfjs-dist and mammoth to be installed)
-            let rawText = ''
-            const fileName = selectedFile.name.toLowerCase()
-            
-            if (fileName.endsWith('.pdf')) {
-                rawText = await extractTextFromPdf(selectedFile)
-            } else if (fileName.endsWith('.docx')) {
-                const mammoth = await import('mammoth')
-                const arrayBuffer = await selectedFile.arrayBuffer()
-                const result = await mammoth.extractRawText({ arrayBuffer })
-                rawText = result.value
-            } else {
-                rawText = await selectedFile.text()
-            }
+
+            const rawText = await resumeParser.extractResumeText(selectedFile)
 
             if (!rawText || rawText.length < 50) throw new Error("Could not read enough text from file.")
 
             setParseStatus('parsing')
-            const text = rawText.replace(/\r/g, '\n').replace(/\n{2,}/g, '\n')
-            const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
-            
-            const extracted = {
-                personalInfo: parsePersonalInfo(text, lines),
-                experience: parseExperience(lines),
-                education: parseEducation(lines),
-                skills: parseSkills(lines),
-                projects: [],
-                certifications: []
+
+            let aiParsed = null
+            try {
+                aiParsed = await parseResumeWithAI(rawText)
+            } catch (aiError) {
+                console.warn('AI parsing failed in Master Profile, using local extraction fallback:', aiError.message)
             }
+
+            const localParsed = resumeParser.parseResumeText(rawText)
+            const mergedParsed = aiParsed ? resumeParser.mergeParsedResume(localParsed, aiParsed) : localParsed
+            const extracted = resumeParser.normalizeParsedResume(mergedParsed)
 
             const hasExtractedData = Boolean(
                 extracted.personalInfo.firstName ||
@@ -482,7 +519,9 @@ export default function MasterProfile() {
                 extracted.personalInfo.summary ||
                 extracted.experience.length ||
                 extracted.education.length ||
-                extracted.skills.length
+                extracted.skills.length ||
+                extracted.projects.length ||
+                extracted.certifications.length
             )
             if (!hasExtractedData) {
                 throw new Error('Could not extract usable details from this PDF. Please try another file.')
@@ -510,10 +549,15 @@ export default function MasterProfile() {
             const dbUserId = getDbUserId(user)
             if (!dbUserId) throw new Error('Unable to identify your account')
 
+            const composedLocation = [personal.address, personal.city, personal.country]
+                .map((value) => (value || '').trim())
+                .filter(Boolean)
+                .join(', ')
+
             const normalizedData = {
                 personalInfo: {
                     ...personal,
-                    location: `${personal.city}, ${personal.country}`
+                    location: composedLocation || [personal.city, personal.country].filter(Boolean).join(', ')
                 },
                 experience,
                 education,
@@ -574,15 +618,19 @@ export default function MasterProfile() {
 
             const payload = {
                 user_id: dbUserId,
-                resume_data: normalizedData,
                 first_name: personal.firstName,
                 last_name: personal.lastName,
                 email: personal.email,
                 phone: personal.phone,
+                address: personal.address,
                 city: personal.city,
                 country: personal.country,
+                pin_code: personal.pinCode,
                 title: personal.title,
                 summary: personal.summary,
+                website: personal.website,
+                linkedin: personal.linkedin,
+                github: personal.github,
                 experience_data: experience,
                 education_data: education,
                 skills_data: skills,
@@ -617,22 +665,31 @@ export default function MasterProfile() {
 
     return (
         <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            className="min-h-screen bg-[#f8fafc] w-full"
-            style={{ padding: 'clamp(2rem, 5vw, 4rem) 2rem 5rem' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{
+                height: '100vh',
+                background: '#f8fafc',
+                width: '100%',
+                display: 'flex',
+                flexDirection: 'column',
+                overflow: 'hidden',
+                padding: '1.2rem 2rem 0'
+            }}
         >
-            <div className="max-w-[1400px] mx-auto">
-                <div className="flex items-center justify-between mb-12">
+            <div className="max-w-[1400px] mx-auto w-full flex flex-col h-full overflow-hidden">
+                <div className="flex items-center justify-between mb-4">
                     <Link to="/student/choice" className="flex items-center gap-2 text-slate-500 font-bold hover:text-indigo-600 transition-colors">
-                        <ArrowLeft size={20} /> Back
+                        <ArrowLeft size={18} /> Back
                     </Link>
-                    <div className="text-center flex-1 pr-[100px]">
-                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight">Master <span className="text-indigo-600">Profile</span></h1>
-                        <p className="text-slate-500 mt-2 font-medium">Your permanent professional identity, saved for a lifetime.</p>
+                    <div className="text-center flex-1 pr-[80px]">
+                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Master <span className="text-indigo-600">Profile</span></h1>
+                        <p className="text-slate-500 mt-0.5 font-medium text-xs">Your permanent professional identity, saved for a lifetime.</p>
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                <div className="flex-1 overflow-hidden min-h-0">
+                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start h-full">
                     {/* LEFT COLUMN: Options */}
                     <div className="lg:col-span-3 flex flex-col gap-6">
                         <div className="bg-white p-6 rounded-[32px] border-2 border-slate-100 shadow-xl shadow-slate-200/40">
@@ -677,7 +734,7 @@ export default function MasterProfile() {
                     </div>
 
                     {/* MIDDLE: Arrow */}
-                    <div className="hidden lg:flex lg:col-span-1 items-center justify-center h-[500px]">
+                    <div className="hidden lg:flex lg:col-span-1 items-center justify-center h-[300px]">
                         <motion.div
                             animate={{ x: [0, 5, 0] }}
                             transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
@@ -688,34 +745,36 @@ export default function MasterProfile() {
                     </div>
 
                     {/* RIGHT COLUMN: Form */}
-                    <div className="lg:col-span-8">
-                        <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/60 border border-slate-100 overflow-hidden">
-                            <div className="px-8 py-10 md:px-12 md:py-12">
-                                <div className="flex items-center justify-between mb-10">
+                    <div className="lg:col-span-8 h-full overflow-hidden">
+                        <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/60 border border-slate-100 h-full flex flex-col overflow-hidden">
+                            <div className="px-8 py-6 md:px-12 md:py-8 border-b border-slate-50">
+                                <div className="flex items-center justify-between">
                                     <div>
-                                        <h2 className="text-2xl font-black text-slate-900">Personal Details</h2>
-                                        <p className="text-slate-400 text-sm font-bold uppercase tracking-wider mt-1">Foundational Info</p>
+                                        <h2 className="text-xl font-black text-slate-900">Personal Details</h2>
+                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider mt-0.5">Foundational Info</p>
                                     </div>
                                     <div className="flex items-center gap-3">
                                         <button
                                             type="button"
                                             onClick={handleDeleteProfile}
                                             disabled={loading}
-                                            className="px-5 py-3 rounded-2xl font-black text-sm text-rose-600 border-2 border-rose-100 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
+                                            className="px-4 py-2.5 rounded-xl font-black text-xs text-rose-600 border-2 border-rose-100 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
                                         >
                                             Delete Profile
                                         </button>
                                         <motion.button
                                             whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                                             onClick={handleSave} disabled={loading}
-                                            className={`px-8 py-3.5 rounded-2xl font-black text-sm transition-all shadow-xl flex items-center gap-2 ${saveSuccess ? 'bg-green-600 shadow-green-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}
+                                            className={`px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-xl flex items-center gap-2 ${saveSuccess ? 'bg-green-600 shadow-green-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}
                                         >
-                                            {loading ? <Loader2 size={18} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={18} /> : <Sparkles size={18} />}
+                                            {loading ? <Loader2 size={16} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
                                             {loading ? 'Saving...' : saveSuccess ? 'Profile Saved!' : 'Save Profile'}
                                         </motion.button>
                                     </div>
                                 </div>
-
+                            </div>
+                            
+                            <div className="flex-1 overflow-y-auto px-8 md:px-12 py-8 pb-24 custom-scrollbar">
                                 <form className="space-y-12">
                                     {/* Personal Info Grid */}
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -731,6 +790,13 @@ export default function MasterProfile() {
                                             <input value={personal.lastName} onChange={e => setPersonal({...personal, lastName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                         </div>
                                         <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
+                                            <div className="relative">
+                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.email} onChange={e => setPersonal({...personal, email: e.target.value})} placeholder="you@example.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Title</label>
                                             <div className="relative">
                                                 <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
@@ -744,6 +810,10 @@ export default function MasterProfile() {
                                                 <input value={personal.phone} onChange={e => setPersonal({...personal, phone: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                             </div>
                                         </div>
+                                        <div className="md:col-span-2 space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Address</label>
+                                            <input value={personal.address} onChange={e => setPersonal({...personal, address: e.target.value})} placeholder="House no, street, area" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">City</label>
                                             <div className="relative">
@@ -754,6 +824,25 @@ export default function MasterProfile() {
                                         <div className="space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
                                             <input value={personal.country} onChange={e => setPersonal({...personal, country: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin Code</label>
+                                            <div className="relative">
+                                                <Pin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
+                                                <input value={personal.pinCode} onChange={e => setPersonal({...personal, pinCode: e.target.value})} placeholder="Postal / Zip Code" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                            </div>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Website / Portfolio</label>
+                                            <input value={personal.website} onChange={e => setPersonal({...personal, website: e.target.value})} placeholder="https://portfolio.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LinkedIn</label>
+                                            <input value={personal.linkedin} onChange={e => setPersonal({...personal, linkedin: e.target.value})} placeholder="linkedin.com/in/username" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
+                                        </div>
+                                        <div className="space-y-2">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GitHub</label>
+                                            <input value={personal.github} onChange={e => setPersonal({...personal, github: e.target.value})} placeholder="github.com/username" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
                                         </div>
                                         <div className="md:col-span-2 space-y-2">
                                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Summary</label>
@@ -768,7 +857,7 @@ export default function MasterProfile() {
                                                 <h3 className="text-xl font-black text-slate-900">Work History</h3>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Where you've been</p>
                                             </div>
-                                            <button type="button" onClick={() => setLocalExperience([...experience, { role: '', company: '', startDate: '', endDate: '', description: '' }])} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
+                                            <button type="button" onClick={() => setLocalExperience([...experience, { role: '', company: '', location: '', startDate: '', endDate: '', description: '' }])} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
                                                 <Plus size={20} />
                                             </button>
                                         </div>
@@ -783,10 +872,15 @@ export default function MasterProfile() {
                                                             <input value={exp.role} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, role: e.target.value} : it))} placeholder="Role" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                             <input value={exp.company} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, company: e.target.value} : it))} placeholder="Company" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                         </div>
-                                                        <div className="grid grid-cols-2 gap-4">
+                                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                                            <input value={exp.location || ''} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, location: e.target.value} : it))} placeholder="Location" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                             <input value={exp.startDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                            <input value={exp.endDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                         </div>
+                                                        <div className="grid grid-cols-2 gap-4 mb-4">
+                                                            <input value={exp.endDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                            <div />
+                                                        </div>
+                                                        <textarea value={exp.description || ''} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="Describe achievements, responsibilities, and impact" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
                                                     </motion.div>
                                                 ))}
                                             </AnimatePresence>
@@ -801,7 +895,7 @@ export default function MasterProfile() {
                                                 <h3 className="text-xl font-black text-slate-900">Education</h3>
                                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Your qualifications</p>
                                             </div>
-                                            <button type="button" onClick={() => setLocalEducation([...education, { school: '', degree: '', startDate: '', endDate: '' }])} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all">
+                                            <button type="button" onClick={() => setLocalEducation([...education, { school: '', degree: '', location: '', startDate: '', endDate: '', gpa: '', description: '' }])} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all">
                                                 <Plus size={20} />
                                             </button>
                                         </div>
@@ -815,6 +909,15 @@ export default function MasterProfile() {
                                                         <input value={edu.school} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, school: e.target.value} : it))} placeholder="University / School" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                         <input value={edu.degree} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, degree: e.target.value} : it))} placeholder="Degree / Major" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
                                                     </div>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={edu.location || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, location: e.target.value} : it))} placeholder="Location" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={edu.gpa || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, gpa: e.target.value} : it))} placeholder="GPA / Percentage" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={edu.startDate || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={edu.endDate || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <textarea value={edu.description || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="Honors, relevant coursework, thesis, or achievements" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
                                                 </div>
                                             ))}
                                             {education.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No education added yet.</div>}
@@ -843,6 +946,73 @@ export default function MasterProfile() {
                                         </div>
                                     </div>
 
+                                    {/* Projects Section */}
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900">Projects</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Academic + personal work</p>
+                                            </div>
+                                            <button type="button" onClick={() => setLocalProjects([...projects, { name: '', description: '', link: '', startDate: '', endDate: '' }])} className="p-2.5 bg-violet-50 text-violet-600 rounded-xl hover:bg-violet-600 hover:text-white transition-all">
+                                                <Plus size={20} />
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {projects.map((project, idx) => (
+                                                <div key={`project-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
+                                                    <button onClick={() => setLocalProjects(projects.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={project.name || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, name: e.target.value} : it))} placeholder="Project Name" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={project.link || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, link: e.target.value} : it))} placeholder="Project URL / Repo" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={project.startDate || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={project.endDate || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <textarea value={project.description || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="What problem did you solve? What technologies did you use?" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
+                                                </div>
+                                            ))}
+                                            {projects.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No projects added yet.</div>}
+                                        </div>
+                                    </div>
+
+                                    {/* Certifications Section */}
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <div className="flex items-center justify-between mb-6">
+                                            <div>
+                                                <h3 className="text-xl font-black text-slate-900">Certifications</h3>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Courses, badges, credentials</p>
+                                            </div>
+                                            <button type="button" onClick={() => setLocalCertifications([...certifications, { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all">
+                                                <Plus size={20} />
+                                            </button>
+                                        </div>
+                                        <div className="space-y-4">
+                                            {certifications.map((cert, idx) => (
+                                                <div key={`cert-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
+                                                    <button onClick={() => setLocalCertifications(certifications.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
+                                                        <Trash2 size={18} />
+                                                    </button>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={cert.name || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, name: e.target.value} : it))} placeholder="Certification Name" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={cert.issuer || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, issuer: e.target.value} : it))} placeholder="Issuing Organization" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                                        <input value={cert.issueDate || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, issueDate: e.target.value} : it))} placeholder="Issue Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={cert.expiryDate || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, expiryDate: e.target.value} : it))} placeholder="Expiry Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <input value={cert.credentialId || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, credentialId: e.target.value} : it))} placeholder="Credential ID" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                        <input value={cert.link || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, link: e.target.value} : it))} placeholder="Credential URL" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
+                                                    </div>
+                                                </div>
+                                            ))}
+                                            {certifications.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No certifications added yet.</div>}
+                                        </div>
+                                    </div>
+
                                     <div className="pt-12">
                                         <motion.button
                                             whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
@@ -859,7 +1029,8 @@ export default function MasterProfile() {
                     </div>
                 </div>
             </div>
-        </motion.div>
+        </div>
+    </motion.div>
     )
 }
 

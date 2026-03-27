@@ -4,7 +4,7 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 const initialResumeData = {
   personalInfo: {
     firstName: '', lastName: '', email: '', title: '', phone: '', summary: '',
-    location: '', github: '', linkedin: '', website: '', profilePhoto: ''
+    location: '', address: '', city: '', country: '', pinCode: '', github: '', linkedin: '', website: '', profilePhoto: ''
   },
   experience: [],
   education: [],

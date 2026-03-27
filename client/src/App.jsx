@@ -26,6 +26,7 @@ import UploadResume from './pages/UploadResume'
 import CoverLetterBuilder from './pages/CoverLetterBuilder'
 import Placeholder from './pages/Placeholder'
 import JobBoard from './pages/JobBoard'
+import ProjectUpdateReportPDF from './pages/ProjectUpdateReportPDF'
 
 const ProtectedRoute = ({ children, role }) => {
   const { user, hasHydrated } = useStore()
@@ -45,6 +46,13 @@ const ProtectedRoute = ({ children, role }) => {
   }
   
   return children
+}
+
+function AnimatedHeader() {
+  const location = useLocation()
+  const excludedPaths = ['/student/choice', '/upload-resume', '/build']
+  if (excludedPaths.includes(location.pathname)) return null
+  return <Header />
 }
 
 function AnimatedRoutes() {
@@ -140,6 +148,7 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="/project-report-pdf" element={<ProjectUpdateReportPDF />} />
       </Routes>
     </AnimatePresence>
   )
@@ -180,7 +189,7 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <Router>
-          <Header />
+          <AnimatedHeader />
           <AnimatedRoutes />
           <ToastContainer />
         </Router>
