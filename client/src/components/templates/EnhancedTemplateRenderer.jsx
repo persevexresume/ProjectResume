@@ -74,7 +74,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 1. DIAGONAL HERO (t01, t20)
   const renderDiagonalHero = () => (
-    <div style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
+    <div className="resume-container" style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, fontFamily: fonts.body, position: 'relative', overflow: 'visible' }}>
       <div style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '220px', background: finalPrimary, clipPath: 'polygon(0 0, 100% 0, 100% 100%, 0 70%)' }} />
       <div style={{ position: 'absolute', top: 0, left: 0, width: '120px', height: '220px', background: finalAccent, clipPath: 'polygon(0 0, 100% 0, 0 70%)', opacity: 0.9 }} />
       
@@ -89,9 +89,9 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
           )}
         </div>
         <div>
-          <h1 style={{ fontSize: '3.2rem', fontWeight: 950, margin: 0, letterSpacing: '-0.03em', overflowWrap: 'break-word', wordBreak: 'break-word', lineHeight: 1 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+          <h1 className="name-heading" style={{ fontSize: '3.2rem', fontWeight: 950, margin: 0, letterSpacing: '-0.03em', overflowWrap: 'break-word', wordBreak: 'break-word', lineHeight: 1 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
           <div style={{ fontSize: '1.2rem', fontWeight: 600, color: finalAccent, marginTop: '0.2rem' }}>{personalInfo.title}</div>
-          <div style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', fontSize: '0.8rem', opacity: 0.8 }}>
+          <div className="body-text" style={{ display: 'flex', gap: '1.5rem', marginTop: '1rem', fontSize: '0.8rem', opacity: 0.8 }}>
              {personalInfo.email && <span>{personalInfo.email}</span>}
              {personalInfo.phone && <span>{personalInfo.phone}</span>}
           </div>
@@ -101,10 +101,11 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
       <div style={{ padding: '3rem', marginTop: '40px', display: 'grid', gridTemplateColumns: '1fr', gap: '2.5rem' }}>
         {resolvedSummary && (
           <section>
-            <SectionLabel title="Professional Summary" />
-            <p style={{ fontSize: '0.95rem', lineHeight: 1.7, opacity: 0.85 }}>{resolvedSummary}</p>
+            <SectionLabel title="Professional Summary" className="section-heading" />
+            <p className="body-text" style={{ fontSize: '0.95rem', lineHeight: 1.7, opacity: 0.85 }}>{resolvedSummary}</p>
           </section>
         )}
+
         {experience.length > 0 && (
           <section>
             <SectionLabel title="Experience" />
@@ -155,7 +156,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 2. SIDEBAR PANEL (t02, t05, t08, t14, t25, sidebar style)
   const renderSidebarPanel = (onRight = false) => (
-    <div style={{ 
+    <div className="resume-container" style={{ 
         width: '794px', 
         minHeight: '1123px',
         display: 'flex', 
@@ -164,7 +165,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
         color: baseTextColor, 
         fontFamily: fonts.body 
     }}>
-      <div style={{ width: '30%', background: finalPrimary, color: '#fff', padding: '3rem 2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+      <div className="left-col" style={{ width: '30%', background: finalPrimary, color: '#fff', padding: '3rem 2rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
         <div style={{ width: '100px', height: '100px', borderRadius: '50%', background: `${finalAccent}33`, display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
           {personalInfo.profilePhoto ? (
             <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -175,7 +176,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
         {(personalInfo.email || personalInfo.phone || personalInfo.location) && (
           <section>
             <SectionLabel title="Contact" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', opacity: 0.9 }}>
+            <div className="body-text" style={{ display: 'flex', flexDirection: 'column', gap: '1rem', fontSize: '0.8rem', opacity: 0.9 }}>
               {personalInfo.email && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Mail size={14} /> {personalInfo.email}</div>}
               {personalInfo.phone && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><Phone size={14} /> {personalInfo.phone}</div>}
               {personalInfo.location && <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}><MapPin size={14} /> {personalInfo.location}</div>}
@@ -185,7 +186,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
         {skills.length > 0 && (
           <section>
             <SectionLabel title="Skills" style={{ color: '#fff', borderBottomColor: 'rgba(255,255,255,0.2)' }} />
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
+            <div className="body-text" style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {skills.map((s, idx) => (
                 <div key={idx}>
                   <div style={{ fontSize: '0.75rem', marginBottom: '0.3rem', fontWeight: 600 }}>{getSkillName(s)}</div>
@@ -198,57 +199,58 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
           </section>
         )}
       </div>
-      <div style={{ width: '70%', padding: '4rem 3rem' }}>
-        <h1 style={{ fontSize: '2.8rem', fontWeight: 900, color: finalPrimary, margin: 0, lineHeight: 1.12, letterSpacing: '-0.02em', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+      <div className="right-col" style={{ width: '70%', padding: '4rem 3rem' }}>
+        <h1 className="name-heading" style={{ fontSize: '2.8rem', fontWeight: 900, color: finalPrimary, margin: 0, lineHeight: 1.12, letterSpacing: '-0.02em', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
         <h2 style={{ fontSize: '1.2rem', fontWeight: 600, color: finalAccent, margin: '0.45rem 0 0 0', lineHeight: 1.3, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.title}</h2>
         
         <div style={{ marginTop: '3rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
           {resolvedSummary && (
             <section>
-              <SectionLabel title="Professional Summary" />
-              <p style={{ fontSize: '0.9rem', lineHeight: 1.6, opacity: 0.8 }}>{resolvedSummary}</p>
+              <SectionLabel title="Professional Summary" className="section-heading" />
+              <p className="body-text" style={{ fontSize: '0.9rem', lineHeight: 1.6, opacity: 0.8 }}>{resolvedSummary}</p>
             </section>
           )}
           {experience.length > 0 && (
             <section>
-              <SectionLabel title="Experience" icon={Briefcase} />
+              <SectionLabel title="Experience" icon={Briefcase} className="section-heading" />
               {experience.map((exp, idx) => (
-                <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} />
+                <Entry key={idx} title={exp.role} subtitle={getExperienceCompany(exp)} date={getExperienceDate(exp)} description={exp.description} className="body-text" />
               ))}
             </section>
           )}
           {education.length > 0 && (
             <section>
-              <SectionLabel title="Education" icon={GraduationCap} />
+              <SectionLabel title="Education" icon={GraduationCap} className="section-heading" />
               {education.map((edu, idx) => (
-                <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} />
+                <Entry key={idx} title={edu.degree} subtitle={getEducationSchool(edu)} date={getEducationYear(edu)} description={edu.description} className="body-text" />
               ))}
             </section>
           )}
           {projects && projects.length > 0 && (
             <section>
-              <SectionLabel title="Projects" icon={Code} />
+              <SectionLabel title="Projects" icon={Code} className="section-heading" />
               {projects.map((proj, idx) => (
-                <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} />
+                <Entry key={idx} title={proj.name} subtitle={proj.role} date={getExperienceDate(proj)} description={proj.description} className="body-text" />
               ))}
             </section>
           )}
           {certifications && certifications.length > 0 && (
             <section>
-              <SectionLabel title="Certifications" icon={Award} />
+              <SectionLabel title="Certifications" icon={Award} className="section-heading" />
               {certifications.map((cert, idx) => (
-                <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} />
+                <Entry key={idx} title={cert.name} subtitle={cert.issuer} date={cert.issueDate} description={cert.credentialId} className="body-text" />
               ))}
             </section>
           )}
         </div>
       </div>
     </div>
+
   );
 
   // 3. TECH / NEON MODE (t06, t22, dev style)
   const renderTechMode = () => (
-    <div style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, fontFamily: 'monospace', padding: '3rem' }}>
+    <div className="resume-container" style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, fontFamily: 'monospace', padding: '3rem' }}>
         <div style={{ borderTop: `4px solid ${finalAccent}`, paddingTop: '1.5rem', marginBottom: '3rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                 <div style={{ width: '100px', height: '100px', borderRadius: '8px', border: `2px solid ${finalAccent}`, overflow: 'hidden', background: 'rgba(0,0,0,0.3)', flexShrink: 0 }}>
@@ -263,7 +265,7 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
                       <Terminal color={finalAccent} size={28} style={{ flexShrink: 0 }} />
-                      <h1 style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName}_{personalInfo.lastName}</h1>
+                      <h1 className="name-heading" style={{ fontSize: '2.5rem', fontWeight: 900, margin: 0, textTransform: 'uppercase', overflowWrap: 'break-word', wordBreak: 'break-word' }}>{personalInfo.firstName}_{personalInfo.lastName}</h1>
                   </div>
                   <div style={{ color: finalAccent, fontSize: '1.1rem', marginTop: '0.5rem', overflowWrap: 'break-word', wordBreak: 'break-word' }}>&gt; {personalInfo.title}</div>
                 </div>
@@ -348,10 +350,10 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
     const magText = contrastText(bg);
     const magBorderColor = isDarkBg ? 'rgba(255,255,255,0.3)' : '#111';
     return (
-    <div style={{ width: '794px', minHeight: '1123px', background: bg, color: magText, fontFamily: fonts.heading, padding: '4rem' }}>
+    <div className="resume-container" style={{ width: '794px', minHeight: '1123px', background: bg, color: magText, fontFamily: fonts.heading, padding: '4rem' }}>
         <div style={{ borderLeft: `8px solid ${finalAccent}`, paddingLeft: '2rem', marginBottom: '4rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ fontSize: '4.5rem', fontWeight: 950, lineHeight: 0.85, marginBottom: '0.5rem', letterSpacing: '-0.05em' }}>{personalInfo.firstName}<br />{personalInfo.lastName}</h1>
+              <h1 className="name-heading" style={{ fontSize: '4.5rem', fontWeight: 950, lineHeight: 0.85, marginBottom: '0.5rem', letterSpacing: '-0.05em' }}>{personalInfo.firstName}<br />{personalInfo.lastName}</h1>
               <div style={{ fontSize: '1.2rem', fontWeight: 800, color: finalAccent, textTransform: 'uppercase', letterSpacing: '0.2em' }}>{personalInfo.title}</div>
             </div>
             <div style={{ width: '180px', height: '180px', borderRadius: '12px', overflow: 'hidden', boxShadow: '20px 20px 0px ' + finalAccent + '22' }}>
@@ -458,14 +460,14 @@ export default function EnhancedTemplateRenderer({ template, resumeData, themeCo
 
   // 6. EXECUTIVE / FORMAL (t11, t13, t23, corp, ib, legal, prof)
   const renderExecutiveMode = () => (
-    <div style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, padding: '96px', fontFamily: fonts.heading }}>
+    <div className="resume-container" style={{ width: '794px', minHeight: '1123px', background: bg, color: baseTextColor, padding: '96px', fontFamily: fonts.heading }}>
         <div style={{ textAlign: 'center', borderBottom: `2px solid ${finalAccent}`, paddingBottom: '3rem', marginBottom: '3rem' }}>
             <div style={{ width: '110px', height: '110px', borderRadius: '50%', margin: '0 auto 1.5rem', border: `2px solid ${finalAccent}`, padding: '4px' }}>
                <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden' }}>
                   {personalInfo.profilePhoto ? <img src={personalInfo.profilePhoto} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <div style={{ width: '100%', height: '100%', background: '#f8fafc', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={50} color={finalAccent} /></div>}
                </div>
             </div>
-            <h1 style={{ fontSize: '2.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
+            <h1 className="name-heading" style={{ fontSize: '2.5rem', fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>{personalInfo.firstName} {personalInfo.lastName}</h1>
             <div style={{ fontSize: '1.1rem', fontWeight: 600, color: finalAccent, margin: '0.5rem 0' }}>{personalInfo.title}</div>
             <div style={{ fontSize: '0.85rem', opacity: 0.7 }}>
                 {[personalInfo.email, personalInfo.phone, personalInfo.location].filter(Boolean).join('  |  ')}

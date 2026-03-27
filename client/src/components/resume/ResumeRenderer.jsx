@@ -51,7 +51,7 @@ export default function ResumeRenderer({ data, templateId, customization: custom
     };
 
     return (
-        <div id="resume-content" style={{
+        <div id="resume-container" className="resume-container" style={{
             fontFamily: finalCustomization.font || 'Inter, sans-serif',
             fontSize: finalCustomization.fontSize || '14px',
             color: '#1e293b',
@@ -67,6 +67,7 @@ export default function ResumeRenderer({ data, templateId, customization: custom
             {getTemplate()}
         </div>
     );
+
 }
 
 // -----------------------------------------------------------------------------

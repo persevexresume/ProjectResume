@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { normalizeMasterProfile, masterProfileToResumeData } from '../lib/resumeParser';
 
 const initialResumeData = {
   personalInfo: {
@@ -20,7 +21,22 @@ const useStore = create(
       hasHydrated: false,
       setHasHydrated: (value) => set({ hasHydrated: value }),
       masterProfile: null,
-      setMasterProfile: (data) => set({ masterProfile: data }),
+      setMasterProfile: (data) => set({ masterProfile: normalizeMasterProfile(data) }),
+      applyMasterProfile: (data) => {
+        const normalizedMaster = normalizeMasterProfile(data)
+        const mappedResume = masterProfileToResumeData(normalizedMaster)
+        set({
+          masterProfile: normalizedMaster,
+          resumeData: {
+            ...initialResumeData,
+            ...mappedResume,
+            personalInfo: {
+              ...initialResumeData.personalInfo,
+              ...(mappedResume.personalInfo || {})
+            }
+          }
+        })
+      },
       setUser: (user) => {
         const previousUser = get().user;
         const previousUserId = previousUser?.studentId || previousUser?.uid || previousUser?.id || '';
@@ -171,6 +187,7 @@ const useStore = create(
         user: state.user,
         templatesLocked: state.templatesLocked,
         theme: state.theme,
+        masterProfile: state.masterProfile,
         selectedTemplate: state.selectedTemplate,
         editingResumeId: state.editingResumeId,
         uploadedResumePrefill: state.uploadedResumePrefill,

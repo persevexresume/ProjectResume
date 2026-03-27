@@ -128,7 +128,7 @@ function AnimatedRoutes() {
           path="/upload-resume"
           element={
             <ProtectedRoute role="student">
-              <UploadResume />
+              <MasterProfile />
             </ProtectedRoute>
           }
         />

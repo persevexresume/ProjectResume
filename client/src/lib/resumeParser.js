@@ -421,7 +421,13 @@ const parseCertifications = (lines) => {
 }
 
 export const extractTextFromPdf = async (selectedFile) => {
-  const pdfjsModule = await import('pdfjs-dist')
+  let pdfjsModule
+  try {
+    pdfjsModule = await import('pdfjs-dist/legacy/build/pdf.mjs')
+  } catch {
+    pdfjsModule = await import('pdfjs-dist')
+  }
+
   const pdfjsLib = (pdfjsModule?.GlobalWorkerOptions && pdfjsModule?.getDocument)
     ? pdfjsModule
     : pdfjsModule.default
@@ -430,12 +436,27 @@ export const extractTextFromPdf = async (selectedFile) => {
     throw new Error('PDF parser failed to initialize.')
   }
 
-  if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
-    pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker()
+  if (!pdfjsLib.GlobalWorkerOptions.workerPort && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+    try {
+      pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker()
+    } catch {
+      // We'll retry with disableWorker if worker setup is blocked.
+    }
   }
 
   const fileBuffer = await selectedFile.arrayBuffer()
-  const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise
+  const loadPdf = async (options = {}) => {
+    const task = pdfjsLib.getDocument({ data: fileBuffer, ...options })
+    return task.promise
+  }
+
+  let pdf
+  try {
+    pdf = await loadPdf()
+  } catch {
+    pdf = await loadPdf({ disableWorker: true, useWorkerFetch: false, isEvalSupported: false })
+  }
+
   let text = ''
 
   for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
@@ -684,4 +705,378 @@ export const normalizeParsedResume = (parsed) => {
   })).filter((item) => item.name)
 
   return { personalInfo, experience, education, skills, projects, certifications }
+}
+
+const SKILL_CATEGORY_KEYWORDS = {
+  languages: ['javascript', 'typescript', 'python', 'java', 'c', 'c++', 'c#', 'php', 'go', 'rust', 'kotlin', 'swift', 'ruby'],
+  frameworks: ['react', 'next.js', 'vue', 'angular', 'node', 'express', 'nestjs', 'django', 'flask', 'spring', 'laravel', 'tailwind', 'bootstrap'],
+  tools: ['git', 'docker', 'kubernetes', 'jenkins', 'postman', 'figma', 'jira', 'webpack', 'vite', 'linux'],
+  databases: ['mysql', 'postgresql', 'mongodb', 'sqlite', 'oracle', 'firebase', 'supabase', 'redis']
+}
+
+const hasValue = (value) => {
+  if (Array.isArray(value)) return value.length > 0
+  if (typeof value === 'string') return value.trim().length > 0
+  return Boolean(value)
+}
+
+const normalizeStringArray = (value) => {
+  if (!Array.isArray(value)) return []
+  return [...new Set(value.map((item) => String(item || '').trim()).filter(Boolean))]
+}
+
+const splitDescriptionToBullets = (description = '') => {
+  const text = String(description || '').replace(/\s+/g, ' ').trim()
+  if (!text) return []
+  return text
+    .split(/(?:\s*[•|]\s*)|(?:\s*\.\s+)|(?:\s*;\s*)/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 2)
+}
+
+const categorizeSkills = (skills = []) => {
+  const categorized = {
+    languages: [],
+    frameworks: [],
+    tools: [],
+    databases: []
+  }
+
+  const values = skills
+    .map((item) => (typeof item === 'string' ? item : item?.name || item?.skill || item?.label || ''))
+    .map((item) => String(item || '').trim())
+    .filter(Boolean)
+
+  values.forEach((skill) => {
+    const token = skill.toLowerCase()
+    const matchedCategory = Object.entries(SKILL_CATEGORY_KEYWORDS).find(([, keywords]) =>
+      keywords.some((keyword) => token.includes(keyword))
+    )?.[0]
+
+    if (matchedCategory) {
+      categorized[matchedCategory].push(skill)
+    } else {
+      categorized.tools.push(skill)
+    }
+  })
+
+  return {
+    languages: normalizeStringArray(categorized.languages),
+    frameworks: normalizeStringArray(categorized.frameworks),
+    tools: normalizeStringArray(categorized.tools),
+    databases: normalizeStringArray(categorized.databases)
+  }
+}
+
+export const createEmptyMasterProfile = () => ({
+  personal: {
+    fullName: '',
+    email: '',
+    phone: '',
+    location: '',
+    linkedInUrl: '',
+    githubUrl: '',
+    portfolioUrl: ''
+  },
+  summary: '',
+  education: [],
+  workExperience: [],
+  projects: [],
+  skills: {
+    languages: [],
+    frameworks: [],
+    tools: [],
+    databases: [],
+    cloud: [],
+    other: []
+  },
+  certifications: [],
+  achievements: [],
+  needsReview: {},
+  updatedAt: null
+})
+
+export const normalizeMasterProfile = (profile) => {
+  const base = createEmptyMasterProfile()
+  const next = profile || {}
+
+  const personal = {
+    ...base.personal,
+    ...(next.personal || {})
+  }
+
+  const education = (Array.isArray(next.education) ? next.education : []).map((item) => ({
+    degree: String(item?.degree || '').trim(),
+    institution: String(item?.institution || '').trim(),
+    location: String(item?.location || '').trim(),
+    startYear: String(item?.startYear || '').trim(),
+    endYear: String(item?.endYear || '').trim(),
+    gpa: String(item?.gpa || '').trim()
+  }))
+
+  const workExperience = (Array.isArray(next.workExperience) ? next.workExperience : []).map((item) => ({
+    company: String(item?.company || '').trim(),
+    role: String(item?.role || '').trim(),
+    location: String(item?.location || '').trim(),
+    startDate: String(item?.startDate || '').trim(),
+    endDate: String(item?.endDate || '').trim(),
+    bullets: normalizeStringArray(Array.isArray(item?.bullets) ? item.bullets : splitDescriptionToBullets(item?.description || ''))
+  }))
+
+  const projects = (Array.isArray(next.projects) ? next.projects : []).map((item) => ({
+    projectName: String(item?.projectName || item?.name || '').trim(),
+    description: String(item?.description || '').trim(),
+    techStack: Array.isArray(item?.techStack)
+      ? item.techStack.map((token) => String(token || '').trim()).filter(Boolean).join(', ')
+      : String(item?.techStack || '').trim(),
+    githubLink: String(item?.githubLink || '').trim(),
+    liveLink: String(item?.liveLink || item?.link || '').trim()
+  }))
+
+  const certifications = (Array.isArray(next.certifications) ? next.certifications : []).map((item) => ({
+    name: String(item?.name || '').trim(),
+    issuer: String(item?.issuer || '').trim(),
+    date: String(item?.date || item?.issueDate || '').trim(),
+    link: String(item?.link || '').trim()
+  }))
+
+  const achievements = normalizeStringArray(Array.isArray(next.achievements) ? next.achievements : [])
+
+  return {
+    ...base,
+    personal,
+    summary: String(next.summary || '').trim(),
+    education,
+    workExperience,
+    projects,
+    skills: {
+      languages: normalizeStringArray(next?.skills?.languages || []),
+      frameworks: normalizeStringArray(next?.skills?.frameworks || []),
+      tools: normalizeStringArray(next?.skills?.tools || []),
+      databases: normalizeStringArray(next?.skills?.databases || []),
+      cloud: normalizeStringArray(next?.skills?.cloud || []),
+      other: normalizeStringArray(next?.skills?.other || [])
+    },
+    certifications,
+    achievements,
+    needsReview: { ...(next.needsReview || {}) },
+    updatedAt: next.updatedAt || null
+  }
+}
+
+const markNeedsReview = (profile) => {
+  const next = normalizeMasterProfile(profile)
+  const flags = {}
+
+  const requiredPersonal = [
+    'fullName',
+    'email',
+    'phone',
+    'location',
+    'linkedInUrl',
+    'githubUrl',
+    'portfolioUrl'
+  ]
+
+  requiredPersonal.forEach((key) => {
+    const path = `personal.${key}`
+    if (!hasValue(next.personal[key])) flags[path] = true
+  })
+
+  if (!hasValue(next.summary)) flags.summary = true
+  if (!Array.isArray(next.education) || next.education.length === 0) flags.education = true
+  if (!Array.isArray(next.workExperience) || next.workExperience.length === 0) flags.workExperience = true
+  if (!Array.isArray(next.projects) || next.projects.length === 0) flags.projects = true
+  if (!Array.isArray(next.certifications) || next.certifications.length === 0) flags.certifications = true
+
+  next.education.forEach((item, index) => {
+    ['degree', 'institution', 'startYear', 'endYear'].forEach((field) => {
+      const path = `education.${index}.${field}`
+      if (!hasValue(item[field])) flags[path] = true
+    })
+  })
+
+  next.workExperience.forEach((item, index) => {
+    ['company', 'role', 'startDate', 'endDate'].forEach((field) => {
+      const path = `workExperience.${index}.${field}`
+      if (!hasValue(item[field])) flags[path] = true
+    })
+    if (!hasValue(item.bullets)) flags[`workExperience.${index}.bullets`] = true
+  })
+
+  next.projects.forEach((item, index) => {
+    ['projectName', 'description', 'techStack'].forEach((field) => {
+      const path = `projects.${index}.${field}`
+      if (!hasValue(item[field])) flags[path] = true
+    })
+  })
+
+  next.certifications.forEach((item, index) => {
+    ['name', 'issuer', 'date'].forEach((field) => {
+      const path = `certifications.${index}.${field}`
+      if (!hasValue(item[field])) flags[path] = true
+    })
+  })
+
+  if (!hasValue(next.skills.languages) && !hasValue(next.skills.frameworks) && !hasValue(next.skills.tools) && !hasValue(next.skills.databases) && !hasValue(next.skills.cloud) && !hasValue(next.skills.other)) {
+    flags.skills = true
+  }
+
+  return {
+    ...next,
+    needsReview: flags,
+    updatedAt: new Date().toISOString()
+  }
+}
+
+export const createMasterProfileFromParsed = (parsed) => {
+  const normalized = normalizeParsedResume(parsed || {})
+  const fullName = `${normalized.personalInfo.firstName || ''} ${normalized.personalInfo.lastName || ''}`.trim()
+
+  const mapped = normalizeMasterProfile({
+    personal: {
+      fullName,
+      email: normalized.personalInfo.email || '',
+      phone: normalized.personalInfo.phone || '',
+      location: normalized.personalInfo.location || '',
+      linkedInUrl: normalized.personalInfo.linkedin || '',
+      githubUrl: normalized.personalInfo.github || '',
+      portfolioUrl: normalized.personalInfo.website || ''
+    },
+    summary: normalized.personalInfo.summary || '',
+    education: normalized.education.map((item) => ({
+      degree: item.degree || '',
+      institution: item.school || '',
+      location: item.location || '',
+      startYear: item.startDate || '',
+      endYear: item.endDate || '',
+      gpa: item.gpa || ''
+    })),
+    workExperience: normalized.experience.map((item) => ({
+      company: item.company || '',
+      role: item.role || '',
+      location: item.location || '',
+      startDate: item.startDate || '',
+      endDate: item.endDate || '',
+      bullets: splitDescriptionToBullets(item.description || '')
+    })),
+    projects: normalized.projects.map((item) => ({
+      projectName: item.name || '',
+      description: item.description || '',
+      techStack: '',
+      githubLink: /github\.com/i.test(item.link || '') ? item.link : '',
+      liveLink: /github\.com/i.test(item.link || '') ? '' : (item.link || '')
+    })),
+    skills: categorizeSkills(normalized.skills),
+    certifications: normalized.certifications.map((item) => ({
+      name: item.name || '',
+      issuer: item.issuer || '',
+      date: item.issueDate || '',
+      link: item.link || ''
+    })),
+    achievements: []
+  })
+
+  return markNeedsReview(mapped)
+}
+
+export const masterProfileToResumeData = (profile) => {
+  const normalized = normalizeMasterProfile(profile)
+  const nameParts = (normalized.personal.fullName || '').split(/\s+/).filter(Boolean)
+  const firstName = nameParts[0] || ''
+  const lastName = nameParts.slice(1).join(' ') || ''
+
+  const flattenedSkills = [
+    ...normalized.skills.languages,
+    ...normalized.skills.frameworks,
+    ...normalized.skills.tools,
+    ...normalized.skills.databases,
+    ...normalized.skills.cloud,
+    ...normalized.skills.other
+  ]
+
+  return {
+    personalInfo: {
+      firstName,
+      lastName,
+      email: normalized.personal.email,
+      title: '',
+      phone: normalized.personal.phone,
+      summary: normalized.summary,
+      location: normalized.personal.location,
+      address: '',
+      city: '',
+      country: '',
+      pinCode: '',
+      github: normalized.personal.githubUrl,
+      linkedin: normalized.personal.linkedInUrl,
+      website: normalized.personal.portfolioUrl,
+      profilePhoto: ''
+    },
+    summary: normalized.summary,
+    experience: normalized.workExperience.map((item, index) => ({
+      id: Date.now() + index,
+      role: item.role,
+      company: item.company,
+      location: item.location,
+      startDate: item.startDate,
+      endDate: item.endDate,
+      description: normalizeStringArray(item.bullets).join(' ')
+    })),
+    education: normalized.education.map((item, index) => ({
+      id: Date.now() + 1000 + index,
+      school: item.institution,
+      degree: item.degree,
+      location: item.location,
+      startDate: item.startYear,
+      endDate: item.endYear,
+      gpa: item.gpa,
+      description: ''
+    })),
+    skills: flattenedSkills.map((name, index) => ({
+      id: Date.now() + 2000 + index,
+      name,
+      level: 'Advanced'
+    })),
+    projects: normalized.projects.map((item, index) => ({
+      id: Date.now() + 3000 + index,
+      name: item.projectName,
+      description: item.description,
+      link: item.liveLink || item.githubLink,
+      startDate: '',
+      endDate: ''
+    })),
+    certifications: normalized.certifications.map((item, index) => ({
+      id: Date.now() + 4000 + index,
+      name: item.name,
+      issuer: item.issuer,
+      issueDate: item.date,
+      expiryDate: '',
+      credentialId: '',
+      link: item.link
+    })),
+    achievements: [...normalized.achievements]
+  }
+}
+
+export const calculateMasterProfileCompleteness = (profile) => {
+  const normalized = normalizeMasterProfile(profile)
+  const requiredChecks = [
+    normalized.personal.fullName,
+    normalized.personal.email,
+    normalized.personal.phone,
+    normalized.personal.location,
+    normalized.personal.linkedInUrl,
+    normalized.personal.githubUrl,
+    normalized.personal.portfolioUrl,
+    normalized.summary,
+    normalized.education.length > 0,
+    normalized.workExperience.length > 0,
+    normalized.projects.length > 0,
+    normalized.certifications.length > 0,
+    normalized.skills.languages.length > 0 || normalized.skills.frameworks.length > 0 || normalized.skills.tools.length > 0 || normalized.skills.databases.length > 0 || normalized.skills.cloud.length > 0 || normalized.skills.other.length > 0
+  ]
+
+  const filled = requiredChecks.filter((value) => hasValue(value)).length
+  return Math.round((filled / requiredChecks.length) * 100)
 }

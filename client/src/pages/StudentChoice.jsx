@@ -190,7 +190,7 @@ export default function StudentChoice() {
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: 0.3 }}
-                                    onClick={() => navigate('/upload-resume')}
+                                    onClick={() => navigate('/master-profile?autoUpload=1')}
                                     style={{
                                         background: 'rgba(255, 255, 255, 0.8)', padding: '3rem 2rem', borderRadius: '32px',
                                         cursor: 'pointer', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.08)',

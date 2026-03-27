@@ -11,7 +11,7 @@ import {
 import { supabase } from '../supabase'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer';
 import { cn } from '../lib/utils'
-import { getDbUserId } from '../lib/userIdentity'
+import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
 import { downloadDocxResume } from '../lib/docxExport'
 import { exportElementToPaginatedPdf } from '../lib/pdfExport'
 import { useToast } from '../context/ToastContext'
@@ -221,10 +221,34 @@ export default function StudentDashboard() {
         }
     }, [user, navigate, setTemplatesLocked])
 
+    const resolveUserIdCandidates = async () => {
+        const baseCandidates = getDbUserIdCandidates(user)
+        const unique = new Set(baseCandidates)
+
+        const email = String(user?.email || '').trim()
+        if (email) {
+            try {
+                const { data } = await supabase
+                    .from('students')
+                    .select('id')
+                    .eq('email', email)
+                    .maybeSingle()
+
+                if (data?.id) {
+                    unique.add(String(data.id))
+                }
+            } catch {
+                // Ignore lookup issues and continue with local candidates.
+            }
+        }
+
+        return [...unique]
+    }
+
     const fetchResumes = async () => {
         try {
-            const dbUserId = getDbUserId(user)
-            if (!dbUserId) {
+            const candidates = await resolveUserIdCandidates()
+            if (!candidates.length) {
                 setResumes([])
                 return
             }
@@ -232,7 +256,7 @@ export default function StudentDashboard() {
             const { data, error } = await supabase
                 .from('resumes')
                 .select('*')
-                .eq('user_id', dbUserId)
+                .in('user_id', candidates)
                 .order('created_at', { ascending: false })
 
             if (!error && data) {
@@ -247,8 +271,8 @@ export default function StudentDashboard() {
 
     const fetchCoverLetters = async () => {
         try {
-            const dbUserId = getDbUserId(user)
-            if (!dbUserId) {
+            const candidates = await resolveUserIdCandidates()
+            if (!candidates.length) {
                 setCoverLetters([])
                 return
             }
@@ -256,7 +280,7 @@ export default function StudentDashboard() {
             const { data, error } = await supabase
                 .from('cover_letters')
                 .select('*')
-                .eq('user_id', dbUserId)
+                .in('user_id', candidates)
                 .order('created_at', { ascending: false })
 
             if (!error && data) {
@@ -281,7 +305,7 @@ export default function StudentDashboard() {
         setDownloadTarget(resume)
         setIsGenerating(true)
         
-        const elementId = `resume-preview-download`
+        const elementId = `resume-container`
         
         try {
             // Short delay to ensure React has rendered the printable version
@@ -915,7 +939,7 @@ export default function StudentDashboard() {
             {isGenerating && (downloadTarget || previewResume) && (
                 <div style={{ position: 'fixed', top: '-10000px', left: '-10000px', opacity: 1, pointerEvents: 'none', zIndex: -1 }}>
                     <div
-                        id="resume-preview-download"
+                        id="resume-container"
                         style={{
                             background: '#fff',
                             width: '794px',

@@ -6,13 +6,13 @@ import useStore from '../store/useStore'
 import { useToast } from '../context/ToastContext'
 import { supabase, isMock } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
-import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 import * as resumeParser from '../lib/resumeParser'
+import { withApiBase } from '../lib/apiBase'
 
 export default function UploadResume() {
     const navigate = useNavigate()
     const { success: toastSuccess, error: toastError } = useToast()
-    const { user, selectedTemplate, customization, setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, setMasterProfile } = useStore()
+    const { user, selectedTemplate, customization, setEditingResumeId, setUploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, setMasterProfile, applyMasterProfile } = useStore()
     const [file, setFile] = useState(null)
     const [status, setStatus] = useState('idle') // idle, uploading, parsing, success, error
     const [errorMessage, setErrorMessage] = useState('')
@@ -364,11 +364,18 @@ export default function UploadResume() {
         }
     }
 
-    const parseResumeWithAI = async (rawText) => {
-        const response = await fetch('/api/parse-resume', {
+    const parseResumeWithAI = async (selectedFile) => {
+        const formData = new FormData()
+        formData.append('resume', selectedFile)
+
+        const dbUserId = getDbUserId(user)
+        if (dbUserId) {
+            formData.append('userId', dbUserId)
+        }
+
+        const response = await fetch(withApiBase('/api/parse-resume'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resumeText: rawText })
+            body: formData
         })
 
         if (!response.ok) {
@@ -377,6 +384,9 @@ export default function UploadResume() {
         }
 
         const payload = await response.json()
+        if (payload?.profile) {
+            return resumeParser.masterProfileToResumeData(payload.profile)
+        }
         return payload?.data || {}
     }
 
@@ -549,10 +559,17 @@ export default function UploadResume() {
         try {
             setErrorMessage('')
             setStatus('uploading')
-            const extractedText = await resumeParser.extractResumeText(selectedFile)
 
-            if (!extractedText || extractedText.trim().length < 50) {
-                throw new Error('The file appears to be empty or could not be read. Please try a different file.')
+            let extractedText = ''
+            let localExtractError = ''
+            try {
+                extractedText = await resumeParser.extractResumeText(selectedFile)
+                if (!extractedText || extractedText.trim().length < 50) {
+                    localExtractError = 'The file appears to be empty or could not be read locally.'
+                    extractedText = ''
+                }
+            } catch (extractErr) {
+                localExtractError = extractErr?.message || 'Local PDF parsing failed.'
             }
 
             setStatus('parsing')
@@ -562,18 +579,33 @@ export default function UploadResume() {
             let parseError = null
             
             try {
-                aiParsed = await parseResumeWithAI(extractedText)
+                aiParsed = await parseResumeWithAI(selectedFile)
             } catch (err) {
                 console.warn('AI parsing failed, falling back to local extraction:', err.message)
                 parseError = err.message
             }
 
+            if (!extractedText && !aiParsed) {
+                throw new Error(localExtractError || parseError || 'Could not read this PDF. Please try another file or start the backend server.')
+            }
+
             // Always run local extraction as baseline/fallback
-            const localParsed = resumeParser.parseResumeText(extractedText)
+            const localParsed = extractedText
+                ? resumeParser.parseResumeText(extractedText)
+                : {
+                    personalInfo: {},
+                    experience: [],
+                    education: [],
+                    skills: [],
+                    projects: [],
+                    certifications: []
+                }
             
             // Merge AI results into local results if available, else use local only
             const finalParsed = aiParsed ? resumeParser.mergeParsedResume(localParsed, aiParsed) : localParsed
             const normalized = resumeParser.normalizeParsedResume(finalParsed)
+            const masterProfileData = resumeParser.createMasterProfileFromParsed(normalized)
+            const resumeFromMaster = resumeParser.masterProfileToResumeData(masterProfileData)
 
             const hasExtractedData = Boolean(
                 normalized.personalInfo.firstName ||
@@ -598,82 +630,126 @@ export default function UploadResume() {
             setEditingResumeId(null)
             setUploadedResumePrefill(true)
 
-            // Update Master Profile
+            // Update Master Profile through backend API.
             const dbUserId = getDbUserId(user)
             if (dbUserId) {
                 try {
-                    const profilePayload = {
-                        user_id: dbUserId,
-                        resume_data: normalized,
-                        first_name: normalized.personalInfo.firstName || '',
-                        last_name: normalized.personalInfo.lastName || '',
-                        email: normalized.personalInfo.email || '',
-                        phone: normalized.personalInfo.phone || '',
-                        address: normalized.personalInfo.address || '',
-                        city: normalized.personalInfo.city || '',
-                        country: normalized.personalInfo.country || '',
-                        pin_code: normalized.personalInfo.pinCode || '',
-                        title: normalized.personalInfo.title || '',
-                        summary: normalized.personalInfo.summary || '',
-                        website: normalized.personalInfo.website || '',
-                        linkedin: normalized.personalInfo.linkedin || '',
-                        github: normalized.personalInfo.github || '',
-                        experience_data: normalized.experience,
-                        education_data: normalized.education,
-                        skills_data: normalized.skills,
-                        projects_data: normalized.projects,
-                        certifications_data: normalized.certifications,
-                        updated_at: new Date().toISOString()
-                    }
+                    let saved = false
+                    let apiErrorMessage = ''
 
-                    const adaptiveUpsertProfile = async (initialPayload) => {
-                        const payload = { ...initialPayload }
-                        for (let attempt = 0; attempt < 8; attempt += 1) {
-                            const result = await supabase
-                                .from('profiles')
-                                .upsert(payload, { onConflict: 'user_id' })
+                    try {
+                        const saveResponse = await fetch(withApiBase('/api/master-profile'), {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                userId: dbUserId,
+                                profile: masterProfileData
+                            })
+                        })
 
-                            if (!result.error) return
-
-                            const fullMessage = [result.error.message, result.error.details, result.error.hint]
-                                .filter(Boolean)
-                                .join(' | ')
-
-                            const missingColumnMatch =
-                                fullMessage.match(/Could not find the '([^']+)' column/i) ||
-                                fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-                            if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
-                                delete payload[missingColumnMatch[1]]
-                                continue
-                            }
-
-                            throw new Error(fullMessage || 'Error updating profile from uploaded resume')
+                        if (!saveResponse.ok) {
+                            const err = await saveResponse.json().catch(() => ({}))
+                            apiErrorMessage = err?.error || `API save failed with status ${saveResponse.status}`
+                            throw new Error(apiErrorMessage)
                         }
 
-                        throw new Error('Profile upsert failed after schema adaptation attempts')
+                        saved = true
+                    } catch (apiErr) {
+                        apiErrorMessage = apiErr?.message || apiErrorMessage || 'API save failed'
                     }
 
-                    await adaptiveUpsertProfile(profilePayload)
-                    setMasterProfile(normalized)
+                    if (!saved) {
+                        const { error: fallbackError } = await supabase
+                            .from('master_profiles')
+                            .upsert({
+                                user_id: dbUserId,
+                                profile_data: masterProfileData,
+                                updated_at: new Date().toISOString()
+                            }, { onConflict: 'user_id' })
+
+                        if (!fallbackError) {
+                            saved = true
+                        } else {
+                            const resumeDataForProfile = resumeParser.masterProfileToResumeData(masterProfileData)
+                            const profilePersonal = masterProfileData?.personal || {}
+                            const [firstName = '', ...restName] = String(profilePersonal.fullName || '').split(/\s+/).filter(Boolean)
+                            const lastName = restName.join(' ')
+
+                            const adaptivePayload = {
+                                user_id: dbUserId,
+                                first_name: firstName,
+                                last_name: lastName,
+                                email: profilePersonal.email || '',
+                                phone: profilePersonal.phone || '',
+                                summary: masterProfileData?.summary || '',
+                                website: profilePersonal.portfolioUrl || '',
+                                linkedin: profilePersonal.linkedInUrl || '',
+                                github: profilePersonal.githubUrl || '',
+                                experience_data: resumeDataForProfile.experience || [],
+                                education_data: resumeDataForProfile.education || [],
+                                skills_data: resumeDataForProfile.skills || [],
+                                projects_data: resumeDataForProfile.projects || [],
+                                certifications_data: resumeDataForProfile.certifications || [],
+                                resume_data: resumeDataForProfile,
+                                master_profile: masterProfileData,
+                                updated_at: new Date().toISOString()
+                            }
+
+                            let profileSaveError = fallbackError
+
+                            for (let attempt = 0; attempt < 10; attempt += 1) {
+                                const result = await supabase
+                                    .from('profiles')
+                                    .upsert(adaptivePayload, { onConflict: 'user_id' })
+
+                                if (!result.error) {
+                                    profileSaveError = null
+                                    saved = true
+                                    break
+                                }
+
+                                profileSaveError = result.error
+                                const fullMessage = [result.error.message, result.error.details, result.error.hint]
+                                    .filter(Boolean)
+                                    .join(' | ')
+
+                                const missingColumnMatch =
+                                    fullMessage.match(/Could not find the '([^']+)' column/i) ||
+                                    fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
+
+                                if (missingColumnMatch && adaptivePayload[missingColumnMatch[1]] !== undefined) {
+                                    delete adaptivePayload[missingColumnMatch[1]]
+                                    continue
+                                }
+
+                                break
+                            }
+
+                            if (profileSaveError) {
+                                throw new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackError.message || 'Fallback save failed'} | ${profileSaveError.message || 'profiles save failed'}`)
+                            }
+                        }
+                    }
+
+                    setMasterProfile(masterProfileData)
                 } catch (err) {
                     console.error("Error updating master profile:", err)
                 }
             }
 
             // Update local store with AI-parsed data
-            updatePersonalInfo(normalized.personalInfo)
-            setExperience(normalized.experience)
-            setEducation(normalized.education)
-            setSkills(normalized.skills)
-            setProjects(normalized.projects)
-            setCertifications(normalized.certifications)
+            applyMasterProfile(masterProfileData)
+            updatePersonalInfo(resumeFromMaster.personalInfo)
+            setExperience(resumeFromMaster.experience)
+            setEducation(resumeFromMaster.education)
+            setSkills(resumeFromMaster.skills)
+            setProjects(resumeFromMaster.projects)
+            setCertifications(resumeFromMaster.certifications)
 
             setStatus('success')
-            toastSuccess('Resume parsed successfully! Choose how to continue.')
+            toastSuccess('Resume parsed successfully! Review and save your Master Profile.')
             setTimeout(() => {
-                // Go back to choice page — user selects template or edits from there
-                navigate('/student/choice')
+                navigate('/master-profile?fromUpload=1')
             }, 1400)
         } catch (error) {
             console.error('Resume parsing failed:', error)

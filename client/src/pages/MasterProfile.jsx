@@ -1,1045 +1,713 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { 
-    ArrowLeft, User, MapPin, Phone, Mail, Pin, ArrowRight, Plus, Trash2, 
-    Upload, UserPlus, FileText, CheckCircle2, Loader2, X, Briefcase, 
-    GraduationCap, Wrench, Award, PenTool, Sparkles, AlertCircle
-} from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, AlertTriangle, Loader2, Plus, Trash2, Upload, Save } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
-import { getDbUserId } from '../lib/userIdentity'
+import { getDbUserId, isDbUuid } from '../lib/userIdentity'
 import { useToast } from '../context/ToastContext'
-import PdfJsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?worker'
 import * as resumeParser from '../lib/resumeParser'
+import { withApiBase } from '../lib/apiBase'
+
+const emptyEducation = () => ({ degree: '', institution: '', location: '', startYear: '', endYear: '', gpa: '' })
+const emptyWork = () => ({ company: '', role: '', location: '', startDate: '', endDate: '', bullets: [] })
+const emptyProject = () => ({ projectName: '', description: '', techStack: '', githubLink: '', liveLink: '' })
+const emptyCertification = () => ({ name: '', issuer: '', date: '', link: '' })
+
+const parseSkillInput = (value) => value
+  .split(/[\n,]/)
+  .map((item) => item.trim())
+  .filter(Boolean)
+
+const parseBullets = (value) => value
+  .split('\n')
+  .map((item) => item.trim())
+  .filter(Boolean)
 
 export default function MasterProfile() {
-    const navigate = useNavigate()
-    const { success: toastSuccess, error: toastError, info: toastInfo } = useToast()
-    const { 
-        user, updatePersonalInfo, setExperience, setEducation, 
-        setSkills, setProjects, setCertifications, setMasterProfile 
-    } = useStore()
+  const navigate = useNavigate()
+  const { success: toastSuccess, error: toastError } = useToast()
+  const {
+    user,
+    masterProfile,
+    setMasterProfile,
+    applyMasterProfile
+  } = useStore()
 
-    const [loading, setLoading] = useState(false)
-    const [saveSuccess, setSaveSuccess] = useState(false)
-    const [statusMessage, setStatusMessage] = useState('')
-    const [statusType, setStatusType] = useState('info')
-    const [profileId, setProfileId] = useState(null)
-    
-    // Parsing states
-    const [parseStatus, setParseStatus] = useState('idle') // idle, uploading, parsing, success, error
-    const [parseError, setParseError] = useState('')
-    const fileInputRef = useRef(null)
+  const [profileId, setProfileId] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [parseStatus, setParseStatus] = useState('idle')
+  const [profile, setProfile] = useState(() => resumeParser.createEmptyMasterProfile())
+  const [skillDraft, setSkillDraft] = useState({ languages: '', frameworks: '', tools: '', databases: '', cloud: '', other: '' })
+  const [achievementDraft, setAchievementDraft] = useState('')
+  const fileInputRef = useRef(null)
 
-    const [personal, setPersonal] = useState({
-        firstName: '',
-        lastName: '',
-        address: '',
-        city: '',
-        country: '',
-        pinCode: '',
-        phone: '',
-        email: user?.email || '',
-        title: '',
-        summary: '',
-        website: '',
-        linkedin: '',
-        github: ''
+  const completeness = useMemo(() => resumeParser.calculateMasterProfileCompleteness(profile), [profile])
+  const reviewCount = useMemo(() => Object.keys(profile?.needsReview || {}).length, [profile])
+
+  useEffect(() => {
+    const initial = masterProfile
+      ? resumeParser.normalizeMasterProfile(masterProfile)
+      : resumeParser.createEmptyMasterProfile()
+    setProfile(initial)
+  }, [masterProfile])
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      if (!user) return
+      const dbUserId = getDbUserId(user)
+      if (!dbUserId) return
+
+      setLoading(true)
+      try {
+        try {
+          const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(dbUserId)}`))
+          if (apiResponse.ok) {
+            const payload = await apiResponse.json()
+            if (payload?.profile) {
+              const normalizedProfile = resumeParser.normalizeMasterProfile(payload.profile)
+              setProfile(normalizedProfile)
+              setMasterProfile(normalizedProfile)
+              applyMasterProfile(normalizedProfile)
+              setProfileId(payload?.data?.id || null)
+              return
+            }
+          }
+        } catch (apiError) {
+          console.warn('Master profile API fetch failed, trying table fallback:', apiError)
+        }
+
+        if (!isDbUuid(dbUserId)) {
+          return
+        }
+
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('user_id', dbUserId)
+          .maybeSingle()
+
+        if (!data) return
+        setProfileId(data.id || null)
+
+        const profileFromDb = (() => {
+          if (data.master_profile) {
+            return typeof data.master_profile === 'string'
+              ? JSON.parse(data.master_profile)
+              : data.master_profile
+          }
+
+          if (data.resume_data) {
+            const parsed = typeof data.resume_data === 'string'
+              ? JSON.parse(data.resume_data)
+              : data.resume_data
+            return resumeParser.createMasterProfileFromParsed(parsed)
+          }
+
+          return resumeParser.createMasterProfileFromParsed({
+            personalInfo: {
+              firstName: data.first_name || '',
+              lastName: data.last_name || '',
+              email: data.email || user?.email || '',
+              phone: data.phone || '',
+              location: [data.city, data.country].filter(Boolean).join(', '),
+              linkedin: data.linkedin || '',
+              github: data.github || '',
+              website: data.website || '',
+              summary: data.summary || ''
+            },
+            experience: Array.isArray(data.experience_data) ? data.experience_data : [],
+            education: Array.isArray(data.education_data) ? data.education_data : [],
+            skills: Array.isArray(data.skills_data) ? data.skills_data : [],
+            projects: Array.isArray(data.projects_data) ? data.projects_data : [],
+            certifications: Array.isArray(data.certifications_data) ? data.certifications_data : []
+          })
+        })()
+
+        const normalizedProfile = resumeParser.normalizeMasterProfile(profileFromDb)
+        setProfile(normalizedProfile)
+        setMasterProfile(normalizedProfile)
+        applyMasterProfile(normalizedProfile)
+      } catch (error) {
+        console.error('Failed to load master profile', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('autoUpload') === '1' || params.get('fromUpload') === '1') {
+      setTimeout(() => {
+        if (fileInputRef.current) fileInputRef.current.click()
+      }, 500)
+    }
+  }, [])
+
+  loadProfile()
+}, [user, setMasterProfile, applyMasterProfile])
+
+  const hasValue = (value) => {
+    if (Array.isArray(value)) return value.length > 0
+    return String(value || '').trim().length > 0
+  }
+
+  const setProfileAndReview = (nextProfile, path, value) => {
+    const normalized = resumeParser.normalizeMasterProfile(nextProfile)
+    const nextNeedsReview = { ...(normalized.needsReview || {}) }
+
+    if (path) {
+      if (hasValue(value)) {
+        delete nextNeedsReview[path]
+      } else {
+        nextNeedsReview[path] = true
+      }
+    }
+
+    setProfile({ ...normalized, needsReview: nextNeedsReview })
+  }
+
+  const isReview = (path) => Boolean(profile?.needsReview?.[path])
+  const isRowReview = (prefix) => Object.keys(profile?.needsReview || {}).some((key) => key.startsWith(prefix))
+
+  const inputClass = (path) => [
+    'w-full rounded-lg border px-3 py-2 text-sm outline-none transition',
+    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-300 bg-white focus:border-indigo-500'
+  ].join(' ')
+
+  const textareaClass = (path) => [
+    'w-full rounded-lg border px-3 py-2 text-sm outline-none transition resize-y',
+    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-300 bg-white focus:border-indigo-500'
+  ].join(' ')
+
+  const updatePersonal = (field, value) => {
+    const next = {
+      ...profile,
+      personal: {
+        ...profile.personal,
+        [field]: value
+      }
+    }
+    setProfileAndReview(next, `personal.${field}`, value)
+  }
+
+  const updateSummary = (value) => {
+    setProfileAndReview({ ...profile, summary: value }, 'summary', value)
+  }
+
+  const updateEducation = (index, field, value) => {
+    const nextEducation = [...profile.education]
+    nextEducation[index] = { ...nextEducation[index], [field]: value }
+    setProfileAndReview({ ...profile, education: nextEducation }, `education.${index}.${field}`, value)
+  }
+
+  const updateWork = (index, field, value) => {
+    const nextWork = [...profile.workExperience]
+    nextWork[index] = { ...nextWork[index], [field]: value }
+    setProfileAndReview({ ...profile, workExperience: nextWork }, `workExperience.${index}.${field}`, value)
+  }
+
+  const updateWorkBullets = (index, rawText) => {
+    const nextWork = [...profile.workExperience]
+    const bullets = parseBullets(rawText)
+    nextWork[index] = { ...nextWork[index], bullets }
+    setProfileAndReview({ ...profile, workExperience: nextWork }, `workExperience.${index}.bullets`, bullets)
+  }
+
+  const updateProject = (index, field, value) => {
+    const nextProjects = [...profile.projects]
+    nextProjects[index] = { ...nextProjects[index], [field]: value }
+    setProfileAndReview({ ...profile, projects: nextProjects }, `projects.${index}.${field}`, value)
+  }
+
+  const updateCertification = (index, field, value) => {
+    const nextCerts = [...profile.certifications]
+    nextCerts[index] = { ...nextCerts[index], [field]: value }
+    setProfileAndReview({ ...profile, certifications: nextCerts }, `certifications.${index}.${field}`, value)
+  }
+
+  const addSkillCategory = (category) => {
+    const entries = parseSkillInput(skillDraft[category])
+    if (!entries.length) return
+
+    const merged = [...new Set([...(profile.skills[category] || []), ...entries])]
+    const next = {
+      ...profile,
+      skills: {
+        ...profile.skills,
+        [category]: merged
+      }
+    }
+
+    setSkillDraft((prev) => ({ ...prev, [category]: '' }))
+    setProfileAndReview(next, 'skills', merged)
+  }
+
+  const removeSkillCategoryItem = (category, index) => {
+    const nextItems = (profile.skills[category] || []).filter((_, i) => i !== index)
+    const next = {
+      ...profile,
+      skills: {
+        ...profile.skills,
+        [category]: nextItems
+      }
+    }
+    setProfileAndReview(next, 'skills', nextItems)
+  }
+
+  const addAchievement = () => {
+    const value = achievementDraft.trim()
+    if (!value) return
+    const next = { ...profile, achievements: [...profile.achievements, value] }
+    setAchievementDraft('')
+    setProfileAndReview(next, null, value)
+  }
+
+  const removeAchievement = (index) => {
+    const next = { ...profile, achievements: profile.achievements.filter((_, i) => i !== index) }
+    setProfileAndReview(next, null, '')
+  }
+
+  const parseResumeWithAI = async (file) => {
+    const formData = new FormData()
+    formData.append('resume', file)
+
+    const dbUserId = getDbUserId(user)
+    if (dbUserId) {
+      formData.append('userId', dbUserId)
+    }
+
+    const response = await fetch(withApiBase('/api/parse-resume'), {
+      method: 'POST',
+      body: formData
     })
 
-    const [experience, setLocalExperience] = useState([])
-    const [education, setLocalEducation] = useState([])
-    const [skills, setLocalSkills] = useState([])
-    const [projects, setLocalProjects] = useState([])
-    const [certifications, setLocalCertifications] = useState([])
-    const [skillInput, setSkillInput] = useState('')
-
-    useEffect(() => {
-        const loadProfile = async () => {
-            if (!user) return
-
-            const dbUserId = getDbUserId(user)
-            if (!dbUserId) return
-
-            try {
-                // Use profiles table as the canonical source to avoid 404s when master_profiles is absent.
-                const { data: pData } = await supabase
-                    .from('profiles')
-                    .select('*')
-                    .eq('user_id', dbUserId)
-                    .maybeSingle()
-                
-                if (pData) {
-                    setProfileId(pData.id)
-                    if (pData.resume_data) {
-                        const parsed = typeof pData.resume_data === 'string' ? JSON.parse(pData.resume_data) : pData.resume_data
-                        const mergedParsed = resumeParser.normalizeParsedResume(
-                            resumeParser.mergeParsedResume(parsed || {}, {
-                                personalInfo: {
-                                    firstName: pData.first_name || '',
-                                    lastName: pData.last_name || '',
-                                    email: pData.email || user?.email || '',
-                                    phone: pData.phone || '',
-                                    address: pData.address || '',
-                                    city: pData.city || '',
-                                    country: pData.country || '',
-                                    pinCode: pData.pin_code || '',
-                                    title: pData.title || '',
-                                    summary: pData.summary || '',
-                                    website: pData.website || '',
-                                    linkedin: pData.linkedin || '',
-                                    github: pData.github || ''
-                                },
-                                experience: Array.isArray(pData.experience_data) ? pData.experience_data : [],
-                                education: Array.isArray(pData.education_data) ? pData.education_data : [],
-                                skills: Array.isArray(pData.skills_data) ? pData.skills_data : [],
-                                projects: Array.isArray(pData.projects_data) ? pData.projects_data : [],
-                                certifications: Array.isArray(pData.certifications_data) ? pData.certifications_data : []
-                            })
-                        )
-                        populateForm(mergedParsed)
-                        return
-                    }
-
-                    const city = pData.city || pData.location?.split(',')[0]?.trim() || ''
-                    const country = pData.country || pData.location?.split(',')[1]?.trim() || ''
-                    
-                    setPersonal({
-                        firstName: pData.first_name || '',
-                        lastName: pData.last_name || '',
-                        address: pData.address || '',
-                        city,
-                        country,
-                        pinCode: pData.pin_code || '',
-                        phone: pData.phone || '',
-                        email: pData.email || user?.email || '',
-                        title: pData.title || '',
-                        summary: pData.summary || '',
-                        website: pData.website || '',
-                        linkedin: pData.linkedin || '',
-                        github: pData.github || ''
-                    })
-
-                    setLocalExperience(Array.isArray(pData.experience_data) ? pData.experience_data : [])
-                    setLocalEducation(Array.isArray(pData.education_data) ? pData.education_data : [])
-                    setLocalSkills(Array.isArray(pData.skills_data) ? pData.skills_data : [])
-                    setLocalProjects(Array.isArray(pData.projects_data) ? pData.projects_data : [])
-                    setLocalCertifications(Array.isArray(pData.certifications_data) ? pData.certifications_data : [])
-                }
-            } catch (err) {
-                console.error("Error loading profile:", err)
-            }
-        }
-
-        loadProfile()
-    }, [user])
-
-    const populateForm = (data) => {
-        if (!data) return
-        
-        const personalInfo = data.personalInfo || {}
-        const locationParts = resumeParser.splitLocationParts(personalInfo.location || '')
-        setPersonal({
-            firstName: personalInfo.firstName || '',
-            lastName: personalInfo.lastName || '',
-            email: personalInfo.email || user?.email || '',
-            phone: personalInfo.phone || '',
-            address: personalInfo.address || locationParts.address || '',
-            city: personalInfo.city || locationParts.city || personalInfo.location?.split(',')[0]?.trim() || '',
-            country: personalInfo.country || locationParts.country || personalInfo.location?.split(',')[1]?.trim() || '',
-            pinCode: personalInfo.pinCode || locationParts.pinCode || '',
-            title: personalInfo.title || '',
-            summary: personalInfo.summary || '',
-            website: personalInfo.website || '',
-            linkedin: personalInfo.linkedin || '',
-            github: personalInfo.github || ''
-        })
-
-        setLocalExperience(Array.isArray(data.experience) ? data.experience : [])
-        setLocalEducation(Array.isArray(data.education) ? data.education : [])
-        setLocalSkills(Array.isArray(data.skills) ? data.skills : [])
-        setLocalProjects(Array.isArray(data.projects) ? data.projects : [])
-        setLocalCertifications(Array.isArray(data.certifications) ? data.certifications : [])
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}))
+      throw new Error(err.error || 'AI parsing is unavailable right now.')
     }
 
-    const handleCreateFresh = () => {
-        setPersonal({
-            firstName: '',
-            lastName: '',
-            address: '',
-            city: '',
-            country: '',
-            pinCode: '',
-            phone: '',
-            email: user?.email || '',
-            title: '',
-            summary: '',
-            website: '',
-            linkedin: '',
-            github: ''
-        })
-        setLocalExperience([])
-        setLocalEducation([])
-        setLocalSkills([])
-        setLocalProjects([])
-        setLocalCertifications([])
-        toastInfo("Started fresh. Fill in your details.")
+    const payload = await response.json()
+    return payload?.profile || payload?.data || {}
+  }
+
+  const handleReupload = async (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    try {
+      setParseStatus('parsing')
+      const rawText = await resumeParser.extractResumeText(file)
+      if (!rawText || rawText.length < 50) throw new Error('Could not read enough text from file.')
+
+      let aiParsed = null
+      try {
+        aiParsed = await parseResumeWithAI(file)
+      } catch (error) {
+        console.warn('AI parser unavailable, using local parser only:', error?.message)
+      }
+
+      const localParsed = resumeParser.parseResumeText(rawText)
+      const mergedParsed = aiParsed
+        ? resumeParser.mergeParsedResume(localParsed, resumeParser.masterProfileToResumeData(aiParsed))
+        : localParsed
+      const nextProfile = aiParsed
+        ? resumeParser.normalizeMasterProfile(aiParsed)
+        : resumeParser.createMasterProfileFromParsed(mergedParsed)
+
+      setProfile(nextProfile)
+      setMasterProfile(nextProfile)
+      applyMasterProfile(nextProfile)
+      setParseStatus('success')
+      toastSuccess('Parsed data loaded. Review yellow fields and save your profile.')
+    } catch (error) {
+      console.error('Failed to parse uploaded file', error)
+      setParseStatus('error')
+      toastError(error?.message || 'Failed to parse uploaded resume.')
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setTimeout(() => setParseStatus('idle'), 1500)
+    }
+  }
+
+  const saveProfile = async () => {
+    if (!user) {
+      toastError('Please sign in first.')
+      return
     }
 
-    const resetProfileState = () => {
-        setPersonal({
-            firstName: '',
-            lastName: '',
-            address: '',
-            city: '',
-            country: '',
-            pinCode: '',
-            phone: '',
-            email: user?.email || '',
-            title: '',
-            summary: '',
-            website: '',
-            linkedin: '',
-            github: ''
-        })
-        setLocalExperience([])
-        setLocalEducation([])
-        setLocalSkills([])
-        setLocalProjects([])
-        setLocalCertifications([])
+    const dbUserId = getDbUserId(user)
+    if (!dbUserId) {
+      toastError('Unable to identify your account.')
+      return
     }
 
-    const handleDeleteProfile = async () => {
-        if (!user) {
-            toastError('Please sign in first')
-            return
-        }
+    const normalized = resumeParser.normalizeMasterProfile(profile)
 
-        const confirmed = window.confirm('Delete all Master Profile data? This will clear your saved profile details.')
-        if (!confirmed) return
+    setSaving(true)
+    try {
+      let saved = false
+      let apiErrorMessage = ''
 
-        setLoading(true)
-        setStatusMessage('')
-        try {
-            const dbUserId = getDbUserId(user)
-            if (!dbUserId) throw new Error('Unable to identify your account')
-
-            const clearPayload = {
-                resume_data: null,
-                first_name: '',
-                last_name: '',
-                phone: '',
-                city: '',
-                country: '',
-                title: '',
-                summary: '',
-                website: '',
-                linkedin: '',
-                github: '',
-                experience_data: [],
-                education_data: [],
-                skills_data: [],
-                projects_data: [],
-                certifications_data: [],
-                updated_at: new Date().toISOString()
-            }
-
-            const updateProfileAdaptive = async (initialPayload) => {
-                const payload = { ...initialPayload }
-
-                for (let attempt = 0; attempt < 8; attempt += 1) {
-                    const result = await supabase
-                        .from('profiles')
-                        .update(payload)
-                        .eq('user_id', dbUserId)
-
-                    if (!result.error) return
-
-                    const fullMessage = [result.error.message, result.error.details, result.error.hint]
-                        .filter(Boolean)
-                        .join(' | ')
-
-                    const missingColumnMatch =
-                        fullMessage.match(/Could not find the '([^']+)' column/i) ||
-                        fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-                    if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
-                        delete payload[missingColumnMatch[1]]
-                        continue
-                    }
-
-                    throw new Error(fullMessage || 'Failed to delete profile data')
-                }
-
-                throw new Error('Failed to delete profile data after schema adaptation attempts')
-            }
-
-            await updateProfileAdaptive(clearPayload)
-
-            const emptyProfile = {
-                personalInfo: {
-                    firstName: '',
-                    lastName: '',
-                    email: user?.email || '',
-                    phone: '',
-                    location: '',
-                    address: '',
-                    city: '',
-                    country: '',
-                    pinCode: '',
-                    title: '',
-                    summary: '',
-                    website: '',
-                    linkedin: '',
-                    github: ''
-                },
-                experience: [],
-                education: [],
-                skills: [],
-                projects: [],
-                certifications: []
-            }
-
-            setMasterProfile(emptyProfile)
-            updatePersonalInfo(emptyProfile.personalInfo)
-            setExperience([])
-            setEducation([])
-            setSkills([])
-            setProjects([])
-            setCertifications([])
-            resetProfileState()
-            toastSuccess('Master Profile data deleted successfully.')
-        } catch (error) {
-            console.error('Delete Error:', error)
-            toastError(error.message || 'Failed to delete profile data.')
-        } finally {
-            setLoading(false)
-        }
-    }
-
-    // --- PDF PARSING LOGIC (Simplified from UploadResume.jsx) ---
-    
-    const SECTION_HEADERS = {
-        summary: ['summary', 'profile', 'objective', 'about me', 'professional summary', 'executive summary', 'professional profile'],
-        experience: ['experience', 'work experience', 'employment', 'professional experience', 'work history', 'career history', 'employment history', 'professional background'],
-        education: ['education', 'academic background', 'academics', 'qualification', 'academic profile', 'educational background', 'academic qualifications'],
-        skills: ['skills', 'technical skills', 'core skills', 'expertise', 'specializations', 'proficiencies', 'technologies', 'technical expertise', 'key skills'],
-        projects: ['projects', 'personal projects', 'key projects', 'academic projects', 'recent projects'],
-        certifications: ['certifications', 'certification', 'certificates', 'certificate', 'awards', 'honors', 'achievements', 'achievement', 'certifications & awards', 'licenses', 'professional certifications', 'credentials']
-    }
-
-    const isLikelySectionHeader = (line) => {
-        const value = line.trim().toLowerCase()
-        return Object.values(SECTION_HEADERS).flat().some((header) => value === header || value === header + ':')
-    }
-
-    const getSectionContent = (lines, headers) => {
-        const startIndex = lines.findIndex((line) => 
-            headers.includes(line.trim().toLowerCase().replace(/:$/, ''))
-        )
-        if (startIndex < 0) return []
-        const content = []
-        for (let i = startIndex + 1; i < lines.length; i += 1) {
-            const current = lines[i]
-            if (isLikelySectionHeader(current)) break
-            content.push(current)
-        }
-        return content
-    }
-
-    const parsePersonalInfo = (text, lines) => {
-        const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi)
-        const phoneMatch = text.match(/((?:\+|00)\d{1,3}[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4,6}/)
-        const linkedinMatch = text.match(/(?:https?:\/\/)?(?:www\.)?linkedin\.com\/[A-Za-z0-9\-_/]+/i)
-        const githubMatch = text.match(/(?:https?:\/\/)?(?:www\.)?github\.com\/[A-Za-z0-9\-_/]+/i)
-        const websiteMatch = text.match(/(?:https?:\/\/)?(?:www\.)?([A-Za-z0-9.-]+\.[A-Za-z]{2,})(?:\/[A-Za-z0-9\-._~:/?#[\]@!$&'()*+,;=]*)?/i)
-        const nameLine = lines.find((line) => {
-            const clean = line.trim()
-            if (/[@\d]/.test(clean)) return false
-            if (clean.toLowerCase().includes('http')) return false
-            if (isLikelySectionHeader(clean)) return false
-            return /^[A-Za-z][A-Za-z\s.'-]+$/.test(clean)
-        }) || ''
-        const nameParts = nameLine.trim().split(/\s+/).filter(Boolean)
-        const firstName = nameParts[0] || ''
-        const lastName = nameParts.slice(1).join(' ') || ''
-        const locationLine = lines.find((line) => {
-            const clean = line.trim()
-            if (clean.length > 100) return false
-            return (/,\s*[A-Za-z]{2,}$/.test(clean) || /[A-Za-z\s]+,\s*[A-Za-z\s]+/.test(clean)) && !clean.includes('@')
-        })
-        const summaryLines = getSectionContent(lines, SECTION_HEADERS.summary)
-        return {
-            firstName, lastName, email: emailMatch?.[0] || '', phone: phoneMatch?.[0]?.trim() || '',
-            location: locationLine || '', summary: summaryLines.join(' '), 
-            linkedin: linkedinMatch?.[0] || '', github: githubMatch?.[0] || '', website: websiteMatch?.[0] || ''
-        }
-    }
-
-    const parseSkills = (lines) => {
-        const skillSectionLines = getSectionContent(lines, SECTION_HEADERS.skills)
-        if (skillSectionLines.length === 0) return []
-        const skillTokens = skillSectionLines.join(' | ').split(/[|,•·\n\t;]/).map((item) => item.trim()).filter((item) => item.length >= 2 && item.length <= 50)
-        return [...new Set(skillTokens)].map((name, index) => ({ id: Date.now() + index, name, level: 'Advanced' }))
-    }
-
-    const parseEducation = (lines) => {
-        const eduSectionLines = getSectionContent(lines, SECTION_HEADERS.education)
-        const chunks = eduSectionLines.filter((line) => line.trim().length > 0)
-        const degreeRegex = /(b\.?tech|b\.?e|bachelor|master|m\.?tech|mba|ph\.?d|diploma|certificate|secondary|ssc|hsc)/i
-        const entries = []
-        for (let i = 0; i < chunks.length; i += 1) {
-            const current = chunks[i]; if (!degreeRegex.test(current)) continue;
-            entries.push({ id: Date.now() + i, school: chunks[i+1] || '', degree: current, startDate: '', endDate: '', description: '' })
-            i++
-        }
-        return entries
-    }
-
-    const parseExperience = (lines) => {
-        const expSectionLines = getSectionContent(lines, SECTION_HEADERS.experience)
-        const chunks = expSectionLines.filter((line) => line.trim().length > 0)
-        const dateRegex = /((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})\s*(?:[-–—]|to)\s*((?:Present|Current|Till Date|Ongoing)|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|January|February|March|April|May|June|July|August|September|October|November|December)?\s*(?:\d{1,2},?\s*)?(?:19|20)\d{2})/i
-        const entries = []
-        for (let i = 0; i < chunks.length; i += 1) {
-            if (!dateRegex.test(chunks[i])) continue
-            const dateParts = chunks[i].split(/[-–—]|to/i)
-            entries.push({ id: Date.now() + i, role: chunks[i-1] || 'Role', company: chunks[i-2] || 'Company', startDate: (dateParts[0] || '').trim(), endDate: (dateParts[1] || '').trim(), description: chunks[i+1] || '' })
-        }
-        return entries
-    }
-
-    const extractTextFromPdf = async (selectedFile) => {
-        const pdfjsModule = await import('pdfjs-dist')
-        const pdfjsLib = (pdfjsModule?.GlobalWorkerOptions && pdfjsModule?.getDocument)
-            ? pdfjsModule
-            : pdfjsModule.default
-        if (!pdfjsLib?.getDocument || !pdfjsLib?.GlobalWorkerOptions) {
-            throw new Error('PDF parser failed to initialize.')
-        }
-
-        if (!pdfjsLib.GlobalWorkerOptions.workerPort) {
-            pdfjsLib.GlobalWorkerOptions.workerPort = new PdfJsWorker()
-        }
-
-        const fileBuffer = await selectedFile.arrayBuffer()
-        const pdf = await pdfjsLib.getDocument({ data: fileBuffer }).promise
-        let text = ''
-
-        for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-            const page = await pdf.getPage(pageNumber)
-            const content = await page.getTextContent()
-
-            const items = content.items
-                .map((item) => ({
-                    str: item.str || '',
-                    x: item.transform?.[4] || 0,
-                    y: item.transform?.[5] || 0
-                }))
-                .filter((item) => item.str.trim().length > 0)
-                .sort((a, b) => {
-                    if (Math.abs(b.y - a.y) > 2) return b.y - a.y
-                    return a.x - b.x
-                })
-
-            const lines = []
-            for (const item of items) {
-                const line = lines.find((entry) => Math.abs(entry.y - item.y) <= 2.5)
-                if (line) {
-                    line.items.push(item)
-                } else {
-                    lines.push({ y: item.y, items: [item] })
-                }
-            }
-
-            const pageText = lines
-                .sort((a, b) => b.y - a.y)
-                .map((line) => line.items
-                    .sort((a, b) => a.x - b.x)
-                    .map((item) => item.str)
-                    .join(' ')
-                    .replace(/\s+/g, ' ')
-                    .trim())
-                .filter(Boolean)
-                .join('\n')
-
-            text += `\n${pageText}`
-        }
-
-        return text
-    }
-
-    const parseResumeWithAI = async (rawText) => {
-        const response = await fetch('/api/parse-resume', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ resumeText: rawText })
+      try {
+        const response = await fetch(withApiBase('/api/master-profile'), {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: dbUserId,
+            profile: normalized
+          })
         })
 
         if (!response.ok) {
-            const err = await response.json().catch(() => ({}))
-            throw new Error(err.error || 'AI parsing is unavailable right now.')
+          const err = await response.json().catch(() => ({}))
+          apiErrorMessage = err?.error || `API save failed with status ${response.status}`
+          throw new Error(apiErrorMessage)
         }
 
         const payload = await response.json()
-        return payload?.data || {}
-    }
+        setProfileId(payload?.data?.id || profileId)
+        saved = true
+      } catch (apiError) {
+        apiErrorMessage = apiError?.message || apiErrorMessage || 'API save failed'
+      }
 
-    const handleFileChange = async (e) => {
-        const selectedFile = e.target.files[0]
-        if (!selectedFile) return
-        
-        try {
-            setParseStatus('uploading')
-            setParseError('')
+      if (!saved) {
+        let fallbackSaved = false
+        let fallbackErrorMessage = ''
 
-            const rawText = await resumeParser.extractResumeText(selectedFile)
+        const { data, error } = await supabase
+          .from('master_profiles')
+          .upsert({
+            user_id: dbUserId,
+            profile_data: normalized,
+            updated_at: new Date().toISOString()
+          }, { onConflict: 'user_id' })
+          .select('id')
+          .maybeSingle()
 
-            if (!rawText || rawText.length < 50) throw new Error("Could not read enough text from file.")
-
-            setParseStatus('parsing')
-
-            let aiParsed = null
-            try {
-                aiParsed = await parseResumeWithAI(rawText)
-            } catch (aiError) {
-                console.warn('AI parsing failed in Master Profile, using local extraction fallback:', aiError.message)
-            }
-
-            const localParsed = resumeParser.parseResumeText(rawText)
-            const mergedParsed = aiParsed ? resumeParser.mergeParsedResume(localParsed, aiParsed) : localParsed
-            const extracted = resumeParser.normalizeParsedResume(mergedParsed)
-
-            const hasExtractedData = Boolean(
-                extracted.personalInfo.firstName ||
-                extracted.personalInfo.lastName ||
-                extracted.personalInfo.email ||
-                extracted.personalInfo.phone ||
-                extracted.personalInfo.summary ||
-                extracted.experience.length ||
-                extracted.education.length ||
-                extracted.skills.length ||
-                extracted.projects.length ||
-                extracted.certifications.length
-            )
-            if (!hasExtractedData) {
-                throw new Error('Could not extract usable details from this PDF. Please try another file.')
-            }
-
-            populateForm(extracted)
-            setParseStatus('success')
-            toastSuccess("Resume parsed! Adjust the details as needed.")
-            setTimeout(() => setParseStatus('idle'), 2000)
-        } catch (err) {
-            console.error("Parse Error:", err)
-            setParseStatus('error')
-            setParseError(err.message || "Failed to parse resume.")
-            toastError("Failed to parse resume.")
+        if (!error) {
+          fallbackSaved = true
+          setProfileId(data?.id || profileId)
+        } else {
+          fallbackErrorMessage = error.message || 'Fallback save failed'
         }
-    }
 
-    const handleSave = async (e) => {
-        if (e) e.preventDefault()
-        setLoading(true)
-        setStatusMessage('')
-        try {
-            if (!user) throw new Error('Please sign in first')
+        if (!fallbackSaved) {
+          const resumeData = resumeParser.masterProfileToResumeData(normalized)
+          const [firstName = '', ...restName] = (normalized.personal.fullName || '').split(/\s+/).filter(Boolean)
+          const lastName = restName.join(' ')
 
-            const dbUserId = getDbUserId(user)
-            if (!dbUserId) throw new Error('Unable to identify your account')
+          const draftPayload = {
+            user_id: dbUserId,
+            first_name: firstName,
+            last_name: lastName,
+            email: normalized.personal.email || '',
+            phone: normalized.personal.phone || '',
+            summary: normalized.summary || '',
+            website: normalized.personal.portfolioUrl || '',
+            linkedin: normalized.personal.linkedInUrl || '',
+            github: normalized.personal.githubUrl || '',
+            experience_data: resumeData.experience || [],
+            education_data: resumeData.education || [],
+            skills_data: resumeData.skills || [],
+            projects_data: resumeData.projects || [],
+            certifications_data: resumeData.certifications || [],
+            resume_data: resumeData,
+            master_profile: normalized,
+            updated_at: new Date().toISOString()
+          }
 
-            const composedLocation = [personal.address, personal.city, personal.country]
-                .map((value) => (value || '').trim())
-                .filter(Boolean)
-                .join(', ')
+          const adaptivePayload = { ...draftPayload }
+          let profileSaveError = null
 
-            const normalizedData = {
-                personalInfo: {
-                    ...personal,
-                    location: composedLocation || [personal.city, personal.country].filter(Boolean).join(', ')
-                },
-                experience,
-                education,
-                skills,
-                projects,
-                certifications
+          for (let attempt = 0; attempt < 10; attempt += 1) {
+            const result = await supabase
+              .from('profiles')
+              .upsert(adaptivePayload, { onConflict: 'user_id' })
+              .select('id')
+              .maybeSingle()
+
+            if (!result.error) {
+              setProfileId(result.data?.id || profileId)
+              profileSaveError = null
+              break
             }
 
-            const upsertProfileAdaptive = async (initialPayload) => {
-                const payload = { ...initialPayload }
+            profileSaveError = result.error
+            const fullMessage = [result.error.message, result.error.details, result.error.hint]
+              .filter(Boolean)
+              .join(' | ')
 
-                for (let attempt = 0; attempt < 8; attempt += 1) {
-                    try {
-                        const result = await supabase
-                            .from('profiles')
-                            .upsert(payload)
+            const missingColumnMatch =
+              fullMessage.match(/Could not find the '([^']+)' column/i) ||
+              fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
 
-                        if (!result.error) return
-                        
-                        const fullMessage = [result.error.message, result.error.details, result.error.hint]
-                            .filter(Boolean)
-                            .join(' | ')
-
-                        const missingColumnMatch =
-                            fullMessage.match(/Could not find the '([^']+)' column/i) ||
-                            fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-                        if (missingColumnMatch && payload[missingColumnMatch[1]] !== undefined) {
-                            delete payload[missingColumnMatch[1]]
-                            continue
-                        }
-
-                        throw new Error(fullMessage || 'Failed to save profile')
-                    } catch (err) {
-                        // If upsert fails, try update then insert
-                        if (profileId) {
-                            const updateResult = await supabase
-                                .from('profiles')
-                                .update(payload)
-                                .eq('id', profileId)
-                            
-                            if (!updateResult.error) return
-                        }
-                        
-                        // Try insert as fallback
-                        const insertResult = await supabase
-                            .from('profiles')
-                            .insert([payload])
-                        
-                        if (!insertResult.error) return
-                        
-                        throw err
-                    }
-                }
-
-                throw new Error('Failed to save profile after schema adaptation attempts')
+            if (missingColumnMatch && adaptivePayload[missingColumnMatch[1]] !== undefined) {
+              delete adaptivePayload[missingColumnMatch[1]]
+              continue
             }
 
-            const payload = {
-                user_id: dbUserId,
-                first_name: personal.firstName,
-                last_name: personal.lastName,
-                email: personal.email,
-                phone: personal.phone,
-                address: personal.address,
-                city: personal.city,
-                country: personal.country,
-                pin_code: personal.pinCode,
-                title: personal.title,
-                summary: personal.summary,
-                website: personal.website,
-                linkedin: personal.linkedin,
-                github: personal.github,
-                experience_data: experience,
-                education_data: education,
-                skills_data: skills,
-                projects_data: projects,
-                certifications_data: certifications,
-                updated_at: new Date().toISOString()
-            }
+            break
+          }
 
-            if (profileId) payload.id = profileId
-
-            await upsertProfileAdaptive(payload)
-
-            // Update local store
-            setMasterProfile(normalizedData)
-            updatePersonalInfo(normalizedData.personalInfo)
-            setExperience(experience)
-            setEducation(education)
-            setSkills(skills)
-            setProjects(projects)
-            setCertifications(certifications)
-
-            setSaveSuccess(true)
-            toastSuccess("Master Profile saved for life!")
-            setTimeout(() => setSaveSuccess(false), 3000)
-        } catch (error) {
-            console.error("Save Error:", error)
-            toastError(error.message || "Failed to save profile.")
-        } finally {
-            setLoading(false)
+          if (profileSaveError) {
+            throw new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
+          }
         }
-    }
+      }
 
+      setMasterProfile(normalized)
+      applyMasterProfile(normalized)
+      toastSuccess('Master Profile saved successfully. Templates will auto-fill from this data.')
+    } catch (error) {
+      console.error('Failed to save profile', error)
+      toastError(error?.message || 'Failed to save profile')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  if (loading) {
     return (
-        <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            style={{
-                height: '100vh',
-                background: '#f8fafc',
-                width: '100%',
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                padding: '1.2rem 2rem 0'
-            }}
-        >
-            <div className="max-w-[1400px] mx-auto w-full flex flex-col h-full overflow-hidden">
-                <div className="flex items-center justify-between mb-4">
-                    <Link to="/student/choice" className="flex items-center gap-2 text-slate-500 font-bold hover:text-indigo-600 transition-colors">
-                        <ArrowLeft size={18} /> Back
-                    </Link>
-                    <div className="text-center flex-1 pr-[80px]">
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Master <span className="text-indigo-600">Profile</span></h1>
-                        <p className="text-slate-500 mt-0.5 font-medium text-xs">Your permanent professional identity, saved for a lifetime.</p>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-hidden min-h-0">
-                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start h-full">
-                    {/* LEFT COLUMN: Options */}
-                    <div className="lg:col-span-3 flex flex-col gap-6">
-                        <div className="bg-white p-6 rounded-[32px] border-2 border-slate-100 shadow-xl shadow-slate-200/40">
-                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-6 px-2">Fill Methods</h3>
-                            
-                            <div className="flex flex-col gap-4">
-                                {/* Upload PDF Option */}
-                                <motion.div
-                                    whileHover={{ y: -5, scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={() => fileInputRef.current.click()}
-                                    className="p-5 bg-indigo-50 border-2 border-indigo-100 rounded-2xl cursor-pointer group transition-all hover:border-indigo-300 hover:shadow-lg hover:shadow-indigo-500/10"
-                                >
-                                    <div className="w-12 h-12 bg-indigo-600 text-white rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-200 transition-transform group-hover:rotate-6">
-                                        {parseStatus === 'uploading' || parseStatus === 'parsing' ? <Loader2 size={24} className="animate-spin" /> : <Upload size={24} />}
-                                    </div>
-                                    <h4 className="text-lg font-black text-indigo-900">Upload PDF</h4>
-                                    <p className="text-xs text-indigo-600/70 font-bold mt-1">Auto-extract your existing details</p>
-                                    <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,.docx,.txt" className="hidden" />
-                                </motion.div>
-
-                                {/* Create Profile Option */}
-                                <motion.div
-                                    whileHover={{ y: -5, scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
-                                    onClick={handleCreateFresh}
-                                    className="p-5 bg-emerald-50 border-2 border-emerald-100 rounded-2xl cursor-pointer group transition-all hover:border-emerald-300 hover:shadow-lg hover:shadow-emerald-500/10"
-                                >
-                                    <div className="w-12 h-12 bg-emerald-600 text-white rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-emerald-200 transition-transform group-hover:-rotate-6">
-                                        <UserPlus size={24} />
-                                    </div>
-                                    <h4 className="text-lg font-black text-emerald-900">Create Profile</h4>
-                                    <p className="text-xs text-emerald-600/70 font-bold mt-1">Start fresh with a blank identity</p>
-                                </motion.div>
-                            </div>
-
-                            <div className="mt-8 p-4 bg-slate-50 rounded-2xl border border-slate-100 italic text-[11px] text-slate-500 font-medium leading-relaxed">
-                                <AlertCircle size={14} className="inline mr-1 mb-0.5 text-slate-400" />
-                                All details from these options are populated in the form on the right and saved for your account.
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* MIDDLE: Arrow */}
-                    <div className="hidden lg:flex lg:col-span-1 items-center justify-center h-[300px]">
-                        <motion.div
-                            animate={{ x: [0, 5, 0] }}
-                            transition={{ repeat: Infinity, duration: 2, ease: "easeInOut" }}
-                            className="text-slate-300"
-                        >
-                            <ArrowRight size={60} strokeWidth={3} />
-                        </motion.div>
-                    </div>
-
-                    {/* RIGHT COLUMN: Form */}
-                    <div className="lg:col-span-8 h-full overflow-hidden">
-                        <div className="bg-white rounded-[40px] shadow-2xl shadow-slate-200/60 border border-slate-100 h-full flex flex-col overflow-hidden">
-                            <div className="px-8 py-6 md:px-12 md:py-8 border-b border-slate-50">
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <h2 className="text-xl font-black text-slate-900">Personal Details</h2>
-                                        <p className="text-slate-400 text-[10px] font-black uppercase tracking-wider mt-0.5">Foundational Info</p>
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <button
-                                            type="button"
-                                            onClick={handleDeleteProfile}
-                                            disabled={loading}
-                                            className="px-4 py-2.5 rounded-xl font-black text-xs text-rose-600 border-2 border-rose-100 hover:bg-rose-50 disabled:opacity-60 disabled:cursor-not-allowed transition-all"
-                                        >
-                                            Delete Profile
-                                        </button>
-                                        <motion.button
-                                            whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                                            onClick={handleSave} disabled={loading}
-                                            className={`px-6 py-2.5 rounded-xl font-black text-xs transition-all shadow-xl flex items-center gap-2 ${saveSuccess ? 'bg-green-600 shadow-green-200' : 'bg-indigo-600 shadow-indigo-200'} text-white`}
-                                        >
-                                            {loading ? <Loader2 size={16} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={16} /> : <Sparkles size={16} />}
-                                            {loading ? 'Saving...' : saveSuccess ? 'Profile Saved!' : 'Save Profile'}
-                                        </motion.button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div className="flex-1 overflow-y-auto px-8 md:px-12 py-8 pb-24 custom-scrollbar">
-                                <form className="space-y-12">
-                                    {/* Personal Info Grid */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">First Name</label>
-                                            <div className="relative">
-                                                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.firstName} onChange={e => setPersonal({...personal, firstName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Last Name</label>
-                                            <input value={personal.lastName} onChange={e => setPersonal({...personal, lastName: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Email</label>
-                                            <div className="relative">
-                                                <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.email} onChange={e => setPersonal({...personal, email: e.target.value})} placeholder="you@example.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Title</label>
-                                            <div className="relative">
-                                                <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.title} onChange={e => setPersonal({...personal, title: e.target.value})} placeholder="Software Engineer" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Phone Number</label>
-                                            <div className="relative">
-                                                <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.phone} onChange={e => setPersonal({...personal, phone: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="md:col-span-2 space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Address</label>
-                                            <input value={personal.address} onChange={e => setPersonal({...personal, address: e.target.value})} placeholder="House no, street, area" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">City</label>
-                                            <div className="relative">
-                                                <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.city} onChange={e => setPersonal({...personal, city: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Country</label>
-                                            <input value={personal.country} onChange={e => setPersonal({...personal, country: e.target.value})} className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Pin Code</label>
-                                            <div className="relative">
-                                                <Pin className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" size={18} />
-                                                <input value={personal.pinCode} onChange={e => setPersonal({...personal, pinCode: e.target.value})} placeholder="Postal / Zip Code" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-12 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                            </div>
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Website / Portfolio</label>
-                                            <input value={personal.website} onChange={e => setPersonal({...personal, website: e.target.value})} placeholder="https://portfolio.com" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">LinkedIn</label>
-                                            <input value={personal.linkedin} onChange={e => setPersonal({...personal, linkedin: e.target.value})} placeholder="linkedin.com/in/username" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">GitHub</label>
-                                            <input value={personal.github} onChange={e => setPersonal({...personal, github: e.target.value})} placeholder="github.com/username" className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-5 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all" />
-                                        </div>
-                                        <div className="md:col-span-2 space-y-2">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Professional Summary</label>
-                                            <textarea value={personal.summary} onChange={e => setPersonal({...personal, summary: e.target.value})} rows={4} className="w-full bg-slate-50 border-2 border-slate-100 rounded-[24px] px-6 py-4 font-bold text-slate-700 outline-none focus:border-indigo-500 focus:bg-white transition-all resize-none" placeholder="Describe your career highlights..." />
-                                        </div>
-                                    </div>
-
-                                    {/* Experience Section */}
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-xl font-black text-slate-900">Work History</h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Where you've been</p>
-                                            </div>
-                                            <button type="button" onClick={() => setLocalExperience([...experience, { role: '', company: '', location: '', startDate: '', endDate: '', description: '' }])} className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all">
-                                                <Plus size={20} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-4">
-                                            <AnimatePresence>
-                                                {experience.map((exp, idx) => (
-                                                    <motion.div key={`exp-${idx}`} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, x: 20 }} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
-                                                        <button onClick={() => setLocalExperience(experience.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                                                            <Trash2 size={18} />
-                                                        </button>
-                                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                                            <input value={exp.role} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, role: e.target.value} : it))} placeholder="Role" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                            <input value={exp.company} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, company: e.target.value} : it))} placeholder="Company" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                                            <input value={exp.location || ''} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, location: e.target.value} : it))} placeholder="Location" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                            <input value={exp.startDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        </div>
-                                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                                            <input value={exp.endDate} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                            <div />
-                                                        </div>
-                                                        <textarea value={exp.description || ''} onChange={e => setLocalExperience(experience.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="Describe achievements, responsibilities, and impact" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
-                                                    </motion.div>
-                                                ))}
-                                            </AnimatePresence>
-                                            {experience.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No experience added yet.</div>}
-                                        </div>
-                                    </div>
-
-                                    {/* Education Section */}
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-xl font-black text-slate-900">Education</h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Your qualifications</p>
-                                            </div>
-                                            <button type="button" onClick={() => setLocalEducation([...education, { school: '', degree: '', location: '', startDate: '', endDate: '', gpa: '', description: '' }])} className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all">
-                                                <Plus size={20} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-4">
-                                            {education.map((edu, idx) => (
-                                                <div key={`edu-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
-                                                    <button onClick={() => setLocalEducation(education.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={edu.school} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, school: e.target.value} : it))} placeholder="University / School" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={edu.degree} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, degree: e.target.value} : it))} placeholder="Degree / Major" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={edu.location || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, location: e.target.value} : it))} placeholder="Location" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={edu.gpa || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, gpa: e.target.value} : it))} placeholder="GPA / Percentage" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={edu.startDate || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={edu.endDate || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <textarea value={edu.description || ''} onChange={e => setLocalEducation(education.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="Honors, relevant coursework, thesis, or achievements" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
-                                                </div>
-                                            ))}
-                                            {education.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No education added yet.</div>}
-                                        </div>
-                                    </div>
-
-                                    {/* Skills Section */}
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <h3 className="text-xl font-black text-slate-900 mb-6">Master Skills</h3>
-                                        <div className="flex gap-3 mb-6">
-                                            <input 
-                                                value={skillInput} onChange={e => setSkillInput(e.target.value)} 
-                                                onKeyDown={e => { if(e.key === 'Enter'){ e.preventDefault(); if(skillInput.trim()){ setLocalSkills([...skills, {name: skillInput.trim()}]); setSkillInput(''); } } }}
-                                                placeholder="Type a skill and press Enter" 
-                                                className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl px-5 py-3 font-bold text-sm outline-none focus:border-indigo-500 focus:bg-white transition-all" 
-                                            />
-                                            <button type="button" onClick={() => { if(skillInput.trim()){ setLocalSkills([...skills, {name: skillInput.trim()}]); setSkillInput(''); } }} className="bg-indigo-600 text-white px-6 rounded-xl font-black hover:bg-slate-900 transition-all">Add</button>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            {skills.map((skill, idx) => (
-                                                <div key={`skill-${idx}`} className="px-4 py-2 bg-white border-2 border-slate-100 rounded-full flex items-center gap-2 group hover:border-indigo-200 transition-all">
-                                                    <span className="text-sm font-black text-slate-700">{skill.name}</span>
-                                                    <button type="button" onClick={() => setLocalSkills(skills.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500 transition-colors"><X size={14} /></button>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Projects Section */}
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-xl font-black text-slate-900">Projects</h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Academic + personal work</p>
-                                            </div>
-                                            <button type="button" onClick={() => setLocalProjects([...projects, { name: '', description: '', link: '', startDate: '', endDate: '' }])} className="p-2.5 bg-violet-50 text-violet-600 rounded-xl hover:bg-violet-600 hover:text-white transition-all">
-                                                <Plus size={20} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-4">
-                                            {projects.map((project, idx) => (
-                                                <div key={`project-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
-                                                    <button onClick={() => setLocalProjects(projects.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={project.name || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, name: e.target.value} : it))} placeholder="Project Name" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={project.link || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, link: e.target.value} : it))} placeholder="Project URL / Repo" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={project.startDate || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, startDate: e.target.value} : it))} placeholder="Start Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={project.endDate || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, endDate: e.target.value} : it))} placeholder="End Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <textarea value={project.description || ''} onChange={e => setLocalProjects(projects.map((it, i) => i === idx ? {...it, description: e.target.value} : it))} placeholder="What problem did you solve? What technologies did you use?" rows={3} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 font-bold text-sm" />
-                                                </div>
-                                            ))}
-                                            {projects.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No projects added yet.</div>}
-                                        </div>
-                                    </div>
-
-                                    {/* Certifications Section */}
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div>
-                                                <h3 className="text-xl font-black text-slate-900">Certifications</h3>
-                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Courses, badges, credentials</p>
-                                            </div>
-                                            <button type="button" onClick={() => setLocalCertifications([...certifications, { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])} className="p-2.5 bg-amber-50 text-amber-600 rounded-xl hover:bg-amber-500 hover:text-white transition-all">
-                                                <Plus size={20} />
-                                            </button>
-                                        </div>
-                                        <div className="space-y-4">
-                                            {certifications.map((cert, idx) => (
-                                                <div key={`cert-${idx}`} className="p-6 bg-slate-50 rounded-[24px] border border-slate-100 relative group">
-                                                    <button onClick={() => setLocalCertifications(certifications.filter((_, i) => i !== idx))} className="absolute top-4 right-4 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all">
-                                                        <Trash2 size={18} />
-                                                    </button>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={cert.name || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, name: e.target.value} : it))} placeholder="Certification Name" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={cert.issuer || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, issuer: e.target.value} : it))} placeholder="Issuing Organization" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4 mb-4">
-                                                        <input value={cert.issueDate || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, issueDate: e.target.value} : it))} placeholder="Issue Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={cert.expiryDate || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, expiryDate: e.target.value} : it))} placeholder="Expiry Date" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                    <div className="grid grid-cols-2 gap-4">
-                                                        <input value={cert.credentialId || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, credentialId: e.target.value} : it))} placeholder="Credential ID" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                        <input value={cert.link || ''} onChange={e => setLocalCertifications(certifications.map((it, i) => i === idx ? {...it, link: e.target.value} : it))} placeholder="Credential URL" className="bg-white border border-slate-200 rounded-xl px-4 py-2.5 font-bold text-sm" />
-                                                    </div>
-                                                </div>
-                                            ))}
-                                            {certifications.length === 0 && <div className="text-center py-8 bg-slate-50 rounded-[24px] border-2 border-dashed border-slate-200 text-slate-400 font-bold text-sm">No certifications added yet.</div>}
-                                        </div>
-                                    </div>
-
-                                    <div className="pt-12">
-                                        <motion.button
-                                            whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}
-                                            onClick={handleSave} disabled={loading}
-                                            className={`w-full py-5 rounded-[24px] font-black text-lg transition-all shadow-2xl flex items-center justify-center gap-3 ${saveSuccess ? 'bg-green-600 shadow-green-400/20' : 'bg-slate-900 shadow-slate-900/20'} text-white`}
-                                        >
-                                            {loading ? <Loader2 size={24} className="animate-spin" /> : saveSuccess ? <CheckCircle2 size={24} /> : <SaveIcon />}
-                                            {loading ? 'Committing to cloud...' : saveSuccess ? 'Success! Details locked in.' : 'Lock My Professional Profile'}
-                                        </motion.button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+      <div className="min-h-screen bg-slate-50 grid place-items-center">
+        <div className="flex items-center gap-3 text-slate-600">
+          <Loader2 className="animate-spin" size={20} /> Loading Master Profile...
         </div>
-    </motion.div>
+      </div>
     )
-}
+  }
 
-function SaveIcon() {
-    return (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V5C3 4.46957 3.21071 3.96086 3.58579 3.58579C3.96086 3.21071 4.46957 3 5 3H16L21 8V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0393 20.7893 19.5304 21 19 21Z" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M17 21V13H7V21" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M7 3V8H15" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-    )
+  return (
+    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <div className="flex items-center justify-between gap-4">
+          <Link to="/student/choice" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+            <ArrowLeft size={16} /> Back
+          </Link>
+
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleReupload}
+              accept=".pdf,.docx,.txt"
+              className="hidden"
+            />
+            <button
+              type="button"
+              disabled={parseStatus !== 'idle'}
+              onClick={() => fileInputRef.current?.click()}
+              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+            >
+              {parseStatus === 'parsing' ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} 
+              {parseStatus === 'parsing' ? 'Parsing...' : 'Upload PDF'}
+            </button>
+            <button
+              type="button"
+              onClick={saveProfile}
+              disabled={saving}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+            >
+              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Master Profile
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-white p-5">
+          <h1 className="text-2xl font-bold text-slate-900">Master Profile Editor</h1>
+          <p className="mt-1 text-sm text-slate-600">All templates will auto-fill from this profile. Yellow fields need manual review.</p>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+            <div>
+              <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600">
+                <span>Profile Completeness</span>
+                <span>{completeness}%</span>
+              </div>
+              <div className="h-2 w-full rounded bg-slate-200">
+                <div className="h-2 rounded bg-emerald-500" style={{ width: `${completeness}%` }} />
+              </div>
+            </div>
+            <div className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+              <AlertTriangle size={14} /> {reviewCount} field(s) need review
+            </div>
+          </div>
+        </div>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Personal</h2>
+          <div className="grid gap-3 md:grid-cols-2">
+            <input className={inputClass('personal.fullName')} value={profile.personal.fullName} onChange={(e) => updatePersonal('fullName', e.target.value)} placeholder="Full Name" />
+            <input className={inputClass('personal.email')} value={profile.personal.email} onChange={(e) => updatePersonal('email', e.target.value)} placeholder="Email" />
+            <input className={inputClass('personal.phone')} value={profile.personal.phone} onChange={(e) => updatePersonal('phone', e.target.value)} placeholder="Phone" />
+            <input className={inputClass('personal.location')} value={profile.personal.location} onChange={(e) => updatePersonal('location', e.target.value)} placeholder="Location" />
+            <input className={inputClass('personal.linkedInUrl')} value={profile.personal.linkedInUrl} onChange={(e) => updatePersonal('linkedInUrl', e.target.value)} placeholder="LinkedIn URL" />
+            <input className={inputClass('personal.githubUrl')} value={profile.personal.githubUrl} onChange={(e) => updatePersonal('githubUrl', e.target.value)} placeholder="GitHub URL" />
+            <input className={inputClass('personal.portfolioUrl')} value={profile.personal.portfolioUrl} onChange={(e) => updatePersonal('portfolioUrl', e.target.value)} placeholder="Portfolio URL" />
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Summary / Objective</h2>
+          <textarea className={textareaClass('summary')} rows={4} value={profile.summary} onChange={(e) => updateSummary(e.target.value)} placeholder="Professional summary" />
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Education</h2>
+            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, education: [...prev.education, emptyEducation()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
+          </div>
+          <div className="space-y-3">
+            {profile.education.map((edu, index) => (
+              <div key={`edu-${index}`} className={`rounded-lg border p-3 ${isRowReview(`education.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="mb-3 flex justify-end">
+                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, education: prev.education.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input className={inputClass(`education.${index}.degree`)} value={edu.degree} onChange={(e) => updateEducation(index, 'degree', e.target.value)} placeholder="Degree" />
+                  <input className={inputClass(`education.${index}.institution`)} value={edu.institution} onChange={(e) => updateEducation(index, 'institution', e.target.value)} placeholder="Institution" />
+                  <input className={inputClass(`education.${index}.location`)} value={edu.location} onChange={(e) => updateEducation(index, 'location', e.target.value)} placeholder="Location" />
+                  <input className={inputClass(`education.${index}.startYear`)} value={edu.startYear} onChange={(e) => updateEducation(index, 'startYear', e.target.value)} placeholder="Start Year" />
+                  <input className={inputClass(`education.${index}.endYear`)} value={edu.endYear} onChange={(e) => updateEducation(index, 'endYear', e.target.value)} placeholder="End Year" />
+                  <input className={inputClass(`education.${index}.gpa`)} value={edu.gpa} onChange={(e) => updateEducation(index, 'gpa', e.target.value)} placeholder="GPA" />
+                </div>
+              </div>
+            ))}
+            {profile.education.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No education added yet.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Work Experience</h2>
+            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, workExperience: [...prev.workExperience, emptyWork()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
+          </div>
+          <div className="space-y-3">
+            {profile.workExperience.map((item, index) => (
+              <div key={`work-${index}`} className={`rounded-lg border p-3 ${isRowReview(`workExperience.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="mb-3 flex justify-end">
+                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, workExperience: prev.workExperience.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input className={inputClass(`workExperience.${index}.company`)} value={item.company} onChange={(e) => updateWork(index, 'company', e.target.value)} placeholder="Company" />
+                  <input className={inputClass(`workExperience.${index}.role`)} value={item.role} onChange={(e) => updateWork(index, 'role', e.target.value)} placeholder="Role" />
+                  <input className={inputClass(`workExperience.${index}.location`)} value={item.location} onChange={(e) => updateWork(index, 'location', e.target.value)} placeholder="Location" />
+                  <input className={inputClass(`workExperience.${index}.startDate`)} value={item.startDate} onChange={(e) => updateWork(index, 'startDate', e.target.value)} placeholder="Start Date" />
+                  <input className={inputClass(`workExperience.${index}.endDate`)} value={item.endDate} onChange={(e) => updateWork(index, 'endDate', e.target.value)} placeholder="End Date" />
+                </div>
+                <div className="mt-3">
+                  <textarea className={textareaClass(`workExperience.${index}.bullets`)} rows={4} value={(item.bullets || []).join('\n')} onChange={(e) => updateWorkBullets(index, e.target.value)} placeholder="Bullet points (one per line)" />
+                </div>
+              </div>
+            ))}
+            {profile.workExperience.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No work experience added yet.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Projects</h2>
+            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, projects: [...prev.projects, emptyProject()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
+          </div>
+          <div className="space-y-3">
+            {profile.projects.map((item, index) => (
+              <div key={`project-${index}`} className={`rounded-lg border p-3 ${isRowReview(`projects.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="mb-3 flex justify-end">
+                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, projects: prev.projects.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input className={inputClass(`projects.${index}.projectName`)} value={item.projectName} onChange={(e) => updateProject(index, 'projectName', e.target.value)} placeholder="Project Name" />
+                  <input className={inputClass(`projects.${index}.techStack`)} value={item.techStack} onChange={(e) => updateProject(index, 'techStack', e.target.value)} placeholder="Tech Stack" />
+                  <input className={inputClass(`projects.${index}.githubLink`)} value={item.githubLink} onChange={(e) => updateProject(index, 'githubLink', e.target.value)} placeholder="GitHub Link" />
+                  <input className={inputClass(`projects.${index}.liveLink`)} value={item.liveLink} onChange={(e) => updateProject(index, 'liveLink', e.target.value)} placeholder="Live Link" />
+                </div>
+                <div className="mt-3">
+                  <textarea className={textareaClass(`projects.${index}.description`)} rows={3} value={item.description} onChange={(e) => updateProject(index, 'description', e.target.value)} placeholder="Project Description" />
+                </div>
+              </div>
+            ))}
+            {profile.projects.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No projects added yet.</p>}
+          </div>
+        </section>
+
+        <section className={`rounded-xl border p-5 ${isReview('skills') ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 bg-white'}`}>
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Skills (Categorized)</h2>
+          <div className="grid gap-4 md:grid-cols-2">
+            {['languages', 'frameworks', 'tools', 'databases', 'cloud', 'other'].map((category) => (
+              <div key={category} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <h3 className="mb-2 text-sm font-semibold capitalize text-slate-800">{category}</h3>
+                <div className="mb-2 flex gap-2">
+                  <input
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
+                    value={skillDraft[category]}
+                    onChange={(e) => setSkillDraft((prev) => ({ ...prev, [category]: e.target.value }))}
+                    placeholder="Type skill(s), comma separated"
+                  />
+                  <button type="button" onClick={() => addSkillCategory(category)} className="rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Add</button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {(profile.skills[category] || []).map((item, index) => (
+                    <span key={`${category}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-300">
+                      {item}
+                      <button type="button" onClick={() => removeSkillCategoryItem(category, index)} className="text-rose-600">x</button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Certifications</h2>
+            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, certifications: [...prev.certifications, emptyCertification()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
+          </div>
+          <div className="space-y-3">
+            {profile.certifications.map((item, index) => (
+              <div key={`cert-${index}`} className={`rounded-lg border p-3 ${isRowReview(`certifications.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
+                <div className="mb-3 flex justify-end">
+                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, certifications: prev.certifications.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  <input className={inputClass(`certifications.${index}.name`)} value={item.name} onChange={(e) => updateCertification(index, 'name', e.target.value)} placeholder="Certification Name" />
+                  <input className={inputClass(`certifications.${index}.issuer`)} value={item.issuer} onChange={(e) => updateCertification(index, 'issuer', e.target.value)} placeholder="Issuer" />
+                  <input className={inputClass(`certifications.${index}.date`)} value={item.date} onChange={(e) => updateCertification(index, 'date', e.target.value)} placeholder="Date" />
+                  <input className={inputClass(`certifications.${index}.link`)} value={item.link} onChange={(e) => updateCertification(index, 'link', e.target.value)} placeholder="Link" />
+                </div>
+              </div>
+            ))}
+            {profile.certifications.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No certifications added yet.</p>}
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <h2 className="mb-4 text-lg font-semibold text-slate-900">Achievements / Extra-curricular (Optional)</h2>
+          <div className="mb-3 flex gap-2">
+            <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500" value={achievementDraft} onChange={(e) => setAchievementDraft(e.target.value)} placeholder="Add achievement and press Add" />
+            <button type="button" onClick={addAchievement} className="rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Add</button>
+          </div>
+          <ul className="space-y-2">
+            {profile.achievements.map((item, index) => (
+              <li key={`ach-${index}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                <span>{item}</span>
+                <button type="button" onClick={() => removeAchievement(index)} className="text-rose-600"><Trash2 size={14} /></button>
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <div className="flex justify-end pb-4">
+          <button
+            type="button"
+            onClick={saveProfile}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+          >
+            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Master Profile
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }

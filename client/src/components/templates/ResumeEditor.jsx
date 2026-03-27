@@ -19,7 +19,7 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
 
   // Handle export to PDF
   const handleExportPDF = async () => {
-    const element = document.getElementById('resume-preview-download')
+    const element = document.getElementById('resume-container')
     if (!element) return
 
     try {
@@ -293,7 +293,7 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
           </div>
 
           <div
-            id="resume-preview-download"
+            id="resume-container"
             style={{
               position: 'fixed',
               top: '-10000px',

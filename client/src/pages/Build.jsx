@@ -5,7 +5,10 @@ import useStore from '../store/useStore'
 import { supabase, isMock } from '../supabase'
 import { resumeTemplates } from '../data/templates'
 import { getDbUserId } from '../lib/userIdentity'
+import { isDbUuid } from '../lib/userIdentity'
+import { getDbUserIdCandidates } from '../lib/userIdentity'
 import * as resumeParser from '../lib/resumeParser'
+import { withApiBase } from '../lib/apiBase'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer'
 import ATSChecker from '../components/ATSChecker'
 
@@ -25,7 +28,7 @@ export default function Build() {
     const [searchParams] = useSearchParams()
     const templateFromQuery = searchParams.get('template')
     const forceNewFromQuery = searchParams.get('new') === '1'
-    const { user, resumeData, customization, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, selectedTemplate, setSelectedTemplate, editingResumeId, setEditingResumeId, restoreUserFromFallback, setUser } = useStore()
+    const { user, resumeData, customization, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, selectedTemplate, setSelectedTemplate, editingResumeId, setEditingResumeId, restoreUserFromFallback, setUser, masterProfile, setMasterProfile, applyMasterProfile } = useStore()
 
     // Wizard State
     const [viewMode, setViewMode] = useState('selection') // 'selection', 'preview', 'intro', 'form'
@@ -103,10 +106,47 @@ export default function Build() {
             if (!dbUserId || editingResumeId) return
 
             try {
+                const localMaster = masterProfile ? resumeParser.normalizeMasterProfile(masterProfile) : null
+                if (localMaster && resumeParser.calculateMasterProfileCompleteness(localMaster) > 0) {
+                    const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
+                    if (isEmpty) {
+                        setMasterProfile(localMaster)
+                        applyMasterProfile(localMaster)
+                    }
+                    return
+                }
+
+                try {
+                    const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(dbUserId)}`))
+                    if (apiResponse.ok) {
+                        const payload = await apiResponse.json()
+                        if (payload?.profile) {
+                            const normalizedMaster = resumeParser.normalizeMasterProfile(payload.profile)
+                            if (resumeParser.calculateMasterProfileCompleteness(normalizedMaster) > 0) {
+                                const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
+                                if (isEmpty) {
+                                    setMasterProfile(normalizedMaster)
+                                    applyMasterProfile(normalizedMaster)
+                                }
+                                return
+                            }
+                        }
+                    }
+                } catch (apiError) {
+                    const message = String(apiError?.message || '')
+                    if (!message.includes('404')) {
+                        console.warn('Master profile API fetch failed, falling back to direct profile table:', apiError)
+                    }
+                }
+
+                if (!isDbUuid(dbUserId)) {
+                    return
+                }
+
                 // Use profiles as canonical profile source to avoid missing-table 404 noise.
                 let { data, error } = await supabase
                     .from('profiles')
-                    .select('resume_data, first_name, last_name, email, phone, address, city, country, pin_code, title, summary, website, linkedin, github, experience_data, education_data, skills_data, projects_data, certifications_data')
+                    .select('master_profile, resume_data, first_name, last_name, email, phone, address, city, country, pin_code, title, summary, website, linkedin, github, experience_data, education_data, skills_data, projects_data, certifications_data')
                     .eq('user_id', dbUserId)
                     .single()
 
@@ -125,6 +165,17 @@ export default function Build() {
                 }
 
                 if (data) {
+                    if (data.master_profile) {
+                        const rawMaster = typeof data.master_profile === 'string' ? JSON.parse(data.master_profile) : data.master_profile
+                        const normalizedMaster = resumeParser.normalizeMasterProfile(rawMaster)
+                        const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
+                        if (isEmpty) {
+                            setMasterProfile(normalizedMaster)
+                            applyMasterProfile(normalizedMaster)
+                        }
+                        return
+                    }
+
                     const parsed = data.resume_data
                         ? (typeof data.resume_data === 'string' ? JSON.parse(data.resume_data) : data.resume_data)
                         : {}
@@ -155,8 +206,9 @@ export default function Build() {
                     // Only load if current resume data is empty to avoid overwriting user edits
                     const isEmpty = !resumeData.personalInfo.firstName && (!resumeData.experience || resumeData.experience.length === 0)
                     if (isEmpty) {
-                        useStore.getState().loadMasterProfile(mergedParsed)
-                        setMasterProfile(mergedParsed)
+                        const mergedMaster = resumeParser.createMasterProfileFromParsed(mergedParsed)
+                        setMasterProfile(mergedMaster)
+                        applyMasterProfile(mergedMaster)
                     }
                 }
             } catch (err) {
@@ -164,7 +216,7 @@ export default function Build() {
             }
         }
         fetchMaster()
-    }, [user, editingResumeId])
+    }, [user, editingResumeId, resumeData, masterProfile, setMasterProfile, applyMasterProfile])
 
     // Get the selected template from the templates data
     const activeTemplateId = templateFromQuery || selectedTemplate
@@ -320,6 +372,8 @@ export default function Build() {
                 return false
             }
 
+            const candidateUserIds = [...new Set([dbUserId, ...getDbUserIdCandidates(activeUser)])]
+
             const payload = {
                 user_id: dbUserId,
                 data: resumeData,
@@ -395,7 +449,18 @@ export default function Build() {
                 setEditingResumeId(data.id)
             }
 
-            // If FK fails, recover user_id from students table and retry once.
+            // Retry with alternate candidate IDs first for legacy identity mismatches.
+            if (error && candidateUserIds.length > 1) {
+                for (const candidateId of candidateUserIds) {
+                    if (!candidateId || candidateId === payload.user_id) continue
+                    const retryPayload = { ...payload, user_id: candidateId }
+                    const retryResult = await saveWithAdaptiveColumns(Boolean(editingResumeId), retryPayload)
+                    error = retryResult.error
+                    if (!error) break
+                }
+            }
+
+            // If FK still fails, recover user_id from students table and retry once.
             if (error && /resumes_user_id_fkey|foreign key constraint/i.test([error.message, error.details, error.hint].filter(Boolean).join(' | ')) && activeUser?.email && !isMock) {
                 const { data: studentRow } = await supabase
                     .from('students')

@@ -6,10 +6,13 @@ import { resumeTemplates } from '../data/templates'
 import EnhancedTemplateCard from '../components/templates/EnhancedTemplateCard'
 import { supabase } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
+import * as resumeParser from '../lib/resumeParser'
+import { isDbUuid } from '../lib/userIdentity'
+import { withApiBase } from '../lib/apiBase'
 
 export default function Templates() {
   const navigate = useNavigate()
-  const { user, resumeData, uploadedResumePrefill, setUploadedResumePrefill, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications } = useStore()
+  const { user, resumeData, masterProfile, uploadedResumePrefill, setUploadedResumePrefill, setSelectedTemplate, setEditingResumeId, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, applyMasterProfile, setMasterProfile } = useStore()
 
   useEffect(() => {
     const hydrateFromMasterProfile = async () => {
@@ -30,8 +33,38 @@ export default function Templates() {
       )
       if (hasExistingResumeData) return
 
+      const localMaster = masterProfile ? resumeParser.normalizeMasterProfile(masterProfile) : null
+      if (localMaster && resumeParser.calculateMasterProfileCompleteness(localMaster) > 0) {
+        applyMasterProfile(localMaster)
+        return
+      }
+
       const dbUserId = getDbUserId(user)
       if (!dbUserId) return
+
+      try {
+        const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(dbUserId)}`))
+        if (apiResponse.ok) {
+          const payload = await apiResponse.json()
+          if (payload?.profile) {
+            const normalizedMaster = resumeParser.normalizeMasterProfile(payload.profile)
+            if (resumeParser.calculateMasterProfileCompleteness(normalizedMaster) > 0) {
+              setMasterProfile(normalizedMaster)
+              applyMasterProfile(normalizedMaster)
+              return
+            }
+          }
+        }
+      } catch (error) {
+        const message = String(error?.message || '')
+        if (!message.includes('404')) {
+          console.warn('Master profile API fetch failed, falling back to direct table reads:', error)
+        }
+      }
+
+      if (!isDbUuid(dbUserId)) {
+        return
+      }
 
       const tableCandidates = ['profiles']
       for (const tableName of tableCandidates) {
@@ -42,6 +75,22 @@ export default function Templates() {
           .maybeSingle()
 
         if (data) {
+          if (data.master_profile) {
+            const rawMaster = typeof data.master_profile === 'string' ? JSON.parse(data.master_profile) : data.master_profile
+            const normalizedMaster = resumeParser.normalizeMasterProfile(rawMaster)
+            setMasterProfile(normalizedMaster)
+            applyMasterProfile(normalizedMaster)
+            return
+          }
+
+          if (data.resume_data) {
+            const parsedResume = typeof data.resume_data === 'string' ? JSON.parse(data.resume_data) : data.resume_data
+            const normalizedMaster = resumeParser.createMasterProfileFromParsed(parsedResume)
+            setMasterProfile(normalizedMaster)
+            applyMasterProfile(normalizedMaster)
+            return
+          }
+
           const city = data.city || data.location?.split(',')[0]?.trim() || ''
           const country = data.country || data.location?.split(',')[1]?.trim() || ''
 
@@ -73,7 +122,7 @@ export default function Templates() {
     }
 
     hydrateFromMasterProfile()
-  }, [user, resumeData, uploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications])
+  }, [user, resumeData, masterProfile, uploadedResumePrefill, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, applyMasterProfile, setMasterProfile])
 
   const filtered = resumeTemplates
 
