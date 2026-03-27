@@ -283,10 +283,10 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
               width: '794px',
               maxWidth: '794px',
               minHeight: '1123px',
-              aspectRatio: '210 / 297',
               fontSize: `14px`,
               boxSizing: 'border-box',
-              overflow: 'visible'
+              overflow: 'visible',
+              pageBreakAfter: 'always'
             }}
           >
             <DynamicTemplateRenderer template={{ id: templateId }} resumeData={resume} />

@@ -194,17 +194,19 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
   );
   const captureHeight = Math.max(A4_HEIGHT_PX, Math.ceil(element.scrollHeight || 0), Math.ceil(element.offsetHeight || 0), Math.ceil(sourceRect.height || 0));
 
+  // Create a temporary visible wrapper for proper rendering
   const wrapper = document.createElement('div');
   wrapper.style.position = 'fixed';
-  wrapper.style.left = '-100000px';
+  wrapper.style.left = '0';
   wrapper.style.top = '0';
   wrapper.style.width = `${captureWidth}px`;
   wrapper.style.height = 'auto';
   wrapper.style.background = '#ffffff';
-  wrapper.style.opacity = '1';
+  wrapper.style.opacity = '0';
   wrapper.style.pointerEvents = 'none';
   wrapper.style.overflow = 'hidden';
-  wrapper.style.zIndex = '-1';
+  wrapper.style.zIndex = '9999';
+  wrapper.style.visibility = 'visible';
 
   const clone = element.cloneNode(true);
   if (clone instanceof HTMLElement) {
@@ -213,8 +215,12 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
     clone.style.minHeight = `${captureHeight}px`;
     clone.style.background = '#ffffff';
     clone.style.margin = '0';
+    clone.style.padding = '0';
     clone.style.opacity = '1';
     clone.style.overflow = 'visible';
+    clone.style.position = 'relative';
+    clone.style.top = '0';
+    clone.style.left = '0';
 
     // Mark semantic blocks for page-break avoidance.
     clone.querySelectorAll('section').forEach((node) => node.classList.add('resume-section'));
@@ -251,7 +257,9 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
   document.body.appendChild(wrapper);
 
   try {
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    await new Promise((resolve) => {
+      setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 100);
+    });
     await waitForImages(clone);
 
     const computedHeight = Math.max(
@@ -278,10 +286,19 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
       windowWidth: captureWidth,
       windowHeight: computedHeight,
       scrollX: 0,
-      scrollY: 0
+      scrollY: 0,
+      allowTaint: true,
+      foreignObjectRendering: true
     });
 
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+    const pdf = new jsPDF({ 
+      orientation: 'portrait', 
+      unit: 'mm', 
+      format: 'a4', 
+      compress: true,
+      precision: 16
+    });
+    
     const pageWidth = pdf.internal.pageSize.getWidth();
     const pageHeight = pdf.internal.pageSize.getHeight();
     const renderWidthMm = Math.max(1, pageWidth - MARGIN_MM.left - MARGIN_MM.right);
@@ -331,9 +348,11 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
         'FAST'
       );
     });
-
     pdf.save(finalName);
     return true;
+  } catch (error) {
+    console.error('PDF generation error:', error);
+    throw error;
   } finally {
     wrapper.remove();
   }
