@@ -307,19 +307,25 @@ export default function StudentDashboard() {
         const elementId = `resume-container`
         
         try {
-            // Short delay to ensure React has rendered the printable version
-            await new Promise(resolve => setTimeout(resolve, 600))
+            // Wait for React to render the resume and ensure fonts are loaded
+            await new Promise(resolve => setTimeout(resolve, 1200))
+            
             const element = document.getElementById(elementId)
             
             if (!element) {
-                throw new Error("Could not find render element")
+                throw new Error("Could not find render element - resume container not found in DOM")
+            }
+
+            // Verify element has content before exporting
+            if (!element.innerHTML || element.innerHTML.trim().length === 0) {
+                throw new Error("Resume container is empty - rendering may have failed")
             }
 
             await exportElementToPaginatedPdf(element, `${resume.title || 'resume'}.pdf`)
             success('Resume downloaded as PDF!')
         } catch (err) {
             console.error("PDF Download Error:", err)
-            showError("Failed to download PDF. Please try again.")
+            showError("Failed to download PDF. " + (err.message || "Please try again."))
         } finally {
             setIsGenerating(false)
             setDownloadTarget(null)
@@ -513,6 +519,9 @@ export default function StudentDashboard() {
     const handleDownloadCoverLetterPDF = async (coverLetter) => {
         setIsGenerating(true)
         try {
+            // Wait for render to complete
+            await new Promise(resolve => setTimeout(resolve, 800))
+            
             const element = document.getElementById(`cover-letter-capture-${coverLetter.id}`)
             if (!element) throw new Error('Could not find cover letter render element')
 
@@ -520,7 +529,7 @@ export default function StudentDashboard() {
             success('Cover letter downloaded as PDF!')
         } catch (err) {
             console.error("PDF Download Error:", err)
-            showError("Failed to download PDF. Please try again.")
+            showError("Failed to download PDF. " + (err.message || "Please try again."))
         } finally {
             setIsGenerating(false)
         }

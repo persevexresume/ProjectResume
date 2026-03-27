@@ -11,12 +11,19 @@ export default function ProjectUpdateReportPDF() {
 
   const handleDownload = async () => {
     try {
-      if (!reportRef.current) return
+      if (!reportRef.current) {
+        error('Could not find report element')
+        return
+      }
+      
+      // Wait for render to complete
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       await exportElementToPaginatedPdf(reportRef.current, 'Persevex_Project_Update_Report.pdf')
       success('PDF downloaded successfully!')
     } catch (err) {
       console.error('PDF Export Error:', err)
-      error('Failed to generate PDF. Please try again.')
+      error('Failed to generate PDF. ' + (err.message || 'Please try again.'))
     }
   }
 

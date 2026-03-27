@@ -20,13 +20,19 @@ export default function ResumeEditor({ templateId = 'neo-minimal' }) {
   // Handle export to PDF
   const handleExportPDF = async () => {
     const element = document.getElementById('resume-container')
-    if (!element) return
+    if (!element) {
+      toastError('Could not find resume element')
+      return
+    }
 
     try {
+      // Wait for element to be fully rendered
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       await exportElementToPaginatedPdf(element, 'resume.pdf')
     } catch (error) {
       console.error('PDF export error:', error)
-      toastError('Error exporting PDF')
+      toastError('Error exporting PDF: ' + (error.message || 'Unknown error'))
     }
   }
 

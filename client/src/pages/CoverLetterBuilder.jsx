@@ -209,6 +209,9 @@ ${senderFirstName} ${senderLastName}`;
 
             // Force visibility for capture then hide
             element.style.display = 'block'
+            
+            // Wait for render to complete
+            await new Promise(resolve => setTimeout(resolve, 800))
 
             await exportElementToPaginatedPdf(element, `CoverLabel-${coverLetter.companyName || 'Response'}.pdf`)
 
