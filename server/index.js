@@ -28,6 +28,19 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 // PORT
 const PORT = process.env.PORT || 5000;
 
+// ==================== MIDDLEWARE ====================
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'healthy', timestamp: new Date().toISOString() });
+});
+
+// Request logging middleware
+app.use((req, res, next) => {
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+    next();
+});
+
 // ==================== ROUTES ====================
 
 // Test route
@@ -879,7 +892,11 @@ Ensure the paragraphs are professional, engaging, and directly connect the user'
 
 // ==================== SCHEDULER ====================
 
-// Setup scheduler to run every hour
+// NOTE: Analytics cron job disabled due to memory constraints on serverless platforms
+// When enabled, this should use batch processing and proper error handling
+// To enable: uncomment the code below and implement proper analytics logic
+
+/* DISABLED - Uncomment when needed with proper implementation
 cron.schedule('0 * * * *', async () => {
     console.log('Running scheduled task - fetching external data and analytics...');
     try {
@@ -896,6 +913,7 @@ cron.schedule('0 * * * *', async () => {
         console.error('Scheduler error:', error);
     }
 });
+*/
 
 // ==================== FILE UPLOAD ====================
 
@@ -942,9 +960,65 @@ app.post('/api/upload-photo', async (req, res) => {
     }
 });
 
+// ==================== GLOBAL ERROR HANDLER ====================
+
+// 404 handler
+app.use((req, res) => {
+    res.status(404).json({ error: 'Route not found', path: req.path });
+});
+
+// Global error handler middleware
+app.use((err, req, res, next) => {
+    console.error('Unhandled error:', err);
+    
+    const statusCode = err.statusCode || err.status || 500;
+    const message = err.message || 'Internal Server Error';
+    
+    res.status(statusCode).json({
+        error: message,
+        timestamp: new Date().toISOString(),
+        path: req.path
+    });
+});
+
 // ==================== START SERVER ====================
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
     console.log(`🚀 Persevex Resume Maker API running on port ${PORT}`);
     console.log(`📊 Supabase URL: ${supabaseUrl}`);
 });
+
+// ==================== GRACEFUL SHUTDOWN ====================
+
+// Handle SIGTERM signal (from container orchestration)
+process.on('SIGTERM', () => {
+    console.log('SIGTERM signal received: closing HTTP server');
+    server.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+    });
+});
+
+// Handle SIGINT signal (Ctrl+C)
+process.on('SIGINT', () => {
+    console.log('SIGINT signal received: closing HTTP server');
+    server.close(() => {
+        console.log('HTTP server closed');
+        process.exit(0);
+    });
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+    process.exit(1);
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Don't exit immediately - log and continue
+});
+
+// Set server timeout to handle long-running requests
+server.setTimeout(30000); // 30 seconds
