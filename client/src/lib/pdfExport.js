@@ -45,12 +45,13 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
 
   const originalScrollbar = document.body.style.overflow;
 
-  // Add temporary A4 styles
+  // Capture full content height as one continuous page.
   element.style.width = '794px';
-  element.style.height = '1123px';
+  element.style.height = 'auto';
+  element.style.minHeight = '0';
   element.style.padding = '20px 18px'; // 15mm top/bottom, 12mm sides (approx)
   element.style.boxSizing = 'border-box';
-  element.style.overflow = 'hidden';
+  element.style.overflow = 'visible';
   element.style.margin = '0';
   element.style.background = 'white';
   element.style.transform = 'none';
@@ -81,37 +82,41 @@ export const exportElementToPaginatedPdf = async (element, fileName = 'resume.pd
   document.body.style.overflow = 'hidden';
 
   try {
-    // 2. Scale down font sizes if content overflows
-    if (element.scrollHeight > 1123) {
-      element.style.transform = 'scale(0.95)';
-      element.style.transformOrigin = 'top center';
-    }
-
     // Wait for a frame to ensure styles are applied
     await new Promise(resolve => requestAnimationFrame(resolve));
+
+    const captureWidth = 794;
+    const captureHeight = Math.max(
+      element.scrollHeight || 0,
+      element.offsetHeight || 0,
+      1123
+    );
 
     const canvas = await html2canvas(element, {
       scale: 3,
       useCORS: true,
       scrollY: -window.scrollY,
-      windowWidth: 794,
-      windowHeight: 1123,
-      width: 794,
-      height: 1123,
+      windowWidth: captureWidth,
+      windowHeight: captureHeight,
+      width: captureWidth,
+      height: captureHeight,
       backgroundColor: '#ffffff',
       logging: false
     });
 
+    const pageWidthMm = 210;
+    const pageHeightMm = Math.max(297, (canvas.height * pageWidthMm) / canvas.width);
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
-      format: 'a4'
+      format: [pageWidthMm, pageHeightMm]
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 1.0);
-    
-    // Add image to fill entire A4 page
-    pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+
+    // Render as one long page with no splitting.
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageWidthMm, pageHeightMm);
     pdf.save(finalName);
     
     return true;

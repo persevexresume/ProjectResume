@@ -12,7 +12,6 @@ import { supabase } from '../supabase'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer';
 import { cn } from '../lib/utils'
 import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
-import { downloadDocxResume } from '../lib/docxExport'
 import { exportElementToPaginatedPdf } from '../lib/pdfExport'
 import { useToast } from '../context/ToastContext'
 import ConfirmDialog from '../components/ui/ConfirmDialog'
@@ -324,16 +323,6 @@ export default function StudentDashboard() {
         } finally {
             setIsGenerating(false)
             setDownloadTarget(null)
-        }
-    }
-
-    const handleDownloadWord = async (resume) => {
-        try {
-            await downloadDocxResume(resume.data, resume.title || 'resume')
-            success('Resume downloaded as Word document!')
-        } catch (err) {
-            console.error("Word Download Error:", err)
-            showError("Failed to download Word document. Please try again.")
         }
     }
 
@@ -813,12 +802,6 @@ export default function StudentDashboard() {
                                         className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200"
                                     >
                                         <DownloadIcon size={18} /> Download PDF
-                                    </button>
-                                    <button
-                                        onClick={() => handleDownloadWord(previewResume)}
-                                        className="flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-colors shadow-lg shadow-emerald-200"
-                                    >
-                                        <DownloadIcon size={18} /> Download Word
                                     </button>
                                     <button
                                         onClick={() => { loadResume(previewResume); navigate('/build'); }}
