@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { ArrowLeft, AlertTriangle, Loader2, Plus, Trash2, Upload, Save } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
@@ -24,7 +24,6 @@ const parseBullets = (value) => value
   .filter(Boolean)
 
 export default function MasterProfile() {
-  const navigate = useNavigate()
   const { success: toastSuccess, error: toastError } = useToast()
   const {
     user,
@@ -135,17 +134,20 @@ export default function MasterProfile() {
       }
     }
 
+    loadProfile()
+  }, [user, setMasterProfile, applyMasterProfile])
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     if (params.get('autoUpload') === '1' || params.get('fromUpload') === '1') {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (fileInputRef.current) fileInputRef.current.click()
       }, 500)
+      return () => clearTimeout(timer)
     }
-  }, [])
 
-  loadProfile()
-}, [user, setMasterProfile, applyMasterProfile])
+    return undefined
+  }, [])
 
   const hasValue = (value) => {
     if (Array.isArray(value)) return value.length > 0
