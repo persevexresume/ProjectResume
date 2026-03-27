@@ -100,6 +100,7 @@ export default function Home() {
                     {
                         name: "Tesla",
                         logo: <div className="text-xl font-black text-slate-300">Tesla</div>
+                    },
                 ]}
             />
 
