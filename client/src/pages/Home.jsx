@@ -100,12 +100,7 @@ export default function Home() {
                     {
                         name: "Tesla",
                         logo: <div className="text-xl font-black text-slate-300">Tesla</div>
-                    },
                 ]}
-                ctaButton={{
-                    label: "Start Building Now",
-                    onClick: () => window.location.href = "/signin",
-                }}
             />
 
             {/* 2. Feature/Bento Section */}
@@ -361,30 +356,6 @@ export default function Home() {
                     </div>
                 </div>
             </motion.section>
-
-            {/* 6. CTA Section */}
-            <section className="py-24 px-[5%] relative overflow-hidden bg-[var(--color-bg-surface)] border-y border-[var(--color-border)]">
-                <div className="absolute inset-0 bg-blue-500/[0.02] bg-[radial-gradient(circle_at_center,blue-500_1px,transparent_1px)] bg-[length:32px_32px]" />
-                <motion.div
-                    className="max-w-4xl mx-auto text-center relative z-10 p-12 md:p-16 rounded-[2.5rem] bg-blue-600 shadow-2xl shadow-blue-500/20"
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    whileInView={{ opacity: 1, scale: 1 }}
-                >
-                    <h2 className="text-4xl md:text-6xl font-black text-white mb-6 tracking-tighter leading-[0.9]">
-                        Ready to elevate <br />your <span className="text-blue-200">digital presence?</span>
-                    </h2>
-                    <p className="text-blue-500 text-lg md:text-xl mb-12 opacity-80 font-medium max-w-2xl mx-auto brightness-200">
-                        Join the elite community of job seekers landing roles at top-tier companies. Efficiency starts here.
-                    </p>
-                    <div className="flex justify-center">
-                        <Link to="/signin">
-                            <button className="px-10 py-5 bg-white text-blue-600 rounded-2xl font-black text-xl hover:bg-blue-50 transition-all active:scale-95 shadow-xl shadow-black/10 flex items-center gap-3 group">
-                                Start Building Now <ArrowUpRight className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-                            </button>
-                        </Link>
-                    </div>
-                </motion.div>
-            </section>
 
             {/* 7. Footer */}
             <footer id="support" className="bg-[var(--color-bg-surface)] border-t border-[var(--color-border)] py-12 px-[5%] relative z-10">
