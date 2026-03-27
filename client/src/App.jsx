@@ -148,8 +148,7 @@ function AnimatedRoutes() {
             </ProtectedRoute>
           }
         />
-        <Route path="/project-report-pdf" element={<ProjectUpdateReportPDF />} />
-      </Routes>
+        <Route path="/project-report-pdf" element={<ProjectUpdateReportPDF />} />        <Route path="*" element={<Navigate to="/" replace />} />      </Routes>
     </AnimatePresence>
   )
 }
