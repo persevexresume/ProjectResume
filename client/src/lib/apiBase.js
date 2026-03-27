@@ -6,7 +6,8 @@ export const getApiBaseUrl = () => {
 
   if (typeof window !== 'undefined') {
     const { hostname, port } = window.location
-    if ((hostname === 'localhost' || hostname === '127.0.0.1') && port === '5173') {
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      // Support any local Vite port (5173, 5174, etc.) and still target local API.
       return 'http://localhost:5000'
     }
   }

@@ -23,6 +23,15 @@ const parseBullets = (value) => value
   .map((item) => item.trim())
   .filter(Boolean)
 
+const isRecoverableProfilePersistenceError = (error) => {
+  const message = String(error?.message || error || '').toLowerCase()
+  return message.includes('api save failed with status 404') ||
+    message.includes("could not find the table 'public.master_profiles'") ||
+    message.includes('master_profiles') ||
+    message.includes('profiles_user_id_fkey') ||
+    message.includes('foreign key constraint')
+}
+
 export default function MasterProfile() {
   const { success: toastSuccess, error: toastError } = useToast()
   const {
@@ -350,6 +359,7 @@ export default function MasterProfile() {
     try {
       let saved = false
       let apiErrorMessage = ''
+      let localOnlyMode = false
 
       try {
         const response = await fetch(withApiBase('/api/master-profile'), {
@@ -454,17 +464,33 @@ export default function MasterProfile() {
           }
 
           if (profileSaveError) {
-            throw new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
+            const composedError = new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
+            if (isRecoverableProfilePersistenceError(composedError)) {
+              localOnlyMode = true
+            } else {
+              throw composedError
+            }
           }
         }
       }
 
       setMasterProfile(normalized)
       applyMasterProfile(normalized)
-      toastSuccess('Master Profile saved successfully. Templates will auto-fill from this data.')
+      if (localOnlyMode) {
+        toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
+      } else {
+        toastSuccess('Master Profile saved successfully. Templates will auto-fill from this data.')
+      }
     } catch (error) {
       console.error('Failed to save profile', error)
-      toastError(error?.message || 'Failed to save profile')
+      if (isRecoverableProfilePersistenceError(error)) {
+        const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
+        setMasterProfile(normalizedLocal)
+        applyMasterProfile(normalizedLocal)
+        toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
+      } else {
+        toastError(error?.message || 'Failed to save profile')
+      }
     } finally {
       setSaving(false)
     }
