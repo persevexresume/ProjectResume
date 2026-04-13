@@ -3,6 +3,7 @@ import { Mail, Phone, MapPin, Linkedin, Github, Globe, ExternalLink, Award, Book
 import { ImageSeriesLayout } from './ImageSeriesLayout';
 import useStore from '../../store/useStore';
 import { resumeTemplates } from '../../data/templates';
+import { applyResumeConstraints } from '../../lib/resumeConstraints';
 
 import EnhancedTemplateRenderer from '../templates/EnhancedTemplateRenderer';
 
@@ -11,7 +12,7 @@ import EnhancedTemplateRenderer from '../templates/EnhancedTemplateRenderer';
  */
 export default function ResumeRenderer({ data, templateId, customization: customProps }) {
     const store = useStore();
-    const finalData = data || store.resumeData;
+    const finalData = applyResumeConstraints(data || store.resumeData);
     const finalTemplateId = templateId || store.selectedTemplate;
     const finalCustomization = customProps || store.customization;
 

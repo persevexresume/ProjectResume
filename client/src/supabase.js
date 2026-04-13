@@ -8,11 +8,56 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing required Vite env vars: VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY');
 }
 
-// Create Supabase client
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+const GLOBAL_SUPABASE_CLIENT_KEY = '__persevexSupabaseClient__';
+const globalScope = typeof globalThis !== 'undefined' ? globalThis : window;
+const existingSupabaseClient = globalScope[GLOBAL_SUPABASE_CLIENT_KEY];
+
+// Reuse a single Supabase client across hot reloads to avoid duplicate GoTrue clients.
+export const supabase = existingSupabaseClient || createClient(supabaseUrl, supabaseAnonKey);
+
+if (!existingSupabaseClient) {
+  globalScope[GLOBAL_SUPABASE_CLIENT_KEY] = supabase;
+}
 
 // Flag to indicate if Supabase is in mock/fallback mode
 export const isMock = supabaseUrl.includes('your-project') || supabaseAnonKey.includes('your-anon-key');
+
+const SUPABASE_NETWORK_BACKOFF_MS = 30000;
+let lastNetworkFailureAt = 0;
+
+function markSupabaseNetworkFailure() {
+  lastNetworkFailureAt = Date.now();
+}
+
+function isSupabaseTemporarilyUnavailable() {
+  return Date.now() - lastNetworkFailureAt < SUPABASE_NETWORK_BACKOFF_MS;
+}
+
+const NETWORK_ERROR_PATTERNS = [
+  'failed to fetch',
+  'fetch failed',
+  'networkerror',
+  'err_name_not_resolved',
+  'dns',
+  'network request failed',
+  'load failed'
+];
+
+function isSupabaseNetworkError(error) {
+  const rawMessage = [error?.message, error?.details, error?.hint].filter(Boolean).join(' ').toLowerCase();
+  return NETWORK_ERROR_PATTERNS.some((token) => rawMessage.includes(token));
+}
+
+function getSupabaseConnectionErrorMessage() {
+  let host = supabaseUrl;
+  try {
+    host = new URL(supabaseUrl).host;
+  } catch {
+    // Keep the raw value if URL parsing fails.
+  }
+
+  return `Cannot reach Supabase host (${host}). Update VITE_SUPABASE_URL in client/.env to a valid, active Supabase project URL.`;
+}
 
 // Authentication service
 export const auth = {
@@ -22,6 +67,15 @@ export const auth = {
    */
   async signIn(emailOrId, password) {
     try {
+      if (isSupabaseTemporarilyUnavailable()) {
+        return {
+          success: false,
+          error: `Recent Supabase connection failure detected. ${getSupabaseConnectionErrorMessage()}`,
+          user: null,
+          userType: null
+        };
+      }
+
       // Check if input is an email
       const isEmail = emailOrId.includes('@');
 
@@ -34,7 +88,18 @@ export const auth = {
           .from('students')
           .select('*')
           .eq('email', emailOrId)
-          .single();
+          .maybeSingle()
+          .retry(false);
+
+        if (studentError && isSupabaseNetworkError(studentError)) {
+          markSupabaseNetworkFailure();
+          return {
+            success: false,
+            error: getSupabaseConnectionErrorMessage(),
+            user: null,
+            userType: null
+          };
+        }
 
         if (student && student.password === password) {
           user = student;
@@ -45,7 +110,18 @@ export const auth = {
             .from('admins')
             .select('*')
             .eq('email', emailOrId)
-            .single();
+            .maybeSingle()
+            .retry(false);
+
+          if (adminError && isSupabaseNetworkError(adminError)) {
+            markSupabaseNetworkFailure();
+            return {
+              success: false,
+              error: getSupabaseConnectionErrorMessage(),
+              user: null,
+              userType: null
+            };
+          }
 
           if (admin && admin.password === password) {
             user = admin;
@@ -54,22 +130,44 @@ export const auth = {
         }
       } else {
         // Try student table with ID
-        const { data: student } = await supabase
+        const { data: student, error: studentError } = await supabase
           .from('students')
           .select('*')
           .eq('id', emailOrId)
-          .single();
+          .maybeSingle()
+          .retry(false);
+
+        if (studentError && isSupabaseNetworkError(studentError)) {
+          markSupabaseNetworkFailure();
+          return {
+            success: false,
+            error: getSupabaseConnectionErrorMessage(),
+            user: null,
+            userType: null
+          };
+        }
 
         if (student && student.password === password) {
           user = student;
           userType = 'student';
         } else {
           // Try admin table with ID
-          const { data: admin } = await supabase
+          const { data: admin, error: adminError } = await supabase
             .from('admins')
             .select('*')
             .eq('id', emailOrId)
-            .single();
+            .maybeSingle()
+            .retry(false);
+
+          if (adminError && isSupabaseNetworkError(adminError)) {
+            markSupabaseNetworkFailure();
+            return {
+              success: false,
+              error: getSupabaseConnectionErrorMessage(),
+              user: null,
+              userType: null
+            };
+          }
 
           if (admin && admin.password === password) {
             user = admin;
@@ -113,9 +211,18 @@ export const auth = {
       };
     } catch (error) {
       console.error('Sign in error:', error);
+
+      if (isSupabaseNetworkError(error)) {
+        markSupabaseNetworkFailure();
+      }
+
+      const message = isSupabaseNetworkError(error)
+        ? getSupabaseConnectionErrorMessage()
+        : error.message;
+
       return {
         success: false,
-        error: error.message,
+        error: message,
         user: null,
         userType: null
       };

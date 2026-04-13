@@ -148,6 +148,16 @@ export default function Templates() {
 
       {/* Template Grid */}
       <main className="max-w-7xl mx-auto px-6 py-12">
+        <section className="mb-8 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-5">
+          <p className="text-[11px] font-black uppercase tracking-wider text-indigo-700">Quick Start</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[12px] font-bold text-slate-700">
+            <span className="rounded-full border border-indigo-200 bg-white px-3 py-1">1. Choose any template</span>
+            <span className="rounded-full border border-indigo-200 bg-white px-3 py-1">2. Fill guided sections</span>
+            <span className="rounded-full border border-indigo-200 bg-white px-3 py-1">3. Save and download PDF</span>
+          </div>
+          <p className="mt-3 text-sm font-semibold text-slate-600">Click any template card below to continue. You can switch templates later in the builder.</p>
+        </section>
+
         {filtered.length === 0 ? (
           <div className="text-center py-20">
             <p className="text-lg font-semibold text-slate-600">No templates found</p>

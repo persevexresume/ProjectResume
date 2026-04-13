@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
-import { useNavigate, Link } from 'react-router-dom'
-import { Upload, UserPlus, ArrowLeft, LogOut, FileText, ChevronRight, Loader } from 'lucide-react'
+import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { Upload, UserPlus, ArrowLeft, ArrowRight, LogOut, FileText, ChevronRight, Loader } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { useEffect, useState } from 'react'
@@ -8,10 +8,12 @@ import { getDbUserId } from '../lib/userIdentity'
 
 export default function StudentChoice() {
     const navigate = useNavigate()
+    const location = useLocation()
     const { user, clearUser } = useStore()
     const [savedResume, setSavedResume] = useState(null)
     const [savedProfile, setSavedProfile] = useState(null)
     const [loading, setLoading] = useState(true)
+    const [onboardingHint, setOnboardingHint] = useState(null)
 
     useEffect(() => {
         if (!user) {
@@ -20,6 +22,30 @@ export default function StudentChoice() {
         }
         fetchSavedData()
     }, [user, navigate])
+
+    useEffect(() => {
+        if (loading) return
+
+        if (location.state?.onboarding === 'post-login') {
+            if (savedProfile) {
+                setOnboardingHint({
+                    target: 'dashboard',
+                    message: 'You are ready. Open Dashboard to create or edit resumes.'
+                })
+            } else {
+                setOnboardingHint({
+                    target: 'profile',
+                    message: 'Start here: create your Master Profile first.'
+                })
+            }
+        }
+    }, [loading, savedProfile, location.state])
+
+    useEffect(() => {
+        if (!onboardingHint) return
+        const timer = setTimeout(() => setOnboardingHint(null), 12000)
+        return () => clearTimeout(timer)
+    }, [onboardingHint])
 
     const fetchSavedData = async () => {
         try {
@@ -90,6 +116,9 @@ export default function StudentChoice() {
         navigate('/student')
     }
 
+    const isDashboardHint = onboardingHint?.target === 'dashboard'
+    const isProfileHint = onboardingHint?.target === 'profile'
+
     return (
         <motion.div
             initial={{ opacity: 0 }}
@@ -132,19 +161,49 @@ export default function StudentChoice() {
                     zIndex: 10
                 }}
             >
-                <Link
-                    to="/student"
-                    style={{
-                        display: 'flex', alignItems: 'center', gap: '0.5rem',
-                        color: 'var(--color-text-primary)', textDecoration: 'none',
-                        fontWeight: 700, fontSize: '0.9rem',
-                        padding: '0.6rem 1.25rem', background: '#fff', borderRadius: '14px',
-                        boxShadow: '0 4px 15px rgba(0,0,0,0.05)',
-                        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
-                    }}
-                >
-                    <ArrowLeft size={18} /> Dashboard
-                </Link>
+                <div style={{ position: 'relative' }}>
+                    <Link
+                        to="/student"
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                            color: 'var(--color-text-primary)', textDecoration: 'none',
+                            fontWeight: 700, fontSize: '0.9rem',
+                            padding: '0.6rem 1.25rem', background: '#fff', borderRadius: '14px',
+                            border: isDashboardHint ? '1px solid rgba(37,99,235,0.35)' : '1px solid transparent',
+                            boxShadow: isDashboardHint
+                                ? '0 0 0 3px rgba(37,99,235,0.14), 0 4px 15px rgba(0,0,0,0.05)'
+                                : '0 4px 15px rgba(0,0,0,0.05)',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)'
+                        }}
+                    >
+                        <ArrowLeft size={18} /> Dashboard
+                    </Link>
+                    {isDashboardHint && (
+                        <motion.div
+                            initial={{ opacity: 0, y: -4 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            style={{
+                                position: 'absolute',
+                                top: '-2.1rem',
+                                left: '0.1rem',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '0.35rem',
+                                padding: '0.25rem 0.55rem',
+                                borderRadius: '999px',
+                                border: '1px solid #bfdbfe',
+                                background: '#eff6ff',
+                                color: '#1d4ed8',
+                                fontSize: '10px',
+                                fontWeight: 800,
+                                letterSpacing: '0.02em',
+                                whiteSpace: 'nowrap'
+                            }}
+                        >
+                            <ArrowRight size={12} /> {onboardingHint?.message}
+                        </motion.div>
+                    )}
+                </div>
 
                 <button
                     onClick={handleLogout}
@@ -220,12 +279,41 @@ export default function StudentChoice() {
                                     onClick={() => navigate('/master-profile')}
                                     style={{
                                         background: 'rgba(255, 255, 255, 0.8)', padding: '3rem 2rem', borderRadius: '32px',
-                                        cursor: 'pointer', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.08)',
-                                        border: '1px solid rgba(255,255,255,0.7)', backdropFilter: 'blur(20px)',
+                                        cursor: 'pointer',
+                                        border: isProfileHint ? '2px solid rgba(59,130,246,0.4)' : '1px solid rgba(255,255,255,0.7)', backdropFilter: 'blur(20px)',
                                         transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                                        display: 'flex', flexDirection: 'column', alignItems: 'center'
+                                        display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                        position: 'relative',
+                                        boxShadow: isProfileHint
+                                            ? '0 0 0 4px rgba(59,130,246,0.12), 0 25px 50px -12px rgba(0,0,0,0.08)'
+                                            : '0 25px 50px -12px rgba(0,0,0,0.08)'
                                     }}
                                 >
+                                    {isProfileHint && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: -6 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            style={{
+                                                position: 'absolute',
+                                                top: '-0.75rem',
+                                                right: '1rem',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '0.35rem',
+                                                padding: '0.25rem 0.55rem',
+                                                borderRadius: '999px',
+                                                border: '1px solid #bfdbfe',
+                                                background: '#eff6ff',
+                                                color: '#1d4ed8',
+                                                fontSize: '10px',
+                                                fontWeight: 800,
+                                                letterSpacing: '0.02em',
+                                                pointerEvents: 'none'
+                                            }}
+                                        >
+                                            <ArrowRight size={12} /> {onboardingHint?.message}
+                                        </motion.div>
+                                    )}
                                     <div style={{
                                         width: '80px', height: '80px', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                                         borderRadius: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center',

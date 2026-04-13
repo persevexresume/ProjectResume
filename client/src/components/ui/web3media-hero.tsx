@@ -253,7 +253,7 @@ export function Web3MediaHero({
                                     boxShadow: `0 20px 40px ${accentGlow.replace("0.4", "0.2")}`,
                                 }}
                             >
-                                Start Building Now <ArrowRight size={22} strokeWidth={3} />
+                                {ctaButton?.label || 'Start Building Now'} <ArrowRight size={22} strokeWidth={3} />
                             </motion.button>
 
                             <div className="flex items-center gap-2 px-4 py-2">

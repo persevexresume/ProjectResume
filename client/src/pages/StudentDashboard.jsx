@@ -135,6 +135,20 @@ const getResumeATSScore = (resume) => {
     return Number.isFinite(computed) ? computed : 0
 }
 
+const formatDateTime = (value) => {
+    if (!value) return 'N/A'
+    const parsed = new Date(value)
+    if (Number.isNaN(parsed.getTime())) return 'N/A'
+    return parsed.toLocaleString('en-US', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    })
+}
+
 export default function StudentDashboard() {
     const { user, clearUser, setTemplatesLocked, loadResume, resetResume } = useStore()
     const { success, error: showError } = useToast()
@@ -482,18 +496,19 @@ export default function StudentDashboard() {
 
         try {
             const table = editingType === 'resume' ? 'resumes' : 'cover_letters'
+            const nextUpdatedAt = new Date().toISOString()
             const { error } = await supabase
                 .from(table)
-                .update({ title: newTitle.trim(), updated_at: new Date().toISOString() })
+                .update({ title: newTitle.trim(), updated_at: nextUpdatedAt })
                 .eq('id', editingId)
 
             if (error) throw error
 
             // Update local state
             if (editingType === 'resume') {
-                setResumes(prev => prev.map(r => r.id === editingId ? { ...r, title: newTitle.trim() } : r))
+                setResumes(prev => prev.map(r => r.id === editingId ? { ...r, title: newTitle.trim(), updated_at: nextUpdatedAt } : r))
             } else {
-                setCoverLetters(prev => prev.map(cl => cl.id === editingId ? { ...cl, title: newTitle.trim() } : cl))
+                setCoverLetters(prev => prev.map(cl => cl.id === editingId ? { ...cl, title: newTitle.trim(), updated_at: nextUpdatedAt } : cl))
             }
 
             success(`${editingType === 'resume' ? 'Resume' : 'Cover Letter'} renamed successfully!`)
@@ -578,10 +593,10 @@ export default function StudentDashboard() {
                 {/* Header Section */}
                 <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-12">
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2 leading-tight">
-                            Welcome back, <span className="text-indigo-600">{user.name?.split(' ')[0] || 'Member'}!</span>
+                        <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter mb-3 leading-tight">
+                            Welcome back, <span className="text-indigo-600 block sm:inline">{user.name?.split(' ')[0] || 'Member'}</span>
                         </h1>
-                        <p className="text-slate-500 text-sm font-medium max-w-2xl">
+                        <p className="text-slate-500 text-base font-medium max-w-2xl">
                             You have <span className="text-slate-900 font-bold">{resumes.length} professional resumes</span>. Ready to apply?
                         </p>
                     </div>
@@ -601,6 +616,24 @@ export default function StudentDashboard() {
                             <Plus size={18} />
                             Create New Resume
                         </button>
+                    </div>
+                </div>
+
+                {/* Modern Quick Navigation Steps */}
+                <div className="mb-14 flex flex-wrap items-center gap-3 sm:gap-6 text-sm font-bold text-slate-500">
+                    <Link to="/master-profile" className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-full border border-slate-200 shadow-sm transition-all hover:border-indigo-400 hover:shadow-md group">
+                        <span className="w-6 h-6 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs group-hover:bg-indigo-600 group-hover:text-white transition-colors">1</span>
+                        <span className="text-slate-700 group-hover:text-indigo-700 transition-colors">Complete Master Profile</span>
+                    </Link>
+                    <ChevronRight size={16} className="text-slate-300 hidden sm:block" />
+                    <button onClick={handleCreateNew} className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-full border border-slate-200 shadow-sm transition-all hover:border-indigo-400 hover:shadow-md group">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs group-hover:bg-indigo-600 group-hover:text-white transition-colors">2</span>
+                        <span className="text-slate-700 group-hover:text-indigo-700 transition-colors">Create New Resume</span>
+                    </button>
+                    <ChevronRight size={16} className="text-slate-300 hidden sm:block" />
+                    <div className="flex items-center gap-3 bg-white px-5 py-2.5 rounded-full border border-slate-200 shadow-sm transition-all hover:border-slate-300 hover:shadow-md cursor-default">
+                        <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center text-xs">3</span>
+                        <span className="text-slate-700">Preview & Download</span>
                     </div>
                 </div>
 
@@ -796,13 +829,13 @@ export default function StudentDashboard() {
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="bg-white w-full max-w-5xl h-[90vh] rounded-[2rem] overflow-hidden flex flex-col shadow-2xl"
+                            className="bg-white w-[95vw] max-w-7xl h-[95vh] rounded-[2rem] overflow-hidden flex flex-col shadow-2xl"
                         >
                             <div className="p-6 border-b flex items-center justify-between bg-white sticky top-0 z-10">
                                 <div>
                                     <h3 className="text-xl font-black text-slate-900">{previewResume.title || 'Resume Preview'}</h3>
                                     <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">
-                                        Last updated {new Date(previewResume.created_at).toLocaleDateString()}
+                                        Last updated {formatDateTime(previewResume.updated_at || previewResume.created_at)}
                                     </p>
                                 </div>
                                 <div className="flex items-center gap-3">
@@ -826,7 +859,7 @@ export default function StudentDashboard() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-auto p-4 sm:p-8 md:p-12 bg-slate-50 flex justify-center">
+                            <div className="flex-1 overflow-auto bg-slate-50 flex justify-center py-8">
                                 <SavedResumePreview
                                     resume={previewResume}
                                     templateId={getResumeTemplateId(previewResume)}
@@ -850,7 +883,7 @@ export default function StudentDashboard() {
                             initial={{ scale: 0.9, opacity: 0, y: 20 }}
                             animate={{ scale: 1, opacity: 1, y: 0 }}
                             exit={{ scale: 0.9, opacity: 0, y: 20 }}
-                            className="bg-white w-full max-w-5xl h-[90vh] rounded-[2rem] overflow-hidden flex flex-col shadow-2xl"
+                            className="bg-white w-[95vw] max-w-7xl h-[95vh] rounded-[2rem] overflow-hidden flex flex-col shadow-2xl"
                         >
                             <div className="p-6 border-b flex items-center justify-between bg-white sticky top-0 z-10">
                                 <div>
@@ -881,7 +914,7 @@ export default function StudentDashboard() {
                                     </button>
                                 </div>
                             </div>
-                            <div className="flex-1 overflow-auto p-4 sm:p-8 md:p-12 bg-slate-50 flex justify-center">
+                            <div className="flex-1 overflow-auto bg-slate-50 flex justify-center py-8">
                                 <div className="bg-white shadow-2xl w-full p-12" id={`cover-letter-capture-${previewCoverLetter.id}`} style={{ fontFamily: 'Georgia, serif', fontSize: '12pt', lineHeight: 1.6 }}>
                                     {/* Sender Header */}
                                     <div style={{ marginBottom: '40px', borderBottom: '1px solid #eee', paddingBottom: '20px' }}>
@@ -1054,8 +1087,8 @@ function SavedResumePreview({ resume, templateId }) {
 
     useEffect(() => {
         const updateScale = () => {
-            const maxWidth = window.innerWidth < 768 ? window.innerWidth - 72 : 860
-            const nextScale = Math.max(0.32, Math.min(1, maxWidth / PAGE_WIDTH))
+            const maxWidth = window.innerWidth < 768 ? window.innerWidth - 48 : 1150
+            const nextScale = Math.max(0.32, Math.min(1.3, maxWidth / PAGE_WIDTH))
             setPreviewScale(nextScale)
         }
 
@@ -1253,6 +1286,9 @@ function LazyResumeThumbnail({ resume }) {
 
 function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDeleting, isEditing, editingTitle, onStartEdit, onSaveTitle, onCancelEdit, onTitleChange, onDuplicate }) {
     const dynamicScore = getResumeATSScore(resume)
+    const createdAtText = formatDateTime(resume.created_at)
+    const editedAtText = formatDateTime(resume.updated_at || resume.created_at)
+    const hasBeenEdited = Boolean(resume.updated_at && resume.created_at && resume.updated_at !== resume.created_at)
 
     return (
         <motion.div
@@ -1260,7 +1296,7 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ delay: idx * 0.05 }}
-            className="group relative bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:border-indigo-100 h-full flex flex-col"
+            className="group relative bg-white border-2 border-slate-300 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-300/50 transition-all hover:border-indigo-400 h-full flex flex-col shadow-sm"
         >
             <div className="aspect-[210/297] bg-slate-50 relative overflow-hidden group-hover:bg-indigo-50 transition-colors cursor-pointer border-b border-slate-50" onClick={onPreview}>
                 <LazyResumeThumbnail resume={resume} />
@@ -1301,9 +1337,12 @@ function ResumeCard({ resume, idx, onEdit, onDelete, onDownload, onPreview, isDe
                         <h4 className="text-base font-black text-slate-900 truncate mb-0.5 cursor-pointer hover:text-indigo-600" onClick={onStartEdit}>{resume.title || 'Untitled Resume'}</h4>
                     )}
                     <div className="flex items-center gap-2 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
-                        <span className="flex items-center gap-1"><Clock size={10} /> {new Date(resume.created_at).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1"><Clock size={10} /> Created {createdAtText}</span>
                         <span>•</span>
                         <span className="text-indigo-600">{getResumeTemplateId(resume)?.split('-')[0]}</span>
+                    </div>
+                    <div className="mt-1 text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                        {hasBeenEdited ? `Last Edited ${editedAtText}` : 'Last Edited - Not Yet'}
                     </div>
                 </div>
 
@@ -1400,7 +1439,7 @@ function CoverLetterCard({ coverLetter, idx, onDelete, onDownload, onPreview, is
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ delay: idx * 0.05 }}
-            className="group relative bg-white border border-slate-100 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-200/50 transition-all hover:border-emerald-100 h-full flex flex-col"
+            className="group relative bg-white border-2 border-slate-300 rounded-2xl overflow-hidden hover:shadow-xl hover:shadow-slate-300/50 transition-all hover:border-emerald-400 h-full flex flex-col shadow-sm"
         >
             <div className="aspect-[4/5] bg-gradient-to-br from-emerald-50 to-teal-50 relative overflow-hidden group-hover:from-emerald-100 group-hover:to-teal-100 transition-colors cursor-pointer border-b border-emerald-100 p-4 flex flex-col" onClick={onPreview}>
                 {/* Text Preview - Always visible, more visible on hover */}

@@ -133,6 +133,25 @@ body {
   backface-visibility: hidden;
 }
 
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: 
+    radial-gradient(circle at 15% 15%, var(--color-ambient-1) 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, var(--color-ambient-2) 0%, transparent 45%);
+  pointer-events: none;
+  opacity: 0.6;
+  transition: opacity 0.5s ease;
+}
+
+::selection {
+  background-color: var(--color-accent-subtle);
+  color: var(--color-accent-primary);
+  -webkit-text-fill-color: var(--color-accent-primary);
+}
+
 /* Base Typography Elements with hardware acceleration */
 h1,
 h2,

@@ -32,8 +32,8 @@ const ProtectedRoute = ({ children, role }) => {
   const { user, hasHydrated } = useStore()
   
   if (!hasHydrated) return (
-    <div className="min-h-screen bg-[#fafafa] flex items-center justify-center">
-      <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+    <div className="min-h-screen bg-[var(--color-bg-base)] flex items-center justify-center">
+      <div className="w-12 h-12 border-4 border-[var(--color-accent-primary)] border-t-transparent rounded-full animate-spin" />
     </div>
   )
   

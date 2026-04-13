@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, AlertTriangle, Loader2, Plus, Trash2, Upload, Save } from 'lucide-react'
+import { ArrowLeft, ArrowRight, AlertTriangle, Loader2, Plus, Trash2, Upload, Save } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
-import { getDbUserId, isDbUuid } from '../lib/userIdentity'
+import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
 import { useToast } from '../context/ToastContext'
 import * as resumeParser from '../lib/resumeParser'
 import { withApiBase } from '../lib/apiBase'
+import { saveMasterProfileBackup, loadMasterProfileBackup } from '../lib/masterProfileBackup'
 
 const emptyEducation = () => ({ degree: '', institution: '', location: '', startYear: '', endYear: '', gpa: '' })
 const emptyWork = () => ({ company: '', role: '', location: '', startDate: '', endDate: '', bullets: [] })
@@ -32,6 +33,42 @@ const isRecoverableProfilePersistenceError = (error) => {
     message.includes('foreign key constraint')
 }
 
+const extractProfileFromProfilesRow = (data, userEmail = '') => {
+  if (!data) return null
+
+  if (data.master_profile) {
+    return typeof data.master_profile === 'string'
+      ? JSON.parse(data.master_profile)
+      : data.master_profile
+  }
+
+  if (data.resume_data) {
+    const parsed = typeof data.resume_data === 'string'
+      ? JSON.parse(data.resume_data)
+      : data.resume_data
+    return resumeParser.createMasterProfileFromParsed(parsed)
+  }
+
+  return resumeParser.createMasterProfileFromParsed({
+    personalInfo: {
+      firstName: data.first_name || '',
+      lastName: data.last_name || '',
+      email: data.email || userEmail || '',
+      phone: data.phone || '',
+      location: [data.city, data.country].filter(Boolean).join(', '),
+      linkedin: data.linkedin || '',
+      github: data.github || '',
+      website: data.website || '',
+      summary: data.summary || ''
+    },
+    experience: Array.isArray(data.experience_data) ? data.experience_data : [],
+    education: Array.isArray(data.education_data) ? data.education_data : [],
+    skills: Array.isArray(data.skills_data) ? data.skills_data : [],
+    projects: Array.isArray(data.projects_data) ? data.projects_data : [],
+    certifications: Array.isArray(data.certifications_data) ? data.certifications_data : []
+  })
+}
+
 export default function MasterProfile() {
   const { success: toastSuccess, error: toastError } = useToast()
   const {
@@ -48,6 +85,7 @@ export default function MasterProfile() {
   const [profile, setProfile] = useState(() => resumeParser.createEmptyMasterProfile())
   const [skillDraft, setSkillDraft] = useState({ languages: '', frameworks: '', tools: '', databases: '', cloud: '', other: '' })
   const [achievementDraft, setAchievementDraft] = useState('')
+  const [showPostSaveHint, setShowPostSaveHint] = useState(false)
   const fileInputRef = useRef(null)
 
   const completeness = useMemo(() => resumeParser.calculateMasterProfileCompleteness(profile), [profile])
@@ -60,82 +98,109 @@ export default function MasterProfile() {
     setProfile(initial)
   }, [masterProfile])
 
+  const collectUserIdCandidates = async () => {
+    const candidates = new Set()
+
+    const addCandidate = (value) => {
+      const token = String(value || '').trim()
+      if (token) candidates.add(token)
+    }
+
+    addCandidate(getDbUserId(user))
+    getDbUserIdCandidates(user).forEach(addCandidate)
+    addCandidate(user?.studentId)
+    addCandidate(user?.uid)
+    addCandidate(user?.id)
+    addCandidate(user?.user_id)
+
+    const email = String(user?.email || '').trim()
+    if (email) {
+      try {
+        const { data } = await supabase
+          .from('students')
+          .select('id')
+          .eq('email', email)
+          .maybeSingle()
+
+        if (data?.id) addCandidate(data.id)
+      } catch {
+        // Ignore candidates lookup failures and continue with available IDs.
+      }
+    }
+
+    return [...candidates]
+  }
+
   useEffect(() => {
     const loadProfile = async () => {
       if (!user) return
-      const dbUserId = getDbUserId(user)
-      if (!dbUserId) return
+
+      const userIdCandidates = await collectUserIdCandidates()
+      if (!userIdCandidates.length) return
 
       setLoading(true)
       try {
-        try {
-          const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(dbUserId)}`))
-          if (apiResponse.ok) {
+        for (const candidateId of userIdCandidates) {
+          try {
+            const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(candidateId)}`))
+            if (!apiResponse.ok) continue
+
             const payload = await apiResponse.json()
             if (payload?.profile) {
               const normalizedProfile = resumeParser.normalizeMasterProfile(payload.profile)
-              setProfile(normalizedProfile)
-              setMasterProfile(normalizedProfile)
-              applyMasterProfile(normalizedProfile)
-              setProfileId(payload?.data?.id || null)
-              return
+              if (resumeParser.calculateMasterProfileCompleteness(normalizedProfile) > 0) {
+                setProfile(normalizedProfile)
+                setMasterProfile(normalizedProfile)
+                applyMasterProfile(normalizedProfile)
+                setProfileId(payload?.data?.id || null)
+                saveMasterProfileBackup(user, normalizedProfile)
+                return
+              }
             }
+          } catch (apiError) {
+            console.warn('Master profile API fetch failed for candidate ID:', candidateId, apiError)
           }
-        } catch (apiError) {
-          console.warn('Master profile API fetch failed, trying table fallback:', apiError)
         }
 
-        if (!isDbUuid(dbUserId)) {
+        for (const candidateId of userIdCandidates) {
+          const { data, error } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('user_id', candidateId)
+            .maybeSingle()
+
+          if (error) {
+            const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
+            const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
+            const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
+            const invalidUuid = /invalid input syntax for type uuid/i.test(fullMessage)
+
+            if (relationMissing || noRows || invalidUuid) {
+              continue
+            }
+
+            throw error
+          }
+
+          if (!data) continue
+
+          setProfileId(data.id || null)
+          const profileFromDb = extractProfileFromProfilesRow(data, user?.email || '')
+          const normalizedProfile = resumeParser.normalizeMasterProfile(profileFromDb)
+          setProfile(normalizedProfile)
+          setMasterProfile(normalizedProfile)
+          applyMasterProfile(normalizedProfile)
+          saveMasterProfileBackup(user, normalizedProfile)
           return
         }
 
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('user_id', dbUserId)
-          .maybeSingle()
-
-        if (!data) return
-        setProfileId(data.id || null)
-
-        const profileFromDb = (() => {
-          if (data.master_profile) {
-            return typeof data.master_profile === 'string'
-              ? JSON.parse(data.master_profile)
-              : data.master_profile
-          }
-
-          if (data.resume_data) {
-            const parsed = typeof data.resume_data === 'string'
-              ? JSON.parse(data.resume_data)
-              : data.resume_data
-            return resumeParser.createMasterProfileFromParsed(parsed)
-          }
-
-          return resumeParser.createMasterProfileFromParsed({
-            personalInfo: {
-              firstName: data.first_name || '',
-              lastName: data.last_name || '',
-              email: data.email || user?.email || '',
-              phone: data.phone || '',
-              location: [data.city, data.country].filter(Boolean).join(', '),
-              linkedin: data.linkedin || '',
-              github: data.github || '',
-              website: data.website || '',
-              summary: data.summary || ''
-            },
-            experience: Array.isArray(data.experience_data) ? data.experience_data : [],
-            education: Array.isArray(data.education_data) ? data.education_data : [],
-            skills: Array.isArray(data.skills_data) ? data.skills_data : [],
-            projects: Array.isArray(data.projects_data) ? data.projects_data : [],
-            certifications: Array.isArray(data.certifications_data) ? data.certifications_data : []
-          })
-        })()
-
-        const normalizedProfile = resumeParser.normalizeMasterProfile(profileFromDb)
-        setProfile(normalizedProfile)
-        setMasterProfile(normalizedProfile)
-        applyMasterProfile(normalizedProfile)
+        const backupProfile = loadMasterProfileBackup(user)
+        if (backupProfile) {
+          const normalizedBackup = resumeParser.normalizeMasterProfile(backupProfile)
+          setProfile(normalizedBackup)
+          setMasterProfile(normalizedBackup)
+          applyMasterProfile(normalizedBackup)
+        }
       } catch (error) {
         console.error('Failed to load master profile', error)
       } finally {
@@ -157,6 +222,12 @@ export default function MasterProfile() {
 
     return undefined
   }, [])
+
+  useEffect(() => {
+    if (!showPostSaveHint) return
+    const timer = setTimeout(() => setShowPostSaveHint(false), 12000)
+    return () => clearTimeout(timer)
+  }, [showPostSaveHint])
 
   const hasValue = (value) => {
     if (Array.isArray(value)) return value.length > 0
@@ -329,6 +400,7 @@ export default function MasterProfile() {
       setProfile(nextProfile)
       setMasterProfile(nextProfile)
       applyMasterProfile(nextProfile)
+      saveMasterProfileBackup(user, nextProfile)
       setParseStatus('success')
       toastSuccess('Parsed data loaded. Review yellow fields and save your profile.')
     } catch (error) {
@@ -347,8 +419,8 @@ export default function MasterProfile() {
       return
     }
 
-    const dbUserId = getDbUserId(user)
-    if (!dbUserId) {
+    const userIdCandidates = await collectUserIdCandidates()
+    if (!userIdCandidates.length) {
       toastError('Unable to identify your account.')
       return
     }
@@ -357,41 +429,50 @@ export default function MasterProfile() {
 
     setSaving(true)
     try {
-      let saved = false
-      let apiErrorMessage = ''
-      let localOnlyMode = false
+      const attemptSaveForCandidate = async (candidateUserId) => {
+        let apiErrorMessage = ''
+        let fallbackErrorMessage = ''
 
-      try {
-        const response = await fetch(withApiBase('/api/master-profile'), {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            userId: dbUserId,
-            profile: normalized
+        try {
+          const response = await fetch(withApiBase('/api/master-profile'), {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: candidateUserId,
+              userEmail: user?.email || '',
+              profile: normalized
+            })
           })
-        })
 
-        if (!response.ok) {
-          const err = await response.json().catch(() => ({}))
-          apiErrorMessage = err?.error || `API save failed with status ${response.status}`
-          throw new Error(apiErrorMessage)
+          const payload = await response.json().catch(() => ({}))
+          if (!response.ok) {
+            apiErrorMessage = payload?.error || `API save failed with status ${response.status}`
+            throw new Error(apiErrorMessage)
+          }
+
+          if (payload?.fallback === 'local-only') {
+            return {
+              saved: false,
+              localOnly: true,
+              error: new Error(payload?.warning || 'Profile save fell back to local-only mode.')
+            }
+          }
+
+          return {
+            saved: true,
+            localOnly: false,
+            data: payload?.data || null
+          }
+        } catch (apiError) {
+          apiErrorMessage = apiError?.message || apiErrorMessage || 'API save failed'
         }
 
-        const payload = await response.json()
-        setProfileId(payload?.data?.id || profileId)
-        saved = true
-      } catch (apiError) {
-        apiErrorMessage = apiError?.message || apiErrorMessage || 'API save failed'
-      }
-
-      if (!saved) {
         let fallbackSaved = false
-        let fallbackErrorMessage = ''
 
         const { data, error } = await supabase
           .from('master_profiles')
           .upsert({
-            user_id: dbUserId,
+            user_id: candidateUserId,
             profile_data: normalized,
             updated_at: new Date().toISOString()
           }, { onConflict: 'user_id' })
@@ -400,10 +481,14 @@ export default function MasterProfile() {
 
         if (!error) {
           fallbackSaved = true
-          setProfileId(data?.id || profileId)
-        } else {
-          fallbackErrorMessage = error.message || 'Fallback save failed'
+          return {
+            saved: true,
+            localOnly: false,
+            data: data || null
+          }
         }
+
+        fallbackErrorMessage = error.message || 'Fallback save failed'
 
         if (!fallbackSaved) {
           const resumeData = resumeParser.masterProfileToResumeData(normalized)
@@ -411,7 +496,7 @@ export default function MasterProfile() {
           const lastName = restName.join(' ')
 
           const draftPayload = {
-            user_id: dbUserId,
+            user_id: candidateUserId,
             first_name: firstName,
             last_name: lastName,
             email: normalized.personal.email || '',
@@ -432,6 +517,7 @@ export default function MasterProfile() {
 
           const adaptivePayload = { ...draftPayload }
           let profileSaveError = null
+          let profileSavedData = null
 
           for (let attempt = 0; attempt < 10; attempt += 1) {
             const result = await supabase
@@ -441,7 +527,7 @@ export default function MasterProfile() {
               .maybeSingle()
 
             if (!result.error) {
-              setProfileId(result.data?.id || profileId)
+              profileSavedData = result.data || null
               profileSaveError = null
               break
             }
@@ -463,19 +549,67 @@ export default function MasterProfile() {
             break
           }
 
-          if (profileSaveError) {
-            const composedError = new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
-            if (isRecoverableProfilePersistenceError(composedError)) {
-              localOnlyMode = true
-            } else {
-              throw composedError
+          if (!profileSaveError) {
+            return {
+              saved: true,
+              localOnly: false,
+              data: profileSavedData
             }
           }
+
+          const composedError = new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
+          if (isRecoverableProfilePersistenceError(composedError)) {
+            return {
+              saved: false,
+              localOnly: true,
+              error: composedError
+            }
+          }
+
+          return {
+            saved: false,
+            localOnly: false,
+            error: composedError
+          }
         }
+
+        return {
+          saved: false,
+          localOnly: false,
+          error: new Error(apiErrorMessage || fallbackErrorMessage || 'Master profile save failed.')
+        }
+      }
+
+      let saved = false
+      let localOnlyMode = false
+      let latestError = null
+
+      for (const candidateUserId of userIdCandidates) {
+        const result = await attemptSaveForCandidate(candidateUserId)
+
+        if (result.saved) {
+          saved = true
+          setProfileId(result?.data?.id || profileId)
+          break
+        }
+
+        if (result.localOnly) {
+          localOnlyMode = true
+        }
+
+        if (result.error) {
+          latestError = result.error
+        }
+      }
+
+      if (!saved && !localOnlyMode) {
+        throw latestError || new Error('Unable to persist master profile. Please try again.')
       }
 
       setMasterProfile(normalized)
       applyMasterProfile(normalized)
+      saveMasterProfileBackup(user, normalized)
+      setShowPostSaveHint(true)
       if (localOnlyMode) {
         toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
       } else {
@@ -487,9 +621,15 @@ export default function MasterProfile() {
         const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
         setMasterProfile(normalizedLocal)
         applyMasterProfile(normalizedLocal)
+        saveMasterProfileBackup(user, normalizedLocal)
+        setShowPostSaveHint(true)
         toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
       } else {
-        toastError(error?.message || 'Failed to save profile')
+        const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
+        setMasterProfile(normalizedLocal)
+        applyMasterProfile(normalizedLocal)
+        saveMasterProfileBackup(user, normalizedLocal)
+        toastError(`${error?.message || 'Failed to save profile'} Saved locally on this device.`)
       }
     } finally {
       setSaving(false)
@@ -510,9 +650,16 @@ export default function MasterProfile() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex items-center justify-between gap-4">
-          <Link to="/student/choice" className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
-            <ArrowLeft size={16} /> Back
-          </Link>
+          <div className="relative">
+            <Link to="/student/choice" className={`inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 ${showPostSaveHint ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-300'}`}>
+              <ArrowLeft size={16} /> Back
+            </Link>
+            {showPostSaveHint && (
+              <div className="absolute -top-9 left-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700 shadow-sm whitespace-nowrap">
+                <ArrowRight size={11} className="animate-pulse" /> Next: Back, then continue to build your resume
+              </div>
+            )}
+          </div>
 
           <div className="flex items-center gap-2">
             <input

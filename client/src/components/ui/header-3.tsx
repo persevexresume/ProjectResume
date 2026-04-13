@@ -82,6 +82,7 @@ export function Header() {
     const isStudentChoice = location.pathname === '/student/choice';
     const isBuildPage = location.pathname === '/build' || location.pathname === '/build-demo';
     const isStandaloneFlowPage = location.pathname === '/upload-resume' || location.pathname === '/master-profile';
+    const isSignInPage = location.pathname === '/signin';
 
     // Hide header on student choice and build pages
     if (isStudentChoice || isBuildPage || isStandaloneFlowPage) return null;
@@ -141,6 +142,13 @@ export function Header() {
                                     Dashboard
                                 </Link>
 
+                                <Link
+                                    to="/templates"
+                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
+                                >
+                                    Templates
+                                </Link>
+
                                 <div className="relative group">
                                     <button
                                         type="button"
@@ -161,21 +169,6 @@ export function Header() {
                                         </a>
                                     </div>
                                 </div>
-
-                                <Link
-                                    to="/templates"
-                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
-                                >
-                                    Templates
-                                </Link>
-
-
-                                <Link
-                                    to="/student/choice"
-                                    className="px-5 h-10 flex items-center font-bold text-sm text-slate-700 hover:bg-white/50 rounded-full transition-all"
-                                >
-                                    Master Profile
-                                </Link>
 
                             </>
                         ) : (
@@ -215,7 +208,7 @@ export function Header() {
                                     Support
                                 </Link>
 
-                                {location.pathname !== '/' && (
+                                {location.pathname !== '/' && !isSignInPage && (
                                     <>
                                         <Link
                                             to="/signin"
@@ -266,12 +259,30 @@ export function Header() {
                                 </MovingBorder>
                             </>
                         ) : (
-                            <button
-                                onClick={handleLogout}
-                                className="px-6 h-10 flex items-center font-bold text-sm text-white bg-rose-600 hover:bg-rose-700 rounded-full transition-all shadow-lg shadow-rose-200 hover:scale-[1.02] active:scale-95"
-                            >
-                                Sign Out
-                            </button>
+                            <div className="relative group">
+                                <button
+                                    type="button"
+                                    className="w-10 h-10 flex items-center justify-center text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-full transition-all shadow-sm"
+                                >
+                                    <UserCircle size={20} />
+                                </button>
+                                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl opacity-0 pointer-events-none translate-y-1 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 transition-all z-50">
+                                    <Link
+                                        to="/master-profile"
+                                        className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                    >
+                                        <UserCircle size={16} className="text-indigo-600" />
+                                        Profile
+                                    </Link>
+                                    <button
+                                        onClick={handleLogout}
+                                        className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 mt-1 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                                    >
+                                        <LogOut size={16} className="text-rose-500" />
+                                        Sign Out
+                                    </button>
+                                </div>
+                            </div>
                         )}
                     </div>
 
@@ -297,20 +308,20 @@ export function Header() {
                                 <FileStack className="size-5 text-blue-600" />
                                 Dashboard
                             </Link>
+                            <Link to="/master-profile" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
+                                <UserCircle className="size-5 text-violet-600" />
+                                Master Profile
+                            </Link>
+                            <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-indigo-50">
+                                <Layout className="size-5 text-indigo-600" />
+                                Templates
+                            </Link>
                             <div className="rounded-xl border border-slate-200 bg-slate-50 p-2">
                                 <a href="https://www.persevex.com/job-portal" target="_blank" rel="noopener noreferrer" className="flex items-center gap-3 p-3 rounded-xl text-slate-700 font-bold transition-colors hover:bg-blue-50">
                                     <Briefcase className="size-5 text-blue-600" />
                                     Job Portal
                                 </a>
                             </div>
-                            <Link to="/templates" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-indigo-50">
-                                <Layout className="size-5 text-indigo-600" />
-                                Templates
-                            </Link>
-                            <Link to="/student/choice" onClick={() => setOpen(false)} className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 text-slate-900 font-bold transition-colors hover:bg-violet-50">
-                                <UserCircle className="size-5 text-violet-600" />
-                                Master Profile
-                            </Link>
                         </div>
                     ) : !user ? (
                         <div className="flex flex-col gap-2">

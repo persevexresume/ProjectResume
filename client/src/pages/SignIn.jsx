@@ -4,10 +4,11 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useLocation, Link } from 'react-router-dom'
 import { User, Lock, ArrowRight, Sun, ShieldCheck, Zap } from 'lucide-react'
 import useStore from '../store/useStore'
-import { getDbUserId } from '../lib/userIdentity'
+import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
+import { loadMasterProfileBackup } from '../lib/masterProfileBackup'
 
 export default function SignIn() {
-    const { setUser, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, resetResume } = useStore()
+    const { setUser, setMasterProfile, applyMasterProfile, updatePersonalInfo, setExperience, setEducation, setSkills, setProjects, setCertifications, resetResume } = useStore()
     const navigate = useNavigate()
     const location = useLocation()
     const [loginId, setLoginId] = useState('')
@@ -15,31 +16,62 @@ export default function SignIn() {
     const [error, setError] = useState('')
     const [loading, setLoading] = useState(false)
 
-    const getProfileFromDatabase = async (dbUserId) => {
+    const getProfileFromDatabase = async (activeUser) => {
+        const candidates = new Set()
+        const addCandidate = (value) => {
+            const token = String(value || '').trim()
+            if (token) candidates.add(token)
+        }
+
+        addCandidate(getDbUserId(activeUser))
+        getDbUserIdCandidates(activeUser).forEach(addCandidate)
+        addCandidate(activeUser?.studentId)
+        addCandidate(activeUser?.uid)
+        addCandidate(activeUser?.id)
+        addCandidate(activeUser?.user_id)
+
+        const email = String(activeUser?.email || '').trim()
+        if (email) {
+            const { data: studentData } = await supabase
+                .from('students')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle()
+
+            if (studentData?.id) {
+                addCandidate(studentData.id)
+            }
+        }
+
+        if (!candidates.size) return null
+
         const tableCandidates = ['profiles']
 
         for (const tableName of tableCandidates) {
-            const { data, error } = await supabase
-                .from(tableName)
-                .select('*')
-                .eq('user_id', dbUserId)
-                .maybeSingle()
+            for (const userId of candidates) {
+                const { data, error } = await supabase
+                    .from(tableName)
+                    .select('*')
+                    .eq('user_id', userId)
+                    .maybeSingle()
 
-            if (data) {
-                return data
+                if (data) {
+                    return data
+                }
+
+                if (!error) continue
+
+                const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
+                const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
+                const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
+                const invalidUuid = /invalid input syntax for type uuid/i.test(fullMessage)
+
+                if (relationMissing || noRows || invalidUuid) {
+                    continue
+                }
+
+                throw error
             }
-
-            if (!error) continue
-
-            const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-            const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
-            const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
-
-            if (relationMissing || noRows) {
-                continue
-            }
-
-            throw error
         }
 
         return null
@@ -81,14 +113,26 @@ export default function SignIn() {
                 if (result.userType === 'admin') {
                     navigate('/admin')
                 } else {
-                    const dbUserId = getDbUserId(result.user)
-                    let profile = null
-
-                    if (dbUserId) {
-                        profile = await getProfileFromDatabase(dbUserId)
-                    }
+                    const profile = await getProfileFromDatabase(result.user)
+                    const backupProfile = loadMasterProfileBackup(result.user)
 
                     if (profile) {
+                        let parsedMasterProfile = null
+                        if (profile.master_profile) {
+                            try {
+                                parsedMasterProfile = typeof profile.master_profile === 'string'
+                                    ? JSON.parse(profile.master_profile)
+                                    : profile.master_profile
+                            } catch {
+                                parsedMasterProfile = null
+                            }
+                        }
+
+                        if (parsedMasterProfile && typeof parsedMasterProfile === 'object') {
+                            setMasterProfile(parsedMasterProfile)
+                            applyMasterProfile(parsedMasterProfile)
+                        }
+
                         const city = profile.city || profile.location?.split(',')[0]?.trim() || ''
                         const country = profile.country || profile.location?.split(',')[1]?.trim() || ''
 
@@ -106,12 +150,15 @@ export default function SignIn() {
                         setSkills(Array.isArray(profile.skills_data) ? profile.skills_data : [])
                         setProjects(Array.isArray(profile.projects_data) ? profile.projects_data : [])
                         setCertifications(Array.isArray(profile.certifications_data) ? profile.certifications_data : [])
+                    } else if (backupProfile) {
+                        setMasterProfile(backupProfile)
+                        applyMasterProfile(backupProfile)
                     } else {
                         resetResume()
                         updatePersonalInfo({ email: result.user.email || '' })
                     }
 
-                    navigate('/student/choice')
+                    navigate('/student/choice', { state: { onboarding: 'post-login' } })
                 }
             } else {
                 setError(result.error || 'Invalid credentials. Please try again.')

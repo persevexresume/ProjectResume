@@ -3,28 +3,35 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Sparkles } from 'lucide-react'
 import { cn } from '../lib/utils'
 
-// Particle component for background effect
 const Particle = ({ delay }) => {
+    const [props] = useState(() => ({
+        size: Math.random() * 6 + 2,
+        startX: Math.random() * 100,
+        startY: Math.random() * 100,
+        targetY: Math.random() * 100,
+        duration: Math.random() * 3 + 2
+    }))
+
     return (
         <motion.div
             className="absolute rounded-full bg-blue-500 opacity-0"
             style={{
-                width: Math.random() * 6 + 2 + 'px',
-                height: Math.random() * 6 + 2 + 'px',
+                width: `${props.size}px`,
+                height: `${props.size}px`,
                 boxShadow: '0 0 10px rgba(59, 130, 246, 0.3)'
             }}
             initial={{
-                x: `${Math.random() * 100}vw`,
-                y: `${Math.random() * 100}vh`,
+                x: `${props.startX}vw`,
+                y: `${props.startY}vh`,
                 scale: 0
             }}
             animate={{
-                y: [null, `${Math.random() * 100}vh`],
+                y: [`${props.startY}vh`, `${props.targetY}vh`],
                 opacity: [0, 0.4, 0],
                 scale: [0, 1, 0]
             }}
             transition={{
-                duration: Math.random() * 3 + 2,
+                duration: props.duration,
                 repeat: Infinity,
                 delay: delay
             }}

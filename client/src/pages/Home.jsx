@@ -1,6 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
     CheckCircle2,
     Zap,
@@ -41,6 +41,7 @@ const FloatingCard = ({ children, style, delay = 0 }) => (
 
 export default function Home() {
     const [openFaq, setOpenFaq] = useState(null);
+    const navigate = useNavigate();
 
     return (
         <motion.div
@@ -57,6 +58,10 @@ export default function Home() {
                 title="Engineering the Future"
                 highlightedText="of Digital Careers"
                 subtitle="Only 2% of resumes win. We make sure yours is one of them. Engineered with Neural Precision and ATS-optimized architectures for elite roles."
+                ctaButton={{
+                    label: 'Start Building Now',
+                    onClick: () => navigate('/master-profile')
+                }}
                 featureIcons={[
                     {
                         icon: <Cpu size={32} className="text-blue-500" />,

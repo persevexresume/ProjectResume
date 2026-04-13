@@ -128,28 +128,7 @@ export default function Workflow() {
                 </div>
             </section>
 
-            {/* CTA Section */}
-            <section className="py-20 bg-white">
-                <motion.div
-                    initial={{ opacity: 0, y: 20 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8 }}
-                    className="max-w-[800px] mx-auto px-8 text-center"
-                >
-                    <h2 className="text-4xl font-black text-slate-900 mb-6">
-                        Ready to get started?
-                    </h2>
-                    <p className="text-lg text-slate-600 mb-8">
-                        Join thousands of students already building amazing resumes
-                    </p>
-                    <Link
-                        to="/signin"
-                        className="inline-block bg-gradient-to-r from-indigo-600 to-violet-600 text-white px-8 py-4 rounded-xl font-black text-lg hover:shadow-lg hover:-translate-y-1 transition-all no-underline uppercase tracking-wider"
-                    >
-                        Start Building Now
-                    </Link>
-                </motion.div>
-            </section>
+
         </div>
     )
 }

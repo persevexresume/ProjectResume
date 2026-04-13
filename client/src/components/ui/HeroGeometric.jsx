@@ -187,7 +187,7 @@ export function HeroGeometric({
                         </p>
 
                         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                            <Link to="/build" className="w-full sm:w-auto">
+                            <Link to="/master-profile" className="w-full sm:w-auto">
                                 <button className="w-full sm:w-auto px-8 py-4 bg-blue-600 text-white rounded-xl font-black text-lg hover:bg-blue-700 transition-all shadow-lg hover:shadow-blue-500/20 active:scale-95 flex items-center justify-center gap-2">
                                     Start Building <ArrowRight size={20} />
                                 </button>

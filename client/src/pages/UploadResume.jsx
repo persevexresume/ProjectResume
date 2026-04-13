@@ -8,6 +8,7 @@ import { supabase, isMock } from '../supabase'
 import { getDbUserId } from '../lib/userIdentity'
 import * as resumeParser from '../lib/resumeParser'
 import { withApiBase } from '../lib/apiBase'
+import { saveMasterProfileBackup } from '../lib/masterProfileBackup'
 
 export default function UploadResume() {
     const navigate = useNavigate()
@@ -732,6 +733,7 @@ export default function UploadResume() {
                     }
 
                     setMasterProfile(masterProfileData)
+                    saveMasterProfileBackup(user, masterProfileData)
                 } catch (err) {
                     console.error("Error updating master profile:", err)
                 }

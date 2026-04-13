@@ -16,6 +16,18 @@ The platform leverages advanced neural parsing architectures and ATS (Applicant 
 
 This report documents the platform's core functionalities, user-centric design philosophy, and recent strategic enhancements that have solidified its position as a leader in digital career management.
 
+### 1.2 User Experience (UX) Problems in Whole Project
+Although the platform provides comprehensive functionality, usability reviews identified a recurring issue: several sections were functionally complete but not self-explanatory. Users often relied on trial-and-error to understand the right next action. The highest-friction patterns included:
+- Limited contextual guidance between major journey stages (login → profile setup → template selection → builder).
+- Section labels that were present but did not clearly communicate expected user input.
+- Action visibility gaps, where key next-step buttons existed but were not sufficiently highlighted in context.
+- Inconsistent onboarding cues across pages, creating uncertainty for first-time users.
+
+To resolve this, UX improvements are being standardized across the project with three principles:
+- Introduce lightweight, contextual guidance near primary actions.
+- Add explicit, step-based helper cues in form-heavy sections.
+- Provide persistent quick-start navigation strips on key workflow pages.
+
 ---
 
 ## 2. Introduction

@@ -62,7 +62,7 @@ export default function EnhancedTemplateCard({
         cursor: 'pointer',
         borderRadius: '16px',
         overflow: 'hidden',
-        border: '1px solid #e5e7eb',
+        border: '2px solid #cbd5e1',
         background: '#fff',
         transition: 'all 300ms ease',
         transform: isHovered ? 'translateY(-8px)' : 'translateY(0)',

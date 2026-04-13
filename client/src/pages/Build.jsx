@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap, Search, Plus, X, Loader2 } from 'lucide-react'
+import { User, Briefcase, GraduationCap, Wrench, Award, FileText, Save, Download, Trash2, CheckCircle2, ChevronRight, Sparkles, Lightbulb, PenTool, ArrowLeft, Settings, Zap, Search, Plus, Minus, X, Loader2 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase, isMock } from '../supabase'
 import { resumeTemplates } from '../data/templates'
@@ -9,6 +9,7 @@ import { isDbUuid } from '../lib/userIdentity'
 import { getDbUserIdCandidates } from '../lib/userIdentity'
 import * as resumeParser from '../lib/resumeParser'
 import { withApiBase } from '../lib/apiBase'
+import { RESUME_CONTENT_LIMITS } from '../lib/resumeConstraints'
 import ResumeRenderer, { calculateATSScore } from '../components/resume/ResumeRenderer'
 import ATSChecker from '../components/ATSChecker'
 
@@ -21,6 +22,11 @@ import { useToast } from '../context/ToastContext'
 
 const PAGE_WIDTH = 794
 const PAGE_HEIGHT = 1123
+
+const ensureArray = (value) => Array.isArray(value) ? value : []
+const MAX_SKILLS = RESUME_CONTENT_LIMITS.skills.maxItems
+const MAX_SKILL_LENGTH = RESUME_CONTENT_LIMITS.skills.itemMax
+const MAX_SUMMARY_LENGTH = RESUME_CONTENT_LIMITS.personal.summaryMax
 
 export default function Build() {
     const navigate = useNavigate()
@@ -45,6 +51,7 @@ export default function Build() {
     const [showATSChecker, setShowATSChecker] = useState(false)
     const [showPreviewModal, setShowPreviewModal] = useState(false)
     const [showLivePreview] = useState(true)
+    const [previewZoom, setPreviewZoom] = useState(1.1)
 
     useEffect(() => {
         const handleResize = () => {
@@ -59,18 +66,19 @@ export default function Build() {
     const canShowSidePreview = viewportWidth >= 1024
 
     const railWidth = isCompactRail ? 92 : 260
-    // Narrow side preview: ~32% of screen OR fixed 350px, whichever is more comfortable
-    const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(340, Math.min(460, viewportWidth * 0.32)) : 0
+    // Keep preview comfortably readable on desktop while preserving workspace area.
+    const previewWidthBuffer = (canShowSidePreview && showLivePreview) ? Math.max(420, Math.min(620, viewportWidth * 0.37)) : 0
     const previewWidth = previewWidthBuffer
 
     // Calculate scales for both width and height to ensure full visibility
-    const horizontalScale = (previewWidth - 20) / 794
+    const horizontalScale = (previewWidth - 18) / PAGE_WIDTH
     // Reserve space for panel chrome (header, card spacing, and save panel)
-    const availableHeight = Math.max(420, viewportHeight - 300)
-    const verticalScale = availableHeight / 1123
+    const availableHeight = Math.max(500, viewportHeight - 250)
+    const verticalScale = availableHeight / PAGE_HEIGHT
 
-    // The true A4 pixel width is ~794. We scale the preview to fit BOTH width and height.
-    const previewScale = Math.max(0.22, Math.min(0.6, horizontalScale, verticalScale))
+    // Base fit scale from viewport constraints, with user zoom applied.
+    const basePreviewScale = Math.max(0.34, Math.min(0.8, horizontalScale, verticalScale))
+    const previewScale = Math.max(0.34, Math.min(0.95, basePreviewScale * previewZoom))
 
     useEffect(() => {
         const resolvedTemplateId = templateFromQuery || selectedTemplate
@@ -269,7 +277,7 @@ export default function Build() {
         },
         {
             id: 4,
-            label: 'Project',
+            label: 'Projects',
             icon: <FileText size={18} />,
             title: 'Showcase your key projects',
             description: 'Add your strongest project work with outcomes and links.',
@@ -305,7 +313,7 @@ export default function Build() {
         },
         {
             id: 6,
-            label: 'Certificate',
+            label: 'Certifications',
             icon: <Award size={18} />,
             title: 'Add certifications',
             description: 'Include certifications that strengthen your role credibility.',
@@ -330,6 +338,65 @@ export default function Build() {
             }
         }
     ]
+
+    const stepHelpers = {
+        1: {
+            title: 'What to do in Header',
+            points: [
+                'Add first name, last name, and a professional title.',
+                'Fill email and phone so recruiters can contact you quickly.'
+            ],
+            tip: 'Keep details professional and consistent with LinkedIn.'
+        },
+        2: {
+            title: 'What to do in Education',
+            points: [
+                'Add your latest degree first.',
+                'Include institution and graduation date for each entry.'
+            ],
+            tip: 'Recent graduates can include GPA and honors.'
+        },
+        3: {
+            title: 'What to do in Experience',
+            points: [
+                'Add role, company, and dates first.',
+                'Write outcome-focused bullets in the description step.'
+            ],
+            tip: 'Use numbers where possible, for example "improved by 30%".'
+        },
+        4: {
+            title: 'What to do in Projects',
+            points: [
+                'Add project name and your role.',
+                'Describe impact and add repo/live links when available.'
+            ],
+            tip: 'Prioritize projects that match your target job.'
+        },
+        5: {
+            title: 'What to do in Skills',
+            points: [
+                'Add role-relevant skills one by one.',
+                'Keep only skills you can confidently discuss in interviews.'
+            ],
+            tip: 'Press Enter to add a skill quickly.'
+        },
+        6: {
+            title: 'What to do in Certifications',
+            points: [
+                'Add certificate name and issuing organization.',
+                'Include issue date and optional verification link.'
+            ],
+            tip: 'Only list active and relevant certifications.'
+        },
+        7: {
+            title: 'What to do in Summary',
+            points: [
+                'Write 3-5 lines about your core strengths.',
+                'Mention your domain, years of exposure, and top outcomes.'
+            ],
+            tip: 'Mirror keywords from your target job description.'
+        }
+    }
 
     const handlePathSelect = (path) => {
         if (path === 'create') {
@@ -373,6 +440,11 @@ export default function Build() {
             }
 
             const candidateUserIds = [...new Set([dbUserId, ...getDbUserIdCandidates(activeUser)])]
+            const generatedResumeName = [
+                String(resumeData?.personalInfo?.firstName || '').trim(),
+                String(resumeData?.personalInfo?.lastName || '').trim()
+            ].filter(Boolean).join(' ')
+            const generatedResumeTitle = generatedResumeName ? `${generatedResumeName} Resume` : 'Untitled Resume'
 
             const payload = {
                 user_id: dbUserId,
@@ -406,6 +478,7 @@ export default function Build() {
                             .from('resumes')
                             .insert({
                                 ...attemptPayload,
+                                title: attemptPayload.title || generatedResumeTitle,
                                 created_at: new Date().toISOString()
                             })
                             .select('id')
@@ -435,15 +508,20 @@ export default function Build() {
                 return { error: { message: 'Save failed after multiple schema adaptation attempts.' } }
             }
 
-            const startedAsUpdate = Boolean(editingResumeId)
-            let { error, noRowsUpdated, data } = await saveWithAdaptiveColumns(startedAsUpdate, payload)
+            const runSaveAttempt = async (initialPayload, preferUpdate) => {
+                let result = await saveWithAdaptiveColumns(preferUpdate, initialPayload)
 
-            if (!error && startedAsUpdate && noRowsUpdated) {
-                const insertResult = await saveWithAdaptiveColumns(false, payload)
-                error = insertResult.error
-                noRowsUpdated = insertResult.noRowsUpdated
-                data = insertResult.data
+                // Some environments return a "successful" update with zero affected rows.
+                // In edit mode, immediately fall back to insert so the save is not lost.
+                if (!result.error && preferUpdate && result.noRowsUpdated) {
+                    result = await saveWithAdaptiveColumns(false, initialPayload)
+                }
+
+                return result
             }
+
+            const startedAsUpdate = Boolean(editingResumeId)
+            let { error, data } = await runSaveAttempt(payload, startedAsUpdate)
 
             if (!error && data?.id) {
                 setEditingResumeId(data.id)
@@ -454,8 +532,12 @@ export default function Build() {
                 for (const candidateId of candidateUserIds) {
                     if (!candidateId || candidateId === payload.user_id) continue
                     const retryPayload = { ...payload, user_id: candidateId }
-                    const retryResult = await saveWithAdaptiveColumns(Boolean(editingResumeId), retryPayload)
+                    const retryResult = await runSaveAttempt(retryPayload, startedAsUpdate)
                     error = retryResult.error
+                    data = retryResult.data
+                    if (!error && data?.id) {
+                        setEditingResumeId(data.id)
+                    }
                     if (!error) break
                 }
             }
@@ -479,8 +561,12 @@ export default function Build() {
                     setUser(recoveredUser)
 
                     const retryPayload = { ...payload, user_id: studentRow.id }
-                    const retryResult = await saveWithAdaptiveColumns(Boolean(editingResumeId), retryPayload)
+                    const retryResult = await runSaveAttempt(retryPayload, startedAsUpdate)
                     error = retryResult.error
+                    data = retryResult.data
+                    if (!error && data?.id) {
+                        setEditingResumeId(data.id)
+                    }
                 }
             }
 
@@ -514,10 +600,8 @@ export default function Build() {
     }
 
     const handleNext = async () => {
-        // Mark step as completed
-        if (!completedSteps.includes(activeStep)) {
-            setCompletedSteps([...completedSteps, activeStep])
-        }
+        // Mark step as completed in a race-safe way.
+        setCompletedSteps((prev) => (prev.includes(activeStep) ? prev : [...prev, activeStep]))
 
         if (activeStep < steps.length) {
             const nextStep = activeStep + 1
@@ -596,7 +680,25 @@ export default function Build() {
         )
     }
 
-    const currentStep = steps.find(s => s.id === activeStep)
+    const currentStep = steps.find(s => s.id === activeStep) || steps[0]
+    const currentStepHelper = stepHelpers[activeStep] || null
+    const previewScalePercent = Math.round(previewScale * 100)
+    const completionPercent = (() => {
+        let count = 0;
+        if (resumeData?.personalInfo?.firstName?.trim() || resumeData?.personalInfo?.email?.trim()) count++;
+        if (resumeData?.education?.some(e => e.school?.trim() || e.degree?.trim())) count++;
+        if (resumeData?.experience?.some(e => e.company?.trim() || e.role?.trim())) count++;
+        if (resumeData?.projects?.some(p => p.name?.trim())) count++;
+        if (resumeData?.skills?.length > 0 && resumeData.skills.some(s => s.name?.trim() || s.category?.trim())) count++;
+        if (resumeData?.certifications?.some(c => c.name?.trim())) count++;
+        if (resumeData?.personalInfo?.summary?.trim()) count++;
+        return Math.min(100, Math.round((count / 7) * 100));
+    })();
+    const nextActionText = activeStep === steps.length
+        ? 'Finalize Resume to save your work and return to Dashboard.'
+        : viewMode === 'intro'
+            ? 'Read the quick intro tips, then click Continue.'
+            : 'Complete the current section, then click Continue.'
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: '#fafafa' }}>
@@ -661,6 +763,8 @@ export default function Build() {
                 padding: viewportWidth < 860 ? '2.5rem 1rem 1rem 1.25rem' : '3.5rem 2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
                 transition: 'margin-right 0.3s ease-in-out'
             }}>
+
+
                 {statusMessage && (
                     <div style={{
                         width: '100%',
@@ -688,13 +792,15 @@ export default function Build() {
                     <WizardStep
                         title={currentStep.title}
                         description={currentStep.description}
+                        helper={currentStepHelper}
+                        sectionTag={`${currentStep.id}/${steps.length} · ${currentStep.label}`}
                         onNext={handleNext}
                         onBack={handleBack}
                         isFirst={activeStep === 1}
                         isLast={activeStep === steps.length}
                         nextLabel={activeStep === steps.length ? 'Finalize Resume' : 'Continue'}
                     >
-                        <div className="bg-white p-2">
+                        <div className="p-2">
                             {activeStep === 1 && <HeaderSection data={resumeData.personalInfo} update={updatePersonalInfo} />}
                             {activeStep === 2 && <EducationSection education={resumeData.education} setEdu={setEducation} />}
                             {activeStep === 3 && <ExperienceSection experience={resumeData.experience} setExp={setExperience} />}
@@ -726,11 +832,38 @@ export default function Build() {
                             <div className="w-2.5 h-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_10px_rgba(37,99,235,0.4)]" />
                             <span style={{ fontSize: '0.75rem', fontWeight: 950, color: '#475569', letterSpacing: '0.2em', textTransform: 'uppercase' }}>Preview Engine</span>
                         </div>
+
+                        <div className="hidden lg:flex flex-col items-center flex-1 max-w-[220px] mx-6">
+                            <div className="w-full flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-500 mb-1.5">
+                                <span>Completion</span>
+                                <span className={completionPercent === 100 ? "text-emerald-500" : "text-blue-600"}>{completionPercent}%</span>
+                            </div>
+                            <div className="w-full h-1.5 rounded-full bg-slate-200/70 overflow-hidden shadow-inner">
+                                <div className={`h-full transition-all duration-700 ease-out ${completionPercent === 100 ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : 'bg-blue-600 shadow-[0_0_10px_rgba(37,99,235,0.5)]'}`} style={{ width: `${completionPercent}%` }} />
+                            </div>
+                        </div>
                         <div className="flex items-center gap-2.5">
                             <div className="flex items-center gap-2 px-3.5 py-1.5 bg-white rounded-xl border border-slate-200 shadow-sm">
                                 <Zap size={13} className={calculateATSScore(resumeData) > 80 ? "text-emerald-500" : "text-amber-500"} />
                                 <span style={{ fontSize: '0.7rem', fontWeight: 900, color: '#445163', letterSpacing: '0.05em' }}>ATS:</span>
                                 <span className={`text-[13px] font-black ${calculateATSScore(resumeData) > 80 ? "text-emerald-600" : "text-amber-600"}`}>{calculateATSScore(resumeData)}%</span>
+                            </div>
+                            <div className="flex items-center gap-1 px-2.5 py-1.5 bg-white rounded-xl border border-slate-200 shadow-sm">
+                                <button
+                                    onClick={() => setPreviewZoom((prev) => Math.max(0.85, Number((prev - 0.08).toFixed(2))))}
+                                    className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-600 flex items-center justify-center"
+                                    title="Zoom out preview"
+                                >
+                                    <Minus size={13} />
+                                </button>
+                                <span style={{ minWidth: '44px', textAlign: 'center', fontSize: '0.7rem', fontWeight: 900, color: '#334155', letterSpacing: '0.03em' }}>{previewScalePercent}%</span>
+                                <button
+                                    onClick={() => setPreviewZoom((prev) => Math.min(1.4, Number((prev + 0.08).toFixed(2))))}
+                                    className="w-6 h-6 rounded-md hover:bg-slate-100 text-slate-600 flex items-center justify-center"
+                                    title="Zoom in preview"
+                                >
+                                    <Plus size={13} />
+                                </button>
                             </div>
                             <button
                                 onClick={() => setShowPreviewModal(true)}
@@ -745,7 +878,7 @@ export default function Build() {
                         </div>
                     </div>
 
-                    <div style={{ flex: 1, overflowY: 'auto', padding: '2.5rem 0.6rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '2rem 0.4rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                         {activeTemplateId && (
                             <div style={{
                                 width: 'fit-content',
@@ -1057,22 +1190,30 @@ const HeaderSection = ({ data, update }) => {
 const ExperienceSection = ({ experience, setExp }) => {
     const [editingIdx, setEditingIdx] = useState(null)
     const [step, setStep] = useState(1) // 1: Basics, 2: Description
+    const safeExperience = ensureArray(experience)
 
     const addExp = () => {
-        setExp([...experience, { role: '', company: '', startDate: '', endDate: '', description: '' }])
-        setEditingIdx(experience.length)
+        setExp([...safeExperience, { role: '', company: '', startDate: '', endDate: '', description: '' }])
+        setEditingIdx(safeExperience.length)
         setStep(1)
     }
 
     const updateExp = (field, value) => {
-        const updated = [...experience]
-        updated[editingIdx][field] = value
+        if (editingIdx === null || !safeExperience[editingIdx]) return
+        const updated = [...safeExperience]
+        updated[editingIdx] = { ...updated[editingIdx], [field]: value }
         setExp(updated)
     }
 
     const removeExp = (idx) => {
-        setExp(experience.filter((_, i) => i !== idx))
-        if (editingIdx === idx) setEditingIdx(null)
+        setExp(safeExperience.filter((_, i) => i !== idx))
+        if (editingIdx === idx) {
+            setEditingIdx(null)
+            return
+        }
+        if (editingIdx !== null && editingIdx > idx) {
+            setEditingIdx(editingIdx - 1)
+        }
     }
 
     const closeEditor = () => {
@@ -1080,8 +1221,8 @@ const ExperienceSection = ({ experience, setExp }) => {
         setStep(1)
     }
 
-    if (editingIdx !== null && experience[editingIdx]) {
-        const item = experience[editingIdx]
+    if (editingIdx !== null && safeExperience[editingIdx]) {
+        const item = safeExperience[editingIdx]
         return (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -1139,7 +1280,7 @@ const ExperienceSection = ({ experience, setExp }) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {experience.map((item, idx) => (
+            {safeExperience.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', shadow: '0 1px 2px rgba(0,0,0,0.02)', borderRadius: '12px', transition: 'all 0.2s', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group">
                     <div>
                         <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.role || '(Not specified)'}</h4>
@@ -1164,25 +1305,33 @@ const ExperienceSection = ({ experience, setExp }) => {
 
 const EducationSection = ({ education, setEdu }) => {
     const [editingIdx, setEditingIdx] = useState(null)
+    const safeEducation = ensureArray(education)
 
     const addEdu = () => {
-        setEdu([...education, { school: '', degree: '', endDate: '', gpa: '' }])
-        setEditingIdx(education.length)
+        setEdu([...safeEducation, { school: '', degree: '', endDate: '', gpa: '' }])
+        setEditingIdx(safeEducation.length)
     }
 
     const updateEdu = (field, value) => {
-        const updated = [...education]
-        updated[editingIdx][field] = value
+        if (editingIdx === null || !safeEducation[editingIdx]) return
+        const updated = [...safeEducation]
+        updated[editingIdx] = { ...updated[editingIdx], [field]: value }
         setEdu(updated)
     }
 
     const removeEdu = (idx) => {
-        setEdu(education.filter((_, i) => i !== idx))
-        if (editingIdx === idx) setEditingIdx(null)
+        setEdu(safeEducation.filter((_, i) => i !== idx))
+        if (editingIdx === idx) {
+            setEditingIdx(null)
+            return
+        }
+        if (editingIdx !== null && editingIdx > idx) {
+            setEditingIdx(editingIdx - 1)
+        }
     }
 
-    if (editingIdx !== null && education[editingIdx]) {
-        const item = education[editingIdx]
+    if (editingIdx !== null && safeEducation[editingIdx]) {
+        const item = safeEducation[editingIdx]
         return (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1201,7 +1350,7 @@ const EducationSection = ({ education, setEdu }) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {education.map((item, idx) => (
+            {safeEducation.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
                     <div>
                         <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.school || '(Not specified)'}</h4>
@@ -1223,30 +1372,36 @@ const EducationSection = ({ education, setEdu }) => {
 
 const SkillsSection = ({ skills, setSkills }) => {
     const [newSkill, setNewSkill] = useState('')
+    const safeSkills = ensureArray(skills)
+    const remainingSkills = Math.max(0, MAX_SKILLS - safeSkills.length)
+
     const addSkill = () => {
-        if (newSkill.trim()) {
-            setSkills([...skills, { name: newSkill.trim() }])
+        const nextSkill = newSkill.trim().slice(0, MAX_SKILL_LENGTH)
+        if (nextSkill && safeSkills.length < MAX_SKILLS) {
+            setSkills([...safeSkills, { name: nextSkill }])
             setNewSkill('')
         }
     }
-    const removeSkill = (idx) => setSkills(skills.filter((_, i) => i !== idx))
+    const removeSkill = (idx) => setSkills(safeSkills.filter((_, i) => i !== idx))
 
     return (
         <div className="flex flex-col gap-5">
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <h4 className="text-sm font-black text-blue-800 mb-1">Add a few key skills</h4>
                 <p className="text-xs font-medium text-blue-600/80">List exact software, frameworks, and methodologies. Press Enter to add.</p>
+                <p className="text-[11px] font-bold text-blue-700 mt-2">Limit: {MAX_SKILLS} skills total, {MAX_SKILL_LENGTH} characters each.</p>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                <input type="text" value={newSkill} onChange={(e) => setNewSkill(e.target.value)} onKeyPress={(e) => e.key === 'Enter' && addSkill()} placeholder="e.g. React, Agile, Python..." style={{ flex: 1, padding: '0.85rem 1rem', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '0.9rem', fontWeight: 600, outline: 'none' }} className="focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" />
-                <button onClick={addSkill} style={{ padding: '0 1.25rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:bg-blue-600 transition-colors">
+                <input type="text" value={newSkill} maxLength={MAX_SKILL_LENGTH} onChange={(e) => setNewSkill(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill() } }} placeholder="e.g. React, Agile, Python..." style={{ flex: 1, padding: '0.85rem 1rem', border: '2px solid #e2e8f0', borderRadius: '10px', fontSize: '0.9rem', fontWeight: 600, outline: 'none' }} className="focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition-all" />
+                <button onClick={addSkill} disabled={safeSkills.length >= MAX_SKILLS} style={{ padding: '0 1.25rem', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: '10px', fontWeight: 800, cursor: safeSkills.length >= MAX_SKILLS ? 'not-allowed' : 'pointer', opacity: safeSkills.length >= MAX_SKILLS ? 0.6 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="hover:bg-blue-600 transition-colors">
                     Add
                 </button>
             </div>
+            <p className="text-[11px] font-bold text-slate-500">{safeSkills.length}/{MAX_SKILLS} skills used • {remainingSkills} remaining</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.5rem' }}>
-                {skills.map((skill, idx) => (
+                {safeSkills.map((skill, idx) => (
                     <div key={idx} className="animate-in zoom-in-95 duration-200" style={{ background: '#1e293b', color: '#fff', padding: '0.5rem 1rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 700, fontSize: '0.85rem', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                        {skill.name}
+                        {String(skill?.name || '').slice(0, MAX_SKILL_LENGTH)}
                         <button onClick={() => removeSkill(idx)} style={{ background: 'rgba(255,255,255,0.2)', border: 'none', color: '#fff', cursor: 'pointer', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px' }} className="hover:bg-red-500 transition-colors">×</button>
                     </div>
                 ))}
@@ -1258,22 +1413,30 @@ const SkillsSection = ({ skills, setSkills }) => {
 const ProjectsSection = ({ projects, setProjects }) => {
     const [editingIdx, setEditingIdx] = useState(null)
     const [step, setStep] = useState(1)
+    const safeProjects = ensureArray(projects)
 
     const addProject = () => {
-        setProjects([...(projects || []), { name: '', role: '', startDate: '', endDate: '', link: '', description: '' }])
-        setEditingIdx((projects || []).length)
+        setProjects([...safeProjects, { name: '', role: '', startDate: '', endDate: '', link: '', description: '' }])
+        setEditingIdx(safeProjects.length)
         setStep(1)
     }
 
     const updateProject = (field, value) => {
-        const updated = [...(projects || [])]
-        updated[editingIdx][field] = value
+        if (editingIdx === null || !safeProjects[editingIdx]) return
+        const updated = [...safeProjects]
+        updated[editingIdx] = { ...updated[editingIdx], [field]: value }
         setProjects(updated)
     }
 
     const removeProject = (idx) => {
-        setProjects((projects || []).filter((_, i) => i !== idx))
-        if (editingIdx === idx) setEditingIdx(null)
+        setProjects(safeProjects.filter((_, i) => i !== idx))
+        if (editingIdx === idx) {
+            setEditingIdx(null)
+            return
+        }
+        if (editingIdx !== null && editingIdx > idx) {
+            setEditingIdx(editingIdx - 1)
+        }
     }
 
     const closeEditor = () => {
@@ -1281,8 +1444,8 @@ const ProjectsSection = ({ projects, setProjects }) => {
         setStep(1)
     }
 
-    if (editingIdx !== null && projects[editingIdx]) {
-        const item = projects[editingIdx]
+    if (editingIdx !== null && safeProjects[editingIdx]) {
+        const item = safeProjects[editingIdx]
         return (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
@@ -1331,7 +1494,7 @@ const ProjectsSection = ({ projects, setProjects }) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {(projects || []).map((item, idx) => (
+            {safeProjects.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
                     <div>
                         <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.name || '(Not specified)'}</h4>
@@ -1353,25 +1516,33 @@ const ProjectsSection = ({ projects, setProjects }) => {
 
 const CertificationsSection = ({ certifications, setCertifications }) => {
     const [editingIdx, setEditingIdx] = useState(null)
+    const safeCertifications = ensureArray(certifications)
 
     const addCertification = () => {
-        setCertifications([...(certifications || []), { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])
-        setEditingIdx((certifications || []).length)
+        setCertifications([...safeCertifications, { name: '', issuer: '', issueDate: '', expiryDate: '', credentialId: '', link: '' }])
+        setEditingIdx(safeCertifications.length)
     }
 
     const updateCertification = (field, value) => {
-        const updated = [...(certifications || [])]
-        updated[editingIdx][field] = value
+        if (editingIdx === null || !safeCertifications[editingIdx]) return
+        const updated = [...safeCertifications]
+        updated[editingIdx] = { ...updated[editingIdx], [field]: value }
         setCertifications(updated)
     }
 
     const removeCertification = (idx) => {
-        setCertifications((certifications || []).filter((_, i) => i !== idx))
-        if (editingIdx === idx) setEditingIdx(null)
+        setCertifications(safeCertifications.filter((_, i) => i !== idx))
+        if (editingIdx === idx) {
+            setEditingIdx(null)
+            return
+        }
+        if (editingIdx !== null && editingIdx > idx) {
+            setEditingIdx(editingIdx - 1)
+        }
     }
 
-    if (editingIdx !== null && certifications[editingIdx]) {
-        const item = certifications[editingIdx]
+    if (editingIdx !== null && safeCertifications[editingIdx]) {
+        const item = safeCertifications[editingIdx]
         return (
             <div className="animate-in fade-in slide-in-from-right-4 duration-300 flex flex-col gap-5">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1397,7 +1568,7 @@ const CertificationsSection = ({ certifications, setCertifications }) => {
 
     return (
         <div className="flex flex-col gap-3">
-            {(certifications || []).map((item, idx) => (
+            {safeCertifications.map((item, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '12px', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group transition-all">
                     <div>
                         <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.name || '(Not specified)'}</h4>
@@ -1419,35 +1590,40 @@ const CertificationsSection = ({ certifications, setCertifications }) => {
 
 const SummarySection = ({ data, update }) => {
     const handleChange = (field, value) => update({ ...data, [field]: value })
+    const summaryValue = String(data.summary || '')
     return (
         <div className="flex flex-col gap-4 min-h-[400px]">
             <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
                 <h4 className="text-sm font-black text-blue-800 mb-1">Professional Overview</h4>
                 <p className="text-xs font-medium text-blue-600/80">A strong summary uses 3-4 lines to highlight your biggest accomplishments and core value proposition.</p>
+                <p className="text-[11px] font-bold text-blue-700 mt-2">Limit: {MAX_SUMMARY_LENGTH} characters.</p>
             </div>
             <InputField
                 label=""
-                value={data.summary}
-                onChange={(e) => handleChange('summary', e.target.value)}
+                value={summaryValue}
+                onChange={(e) => handleChange('summary', e.target.value.slice(0, MAX_SUMMARY_LENGTH))}
                 placeholder="Results-driven professional with 5+ years of experience in..."
                 multiline
                 rows={12}
+                maxLength={MAX_SUMMARY_LENGTH}
                 style={{ flex: 1, minHeight: '300px' }}
             />
+            <p className="text-[11px] font-bold text-slate-500 text-right">{summaryValue.length}/{MAX_SUMMARY_LENGTH}</p>
         </div>
     )
 }
 
-const InputField = ({ label, value, onChange, placeholder, multiline = false, rows = 1, style }) => {
+const InputField = ({ label, value, onChange, placeholder, multiline = false, rows = 1, maxLength, style }) => {
     const Component = multiline ? 'textarea' : 'input'
     return (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem', width: '100%', ...style }}>
             {label && <label style={{ fontSize: '0.8rem', fontWeight: 800, color: '#1e293b', letterSpacing: '0.01em' }}>{label}</label>}
             <Component
-                value={value}
+                value={value ?? ''}
                 onChange={onChange}
                 placeholder={placeholder}
                 rows={rows}
+                maxLength={maxLength}
                 style={{
                     width: '100%',
                     padding: multiline ? '1rem' : '0.8rem 1rem',

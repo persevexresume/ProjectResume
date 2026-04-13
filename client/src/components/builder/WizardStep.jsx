@@ -11,7 +11,9 @@ const WizardStep = ({
     isFirst = false,
     isLast = false,
     nextLabel = 'Next',
-    loading = false
+    loading = false,
+    helper = null,
+    sectionTag = null
 }) => {
     return (
         <motion.div
@@ -21,13 +23,39 @@ const WizardStep = ({
             transition={{ duration: 0.3 }}
             className="flex flex-col h-full max-w-4xl w-full p-8"
         >
-            <div className="mb-8">
+            <div className="mb-6">
+                {sectionTag && (
+                    <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-[11px] font-black uppercase tracking-wider text-blue-700">
+                        {sectionTag}
+                    </div>
+                )}
                 <h2 className="text-3xl font-black text-slate-900 tracking-tighter mb-2">{title}</h2>
                 {description && <p className="text-slate-500 font-medium">{description}</p>}
             </div>
 
+            {helper && (
+                <div className="mb-6 rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+                    <p className="text-[11px] font-black uppercase tracking-wider text-blue-700">{helper.title || 'Quick Guide'}</p>
+                    {Array.isArray(helper.points) && helper.points.length > 0 && (
+                        <ul className="mt-2 space-y-1.5">
+                            {helper.points.map((point, index) => (
+                                <li key={`${point}-${index}`} className="text-[13px] font-semibold text-slate-700">
+                                    {index + 1}. {point}
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    {helper.tip && (
+                        <p className="mt-2 text-[12px] font-semibold text-blue-800">Tip: {helper.tip}</p>
+                    )}
+                </div>
+            )}
+
             <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                {children}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 md:p-6 shadow-sm">
+                    <p className="mb-4 text-[11px] font-black uppercase tracking-widest text-slate-400">Section Editor</p>
+                    {children}
+                </div>
             </div>
 
             <div className="mt-8 pt-6 border-t border-slate-100 flex items-center justify-between">

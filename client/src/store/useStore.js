@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import { normalizeMasterProfile, masterProfileToResumeData } from '../lib/resumeParser';
+import { applyResumeConstraints } from '../lib/resumeConstraints';
 
 const initialResumeData = {
   personalInfo: {
@@ -25,16 +26,17 @@ const useStore = create(
       applyMasterProfile: (data) => {
         const normalizedMaster = normalizeMasterProfile(data)
         const mappedResume = masterProfileToResumeData(normalizedMaster)
+        const constrainedResume = applyResumeConstraints({
+          ...initialResumeData,
+          ...mappedResume,
+          personalInfo: {
+            ...initialResumeData.personalInfo,
+            ...(mappedResume.personalInfo || {})
+          }
+        })
         set({
           masterProfile: normalizedMaster,
-          resumeData: {
-            ...initialResumeData,
-            ...mappedResume,
-            personalInfo: {
-              ...initialResumeData.personalInfo,
-              ...(mappedResume.personalInfo || {})
-            }
-          }
+          resumeData: constrainedResume
         })
       },
       setUser: (user) => {
@@ -59,15 +61,16 @@ const useStore = create(
       },
 
       loadMasterProfile: (data) => {
-        set({
-          resumeData: {
-            ...initialResumeData,
-            ...(data || {}),
-            personalInfo: {
-              ...initialResumeData.personalInfo,
-              ...(data?.personalInfo || {})
-            }
+        const constrainedResume = applyResumeConstraints({
+          ...initialResumeData,
+          ...(data || {}),
+          personalInfo: {
+            ...initialResumeData.personalInfo,
+            ...(data?.personalInfo || {})
           }
+        })
+        set({
+          resumeData: constrainedResume
         })
       },
       clearUser: () => {
@@ -121,27 +124,27 @@ const useStore = create(
       resumeData: initialResumeData,
 
       updatePersonalInfo: (data) => set((state) => ({
-        resumeData: { ...state.resumeData, personalInfo: { ...state.resumeData.personalInfo, ...data } }
+        resumeData: applyResumeConstraints({ ...state.resumeData, personalInfo: { ...state.resumeData.personalInfo, ...data } })
       })),
 
       setExperience: (experience) => set((state) => ({
-        resumeData: { ...state.resumeData, experience }
+        resumeData: applyResumeConstraints({ ...state.resumeData, experience })
       })),
 
       setEducation: (education) => set((state) => ({
-        resumeData: { ...state.resumeData, education }
+        resumeData: applyResumeConstraints({ ...state.resumeData, education })
       })),
 
       setSkills: (skills) => set((state) => ({
-        resumeData: { ...state.resumeData, skills }
+        resumeData: applyResumeConstraints({ ...state.resumeData, skills })
       })),
 
       setProjects: (projects) => set((state) => ({
-        resumeData: { ...state.resumeData, projects }
+        resumeData: applyResumeConstraints({ ...state.resumeData, projects })
       })),
 
       setCertifications: (certifications) => set((state) => ({
-        resumeData: { ...state.resumeData, certifications }
+        resumeData: applyResumeConstraints({ ...state.resumeData, certifications })
       })),
 
       resetResume: () => set({
@@ -170,11 +173,12 @@ const useStore = create(
             ...(parsedData?.personalInfo || {})
           }
         };
+        const constrainedData = applyResumeConstraints(finalData)
 
         set({
           editingResumeId: resume.id,
           uploadedResumePrefill: false,
-          resumeData: finalData,
+          resumeData: constrainedData,
           customization: resume.customization || get().customization,
           selectedTemplate: resume.template_id || resume.template || resume.templateId || 'prof-sebastian'
         });

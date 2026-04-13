@@ -1,4 +1,4 @@
-# Resume Fixes - Change Summary
+# Resume Download Fixes - Change Summary
 
 **Date:** March 27, 2026  
 **Issue:** Full resume downloads were not working properly  
