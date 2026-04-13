@@ -88,8 +88,7 @@ export const auth = {
           .from('students')
           .select('*')
           .eq('email', emailOrId)
-          .maybeSingle()
-          .retry(false);
+          .maybeSingle();
 
         if (studentError && isSupabaseNetworkError(studentError)) {
           markSupabaseNetworkFailure();
@@ -110,8 +109,7 @@ export const auth = {
             .from('admins')
             .select('*')
             .eq('email', emailOrId)
-            .maybeSingle()
-            .retry(false);
+            .maybeSingle();
 
           if (adminError && isSupabaseNetworkError(adminError)) {
             markSupabaseNetworkFailure();
@@ -134,8 +132,7 @@ export const auth = {
           .from('students')
           .select('*')
           .eq('id', emailOrId)
-          .maybeSingle()
-          .retry(false);
+          .maybeSingle();
 
         if (studentError && isSupabaseNetworkError(studentError)) {
           markSupabaseNetworkFailure();
@@ -156,8 +153,7 @@ export const auth = {
             .from('admins')
             .select('*')
             .eq('id', emailOrId)
-            .maybeSingle()
-            .retry(false);
+            .maybeSingle();
 
           if (adminError && isSupabaseNetworkError(adminError)) {
             markSupabaseNetworkFailure();
