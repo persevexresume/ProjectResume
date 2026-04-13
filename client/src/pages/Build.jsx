@@ -1012,15 +1012,12 @@ export default function Build() {
 
 const PagedResumePreview = ({ data, templateId, customization, previewScale, paged }) => {
     const measureRef = useRef(null)
-    const [pageCount, setPageCount] = useState(1)
     const [measuredHeight, setMeasuredHeight] = useState(PAGE_HEIGHT)
 
     useEffect(() => {
         const refreshPages = () => {
             const currentHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
             setMeasuredHeight(Math.max(currentHeight, PAGE_HEIGHT))
-            const computedPages = Math.max(1, Math.ceil(currentHeight / PAGE_HEIGHT))
-            setPageCount(Math.min(computedPages, 8))
         }
 
         const frame = window.requestAnimationFrame(() => {
@@ -1031,47 +1028,9 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
         return () => window.cancelAnimationFrame(frame)
     }, [data, templateId, customization, paged])
 
-    if (!paged) {
-        return (
-            <div style={{ position: 'relative' }}>
-                {/* Hidden div to measure real resume height */}
-                <div
-                    style={{ position: 'absolute', left: '-20000px', top: 0, width: `${PAGE_WIDTH}px`, visibility: 'hidden', pointerEvents: 'none' }}
-                    aria-hidden="true"
-                >
-                    <div ref={measureRef}>
-                        <ResumeRenderer data={data} templateId={templateId} customization={customization} />
-                    </div>
-                </div>
-                {/* Scaled visible preview */}
-                <div style={{
-                    width: `${PAGE_WIDTH * previewScale}px`,
-                    height: `${measuredHeight * previewScale}px`,
-                    position: 'relative',
-                    background: '#fff',
-                    boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
-                    borderRadius: '4px',
-                    overflow: 'visible',
-                }}>
-                    <div style={{
-                        transform: `scale(${previewScale})`,
-                        transformOrigin: 'top left',
-                        width: `${PAGE_WIDTH}px`,
-                        height: `${measuredHeight}px`,
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                    }}>
-                        <ResumeRenderer data={data} templateId={templateId} customization={customization} />
-                    </div>
-                </div>
-            </div>
-        )
-    }
-
     return (
-        <div style={{ position: 'relative', width: '100%', background: '#f8fafc' }}>
-            {/* Hidden measuring render to detect required page count */}
+        <div style={{ position: 'relative' }}>
+            {/* Hidden div to measure real resume height */}
             <div
                 style={{ position: 'absolute', left: '-20000px', top: 0, width: `${PAGE_WIDTH}px`, visibility: 'hidden', pointerEvents: 'none' }}
                 aria-hidden="true"
@@ -1080,37 +1039,26 @@ const PagedResumePreview = ({ data, templateId, customization, previewScale, pag
                     <ResumeRenderer data={data} templateId={templateId} customization={customization} />
                 </div>
             </div>
-
-            <div style={{ maxHeight: '72vh', overflowY: 'auto', padding: '1rem', background: '#f1f5f9' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', alignItems: 'center', paddingBottom: '2rem' }}>
-                    {Array.from({ length: pageCount }).map((_, pageIndex) => (
-                        <div
-                            key={`preview-page-${pageIndex}`}
-                            style={{
-                                width: `${PAGE_WIDTH * previewScale}px`,
-                                height: `${PAGE_HEIGHT * previewScale}px`,
-                                overflow: 'hidden',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '10px',
-                                background: '#fff',
-                                boxShadow: '0 14px 28px -14px rgba(15, 23, 42, 0.5)'
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: `${PAGE_WIDTH}px`,
-                                    height: `${PAGE_HEIGHT}px`,
-                                    transform: `scale(${previewScale})`,
-                                    transformOrigin: 'top left',
-                                    overflow: 'hidden'
-                                }}
-                            >
-                                <div style={{ transform: `translateY(-${pageIndex * PAGE_HEIGHT}px)` }}>
-                                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
-                                </div>
-                            </div>
-                        </div>
-                    ))}
+            {/* Scaled visible preview */}
+            <div style={{
+                width: `${PAGE_WIDTH * previewScale}px`,
+                height: `${measuredHeight * previewScale}px`,
+                position: 'relative',
+                background: '#fff',
+                boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                borderRadius: '4px',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    transform: `scale(${previewScale})`,
+                    transformOrigin: 'top left',
+                    width: `${PAGE_WIDTH}px`,
+                    height: `${measuredHeight}px`,
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                }}>
+                    <ResumeRenderer data={data} templateId={templateId} customization={customization} />
                 </div>
             </div>
         </div>

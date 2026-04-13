@@ -1014,67 +1014,13 @@ export default function StudentDashboard() {
 
 function SavedResumePreview({ resume, templateId }) {
     const measureRef = useRef(null)
-    const [pageOffsets, setPageOffsets] = useState([0])
+    const [measuredHeight, setMeasuredHeight] = useState(PAGE_HEIGHT)
     const [previewScale, setPreviewScale] = useState(0.7)
-
-    const PAGE_TOP_MARGIN = 28
-    const PAGE_BOTTOM_MARGIN = 24
-    const CONTENT_HEIGHT = PAGE_HEIGHT - PAGE_TOP_MARGIN - PAGE_BOTTOM_MARGIN
-
-    const computeSmartPageOffsets = (container) => {
-        if (!container) return [0]
-
-        const contentHeight = Math.max(
-            PAGE_HEIGHT,
-            container.scrollHeight || 0,
-            container.offsetHeight || 0
-        )
-
-        const rootTop = container.getBoundingClientRect().top
-        const blockNodes = Array.from(container.querySelectorAll('section, article, h1, h2, h3, h4, h5, p, li, div'))
-
-        const blockStarts = blockNodes
-            .map((node) => {
-                const rect = node.getBoundingClientRect()
-                return Math.max(0, Math.floor(rect.top - rootTop))
-            })
-            .filter((value) => Number.isFinite(value) && value > 0 && value < contentHeight)
-            .sort((a, b) => a - b)
-
-        const offsets = [0]
-        const maxPages = 12
-        const minContentChunk = Math.floor(CONTENT_HEIGHT * 0.62)
-        const cutoffPadding = 20
-
-        while (offsets.length < maxPages) {
-            const start = offsets[offsets.length - 1]
-            const idealEnd = start + CONTENT_HEIGHT
-            if (idealEnd >= contentHeight) break
-
-            const searchMin = start + minContentChunk
-            const searchMax = idealEnd - cutoffPadding
-            const candidates = blockStarts.filter((pos) => pos > searchMin && pos <= searchMax)
-
-            let nextOffset = idealEnd
-            if (candidates.length > 0) {
-                nextOffset = candidates[candidates.length - 1]
-            }
-
-            if (nextOffset <= start + 120) {
-                nextOffset = idealEnd
-            }
-
-            offsets.push(nextOffset)
-        }
-
-        return offsets
-    }
 
     useEffect(() => {
         const refreshPages = () => {
-            const measuredNode = measureRef.current
-            const nextOffsets = computeSmartPageOffsets(measuredNode)
-            setPageOffsets(nextOffsets)
+            const currentHeight = measureRef.current?.offsetHeight || PAGE_HEIGHT
+            setMeasuredHeight(Math.max(currentHeight, PAGE_HEIGHT))
         }
 
         const frame = window.requestAnimationFrame(() => {
@@ -1121,59 +1067,33 @@ function SavedResumePreview({ resume, templateId }) {
 
             <div className="w-full max-h-full overflow-y-auto">
                 <div className="flex flex-col items-center gap-6 pb-4">
-                    {pageOffsets.map((offset, pageIndex) => (
-                        <div
-                            key={`saved-preview-page-${pageIndex}-${offset}`}
-                            style={{
-                                width: `${PAGE_WIDTH * previewScale}px`,
-                                height: `${PAGE_HEIGHT * previewScale}px`,
-                                overflow: 'hidden',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '10px',
-                                background: '#fff',
-                                boxShadow: '0 14px 28px -14px rgba(15, 23, 42, 0.5)'
-                            }}
-                        >
-                            <div
-                                style={{
-                                    width: `${PAGE_WIDTH}px`,
-                                    height: `${PAGE_HEIGHT}px`,
-                                    transform: `scale(${previewScale})`,
-                                    transformOrigin: 'top left',
-                                    overflow: 'hidden'
-                                }}
-                            >
-                                <div
-                                    style={{
-                                        position: 'relative',
-                                        width: `${PAGE_WIDTH}px`,
-                                        height: `${PAGE_HEIGHT}px`,
-                                        background: '#fff',
-                                        overflow: 'hidden'
-                                    }}
-                                >
-                                    <div
-                                        style={{
-                                            position: 'absolute',
-                                            top: `${PAGE_TOP_MARGIN}px`,
-                                            left: 0,
-                                            width: `${PAGE_WIDTH}px`,
-                                            height: `${CONTENT_HEIGHT}px`,
-                                            overflow: 'hidden'
-                                        }}
-                                    >
-                                        <div style={{ transform: `translateY(-${offset}px)` }}>
-                                            <ResumeRenderer
-                                                data={resume?.data}
-                                                templateId={templateId}
-                                                customization={resume?.customization}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+                    <div
+                        style={{
+                            width: `${PAGE_WIDTH * previewScale}px`,
+                            height: `${measuredHeight * previewScale}px`,
+                            position: 'relative',
+                            background: '#fff',
+                            boxShadow: '0 10px 25px rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            overflow: 'hidden'
+                        }}
+                    >
+                        <div style={{
+                            transform: `scale(${previewScale})`,
+                            transformOrigin: 'top left',
+                            width: `${PAGE_WIDTH}px`,
+                            height: `${measuredHeight}px`,
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                        }}>
+                            <ResumeRenderer
+                                data={resume?.data}
+                                templateId={templateId}
+                                customization={resume?.customization}
+                            />
                         </div>
-                    ))}
+                    </div>
                 </div>
             </div>
         </div>
