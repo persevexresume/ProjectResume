@@ -1,4 +1,4 @@
-import { motion, AnimatePresence } from 'framer-motion'
+// framer-motion components used via child components (Web3MediaHero, etc.)
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
