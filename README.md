@@ -111,6 +111,13 @@ ProjectResume/
 │   └── package.json                # Backend dependencies
 │
 ├── migrations/                      # SQL migrations
+├── scripts/
+│   └── maintenance/                 # One-off admin/diagnostic scripts
+│       ├── create_admin.js
+│       ├── get_admin.js
+│       ├── final_admin_check.js
+│       └── get_admin_direct.js
+│
 ├── DB_MIGRATIONS/                   # Additional SQL migrations
 ├── docs/                            # Project documentation
 │   ├── PROJECT_STRUCTURE.md         # Canonical structure guide
@@ -208,6 +215,14 @@ npm run build
 ```
 
 ## 🚀 Deployment Guide
+
+## 🧰 Maintenance Scripts
+
+Manual admin/diagnostic scripts are in `scripts/maintenance/` and are intentionally separated from runtime code.
+
+```bash
+node scripts/maintenance/create_admin.js
+```
 
 ### Railway Deployment
 

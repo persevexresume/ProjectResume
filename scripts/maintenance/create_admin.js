@@ -1,10 +1,8 @@
-
 const { createClient } = require('@supabase/supabase-js');
 const dotenv = require('dotenv');
 const path = require('path');
 
-// Try to find .env in server directory
-dotenv.config({ path: path.join(__dirname, 'server', '.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../server/.env') });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
@@ -18,7 +16,7 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function createAdmin() {
     console.log(`Connecting to: ${supabaseUrl}`);
-    
+
     const adminData = {
         id: 'admin_primary',
         email: 'admin@gmail.com',
@@ -42,6 +40,6 @@ async function createAdmin() {
     }
 }
 
-createAdmin().catch(err => {
+createAdmin().catch((err) => {
     console.error('Unhandled script error:', err);
 });

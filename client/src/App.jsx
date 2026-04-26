@@ -55,6 +55,16 @@ function AnimatedHeader() {
   return <Header />
 }
 
+function ScrollToTop() {
+  const location = useLocation()
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [location.pathname])
+
+  return null
+}
+
 function AnimatedRoutes() {
   const location = useLocation()
   return (
@@ -128,7 +138,7 @@ function AnimatedRoutes() {
           path="/upload-resume"
           element={
             <ProtectedRoute role="student">
-              <MasterProfile />
+              <UploadResume />
             </ProtectedRoute>
           }
         />
@@ -190,6 +200,7 @@ function App() {
     <ErrorBoundary>
       <ToastProvider>
         <Router>
+          <ScrollToTop />
           <AnimatedHeader />
           <AnimatedRoutes />
           <ToastContainer />

@@ -54,8 +54,8 @@ const ensureArray = (value) => (Array.isArray(value) ? value : [])
 
 const clampText = (value, max) => {
   const raw = value == null ? '' : String(value)
-  if (!Number.isFinite(max) || max <= 0) return raw.trim()
-  return raw.trim().slice(0, max)
+  if (!Number.isFinite(max) || max <= 0) return raw
+  return raw.slice(0, max)
 }
 
 const sanitizeSkills = (skills = []) => {

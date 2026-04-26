@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, AlertTriangle, Loader2, Plus, Trash2, Upload, Save } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { ArrowLeft, ArrowRight, AlertTriangle, Loader2, Plus, Trash2, Upload, Save, CheckCircle2 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
@@ -23,15 +23,6 @@ const parseBullets = (value) => value
   .split('\n')
   .map((item) => item.trim())
   .filter(Boolean)
-
-const isRecoverableProfilePersistenceError = (error) => {
-  const message = String(error?.message || error || '').toLowerCase()
-  return message.includes('api save failed with status 404') ||
-    message.includes("could not find the table 'public.master_profiles'") ||
-    message.includes('master_profiles') ||
-    message.includes('profiles_user_id_fkey') ||
-    message.includes('foreign key constraint')
-}
 
 const extractProfileFromProfilesRow = (data, userEmail = '') => {
   if (!data) return null
@@ -69,27 +60,35 @@ const extractProfileFromProfilesRow = (data, userEmail = '') => {
   })
 }
 
+const profileCards = [
+  { id: 'personal', title: 'Personal Details', description: 'Start with your identity and contact details.' },
+  { id: 'summary', title: 'Summary', description: 'Write your professional summary in 3-5 lines.' },
+  { id: 'education', title: 'Education', description: 'Add your degrees and academic timeline.' },
+  { id: 'work', title: 'Work Experience', description: 'Add your roles and impact bullets.' },
+  { id: 'projects', title: 'Projects', description: 'Highlight practical work with links.' },
+  { id: 'skills', title: 'Skills', description: 'Categorize your technical strengths.' },
+  { id: 'certifications', title: 'Certifications', description: 'Add certifications relevant to your target roles.' },
+  { id: 'achievements', title: 'Achievements', description: 'Optional final step for extra highlights.' }
+]
+
 export default function MasterProfile() {
   const { success: toastSuccess, error: toastError } = useToast()
-  const {
-    user,
-    masterProfile,
-    setMasterProfile,
-    applyMasterProfile
-  } = useStore()
+  const navigate = useNavigate()
+  const { user, masterProfile, setMasterProfile, applyMasterProfile } = useStore()
 
-  const [profileId, setProfileId] = useState(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [parseStatus, setParseStatus] = useState('idle')
   const [profile, setProfile] = useState(() => resumeParser.createEmptyMasterProfile())
   const [skillDraft, setSkillDraft] = useState({ languages: '', frameworks: '', tools: '', databases: '', cloud: '', other: '' })
   const [achievementDraft, setAchievementDraft] = useState('')
-  const [showPostSaveHint, setShowPostSaveHint] = useState(false)
+  const [activeCard, setActiveCard] = useState(0)
   const fileInputRef = useRef(null)
+  const cardContainerRef = useRef(null)
 
-  const completeness = useMemo(() => resumeParser.calculateMasterProfileCompleteness(profile), [profile])
   const reviewCount = useMemo(() => Object.keys(profile?.needsReview || {}).length, [profile])
+  const totalCards = profileCards.length
+  const activeCardMeta = profileCards[activeCard]
 
   useEffect(() => {
     const initial = masterProfile
@@ -98,9 +97,8 @@ export default function MasterProfile() {
     setProfile(initial)
   }, [masterProfile])
 
-  const collectUserIdCandidates = async () => {
+  const collectUserIdCandidates = useMemo(() => async () => {
     const candidates = new Set()
-
     const addCandidate = (value) => {
       const token = String(value || '').trim()
       if (token) candidates.add(token)
@@ -116,20 +114,12 @@ export default function MasterProfile() {
     const email = String(user?.email || '').trim()
     if (email) {
       try {
-        const { data } = await supabase
-          .from('students')
-          .select('id')
-          .eq('email', email)
-          .maybeSingle()
-
+        const { data } = await supabase.from('students').select('id').eq('email', email).maybeSingle()
         if (data?.id) addCandidate(data.id)
-      } catch {
-        // Ignore candidates lookup failures and continue with available IDs.
-      }
+      } catch (err) { console.debug('Email candidate lookup failed', err) }
     }
-
     return [...candidates]
-  }
+  }, [user])
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -144,7 +134,6 @@ export default function MasterProfile() {
           try {
             const apiResponse = await fetch(withApiBase(`/api/master-profile/${encodeURIComponent(candidateId)}`))
             if (!apiResponse.ok) continue
-
             const payload = await apiResponse.json()
             if (payload?.profile) {
               const normalizedProfile = resumeParser.normalizeMasterProfile(payload.profile)
@@ -152,46 +141,24 @@ export default function MasterProfile() {
                 setProfile(normalizedProfile)
                 setMasterProfile(normalizedProfile)
                 applyMasterProfile(normalizedProfile)
-                setProfileId(payload?.data?.id || null)
                 saveMasterProfileBackup(user, normalizedProfile)
                 return
               }
             }
-          } catch (apiError) {
-            console.warn('Master profile API fetch failed for candidate ID:', candidateId, apiError)
-          }
+          } catch (apiError) { console.debug('API lookup failed', apiError) }
         }
 
         for (const candidateId of userIdCandidates) {
-          const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('user_id', candidateId)
-            .maybeSingle()
-
-          if (error) {
-            const fullMessage = [error.message, error.details, error.hint].filter(Boolean).join(' | ')
-            const relationMissing = error.code === 'PGRST205' || /relation .* does not exist|schema cache|not found|404/i.test(fullMessage)
-            const noRows = error.code === 'PGRST116' || /0 rows|no rows/i.test(fullMessage)
-            const invalidUuid = /invalid input syntax for type uuid/i.test(fullMessage)
-
-            if (relationMissing || noRows || invalidUuid) {
-              continue
-            }
-
-            throw error
+          const { data, error } = await supabase.from('profiles').select('*').eq('user_id', candidateId).maybeSingle()
+          if (!error && data) {
+            const profileFromDb = extractProfileFromProfilesRow(data, user?.email || '')
+            const normalizedProfile = resumeParser.normalizeMasterProfile(profileFromDb)
+            setProfile(normalizedProfile)
+            setMasterProfile(normalizedProfile)
+            applyMasterProfile(normalizedProfile)
+            saveMasterProfileBackup(user, normalizedProfile)
+            return
           }
-
-          if (!data) continue
-
-          setProfileId(data.id || null)
-          const profileFromDb = extractProfileFromProfilesRow(data, user?.email || '')
-          const normalizedProfile = resumeParser.normalizeMasterProfile(profileFromDb)
-          setProfile(normalizedProfile)
-          setMasterProfile(normalizedProfile)
-          applyMasterProfile(normalizedProfile)
-          saveMasterProfileBackup(user, normalizedProfile)
-          return
         }
 
         const backupProfile = loadMasterProfileBackup(user)
@@ -201,15 +168,13 @@ export default function MasterProfile() {
           setMasterProfile(normalizedBackup)
           applyMasterProfile(normalizedBackup)
         }
-      } catch (error) {
-        console.error('Failed to load master profile', error)
       } finally {
         setLoading(false)
       }
     }
 
     loadProfile()
-  }, [user, setMasterProfile, applyMasterProfile])
+  }, [user, setMasterProfile, applyMasterProfile, collectUserIdCandidates])
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
@@ -219,15 +184,7 @@ export default function MasterProfile() {
       }, 500)
       return () => clearTimeout(timer)
     }
-
-    return undefined
   }, [])
-
-  useEffect(() => {
-    if (!showPostSaveHint) return
-    const timer = setTimeout(() => setShowPostSaveHint(false), 12000)
-    return () => clearTimeout(timer)
-  }, [showPostSaveHint])
 
   const hasValue = (value) => {
     if (Array.isArray(value)) return value.length > 0
@@ -235,8 +192,7 @@ export default function MasterProfile() {
   }
 
   const setProfileAndReview = (nextProfile, path, value) => {
-    const normalized = resumeParser.normalizeMasterProfile(nextProfile)
-    const nextNeedsReview = { ...(normalized.needsReview || {}) }
+    const nextNeedsReview = { ...(nextProfile?.needsReview || {}) }
 
     if (path) {
       if (hasValue(value)) {
@@ -246,36 +202,28 @@ export default function MasterProfile() {
       }
     }
 
-    setProfile({ ...normalized, needsReview: nextNeedsReview })
+    setProfile({ ...nextProfile, needsReview: nextNeedsReview })
   }
 
   const isReview = (path) => Boolean(profile?.needsReview?.[path])
   const isRowReview = (prefix) => Object.keys(profile?.needsReview || {}).some((key) => key.startsWith(prefix))
 
   const inputClass = (path) => [
-    'w-full rounded-lg border px-3 py-2 text-sm outline-none transition',
-    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-300 bg-white focus:border-indigo-500'
+    'w-full rounded-xl border px-4 py-3 text-sm outline-none transition',
+    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10'
   ].join(' ')
 
   const textareaClass = (path) => [
-    'w-full rounded-lg border px-3 py-2 text-sm outline-none transition resize-y',
-    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-300 bg-white focus:border-indigo-500'
+    'w-full rounded-xl border px-4 py-3 text-sm outline-none transition resize-y',
+    isReview(path) ? 'border-amber-400 bg-amber-50 focus:border-amber-500' : 'border-slate-200 bg-white focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10'
   ].join(' ')
 
   const updatePersonal = (field, value) => {
-    const next = {
-      ...profile,
-      personal: {
-        ...profile.personal,
-        [field]: value
-      }
-    }
+    const next = { ...profile, personal: { ...profile.personal, [field]: value } }
     setProfileAndReview(next, `personal.${field}`, value)
   }
 
-  const updateSummary = (value) => {
-    setProfileAndReview({ ...profile, summary: value }, 'summary', value)
-  }
+  const updateSummary = (value) => setProfileAndReview({ ...profile, summary: value }, 'summary', value)
 
   const updateEducation = (index, field, value) => {
     const nextEducation = [...profile.education]
@@ -311,29 +259,15 @@ export default function MasterProfile() {
   const addSkillCategory = (category) => {
     const entries = parseSkillInput(skillDraft[category])
     if (!entries.length) return
-
     const merged = [...new Set([...(profile.skills[category] || []), ...entries])]
-    const next = {
-      ...profile,
-      skills: {
-        ...profile.skills,
-        [category]: merged
-      }
-    }
-
+    const next = { ...profile, skills: { ...profile.skills, [category]: merged } }
     setSkillDraft((prev) => ({ ...prev, [category]: '' }))
     setProfileAndReview(next, 'skills', merged)
   }
 
   const removeSkillCategoryItem = (category, index) => {
     const nextItems = (profile.skills[category] || []).filter((_, i) => i !== index)
-    const next = {
-      ...profile,
-      skills: {
-        ...profile.skills,
-        [category]: nextItems
-      }
-    }
+    const next = { ...profile, skills: { ...profile.skills, [category]: nextItems } }
     setProfileAndReview(next, 'skills', nextItems)
   }
 
@@ -350,29 +284,6 @@ export default function MasterProfile() {
     setProfileAndReview(next, null, '')
   }
 
-  const parseResumeWithAI = async (file) => {
-    const formData = new FormData()
-    formData.append('resume', file)
-
-    const dbUserId = getDbUserId(user)
-    if (dbUserId) {
-      formData.append('userId', dbUserId)
-    }
-
-    const response = await fetch(withApiBase('/api/parse-resume'), {
-      method: 'POST',
-      body: formData
-    })
-
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}))
-      throw new Error(err.error || 'AI parsing is unavailable right now.')
-    }
-
-    const payload = await response.json()
-    return payload?.profile || payload?.data || {}
-  }
-
   const handleReupload = async (event) => {
     const file = event.target.files?.[0]
     if (!file) return
@@ -384,10 +295,17 @@ export default function MasterProfile() {
 
       let aiParsed = null
       try {
-        aiParsed = await parseResumeWithAI(file)
-      } catch (error) {
-        console.warn('AI parser unavailable, using local parser only:', error?.message)
-      }
+        const formData = new FormData()
+        formData.append('resume', file)
+        const dbUserId = getDbUserId(user)
+        if (dbUserId) formData.append('userId', dbUserId)
+
+        const response = await fetch(withApiBase('/api/parse-resume'), { method: 'POST', body: formData })
+        if (response.ok) {
+          const payload = await response.json()
+          aiParsed = payload?.profile || payload?.data || null
+        }
+      } catch (err) { console.warn('AI parser fallback', err) }
 
       const localParsed = resumeParser.parseResumeText(rawText)
       const mergedParsed = aiParsed
@@ -402,11 +320,10 @@ export default function MasterProfile() {
       applyMasterProfile(nextProfile)
       saveMasterProfileBackup(user, nextProfile)
       setParseStatus('success')
-      toastSuccess('Parsed data loaded. Review yellow fields and save your profile.')
+      toastSuccess('Parsed data loaded successfully.')
     } catch (error) {
-      console.error('Failed to parse uploaded file', error)
       setParseStatus('error')
-      toastError(error?.message || 'Failed to parse uploaded resume.')
+      toastError(error?.message || 'Failed to parse resume.')
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = ''
       setTimeout(() => setParseStatus('idle'), 1500)
@@ -416,471 +333,385 @@ export default function MasterProfile() {
   const saveProfile = async () => {
     if (!user) {
       toastError('Please sign in first.')
-      return
+      return false
     }
 
     const userIdCandidates = await collectUserIdCandidates()
     if (!userIdCandidates.length) {
       toastError('Unable to identify your account.')
-      return
+      return false
     }
 
     const normalized = resumeParser.normalizeMasterProfile(profile)
-
     setSaving(true)
+
     try {
-      const attemptSaveForCandidate = async (candidateUserId) => {
-        let apiErrorMessage = ''
-        let fallbackErrorMessage = ''
-
-        try {
-          const response = await fetch(withApiBase('/api/master-profile'), {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              userId: candidateUserId,
-              userEmail: user?.email || '',
-              profile: normalized
-            })
-          })
-
-          const payload = await response.json().catch(() => ({}))
-          if (!response.ok) {
-            apiErrorMessage = payload?.error || `API save failed with status ${response.status}`
-            throw new Error(apiErrorMessage)
-          }
-
-          if (payload?.fallback === 'local-only') {
-            return {
-              saved: false,
-              localOnly: true,
-              error: new Error(payload?.warning || 'Profile save fell back to local-only mode.')
-            }
-          }
-
-          return {
-            saved: true,
-            localOnly: false,
-            data: payload?.data || null
-          }
-        } catch (apiError) {
-          apiErrorMessage = apiError?.message || apiErrorMessage || 'API save failed'
-        }
-
-        let fallbackSaved = false
-
-        const { data, error } = await supabase
+      let savedToDb = false
+      
+      for (const candidateUserId of userIdCandidates) {
+        // Fallback Supabase Save (We try this to ensure we don't leak 404s if API is down)
+        const { error } = await supabase
           .from('master_profiles')
           .upsert({
             user_id: candidateUserId,
             profile_data: normalized,
             updated_at: new Date().toISOString()
           }, { onConflict: 'user_id' })
-          .select('id')
-          .maybeSingle()
 
         if (!error) {
-          fallbackSaved = true
-          return {
-            saved: true,
-            localOnly: false,
-            data: data || null
-          }
-        }
-
-        fallbackErrorMessage = error.message || 'Fallback save failed'
-
-        if (!fallbackSaved) {
-          const resumeData = resumeParser.masterProfileToResumeData(normalized)
-          const [firstName = '', ...restName] = (normalized.personal.fullName || '').split(/\s+/).filter(Boolean)
-          const lastName = restName.join(' ')
-
-          const draftPayload = {
-            user_id: candidateUserId,
-            first_name: firstName,
-            last_name: lastName,
-            email: normalized.personal.email || '',
-            phone: normalized.personal.phone || '',
-            summary: normalized.summary || '',
-            website: normalized.personal.portfolioUrl || '',
-            linkedin: normalized.personal.linkedInUrl || '',
-            github: normalized.personal.githubUrl || '',
-            experience_data: resumeData.experience || [],
-            education_data: resumeData.education || [],
-            skills_data: resumeData.skills || [],
-            projects_data: resumeData.projects || [],
-            certifications_data: resumeData.certifications || [],
-            resume_data: resumeData,
-            master_profile: normalized,
-            updated_at: new Date().toISOString()
-          }
-
-          const adaptivePayload = { ...draftPayload }
-          let profileSaveError = null
-          let profileSavedData = null
-
-          for (let attempt = 0; attempt < 10; attempt += 1) {
-            const result = await supabase
-              .from('profiles')
-              .upsert(adaptivePayload, { onConflict: 'user_id' })
-              .select('id')
-              .maybeSingle()
-
-            if (!result.error) {
-              profileSavedData = result.data || null
-              profileSaveError = null
-              break
-            }
-
-            profileSaveError = result.error
-            const fullMessage = [result.error.message, result.error.details, result.error.hint]
-              .filter(Boolean)
-              .join(' | ')
-
-            const missingColumnMatch =
-              fullMessage.match(/Could not find the '([^']+)' column/i) ||
-              fullMessage.match(/column\s+"?([a-zA-Z0-9_]+)"?\s+does not exist/i)
-
-            if (missingColumnMatch && adaptivePayload[missingColumnMatch[1]] !== undefined) {
-              delete adaptivePayload[missingColumnMatch[1]]
-              continue
-            }
-
-            break
-          }
-
-          if (!profileSaveError) {
-            return {
-              saved: true,
-              localOnly: false,
-              data: profileSavedData
-            }
-          }
-
-          const composedError = new Error(`${apiErrorMessage ? `${apiErrorMessage} | ` : ''}${fallbackErrorMessage ? `${fallbackErrorMessage} | ` : ''}${profileSaveError.message || 'Fallback save failed'}`)
-          if (isRecoverableProfilePersistenceError(composedError)) {
-            return {
-              saved: false,
-              localOnly: true,
-              error: composedError
-            }
-          }
-
-          return {
-            saved: false,
-            localOnly: false,
-            error: composedError
-          }
-        }
-
-        return {
-          saved: false,
-          localOnly: false,
-          error: new Error(apiErrorMessage || fallbackErrorMessage || 'Master profile save failed.')
-        }
-      }
-
-      let saved = false
-      let localOnlyMode = false
-      let latestError = null
-
-      for (const candidateUserId of userIdCandidates) {
-        const result = await attemptSaveForCandidate(candidateUserId)
-
-        if (result.saved) {
-          saved = true
-          setProfileId(result?.data?.id || profileId)
+          savedToDb = true
           break
         }
-
-        if (result.localOnly) {
-          localOnlyMode = true
-        }
-
-        if (result.error) {
-          latestError = result.error
+        
+        // Secondary fallback
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ master_profile: normalized, updated_at: new Date().toISOString() })
+          .eq('user_id', candidateUserId)
+          
+        if (!profileError) {
+          savedToDb = true
+          break
         }
       }
 
-      if (!saved && !localOnlyMode) {
-        throw latestError || new Error('Unable to persist master profile. Please try again.')
+      // Sync backend API silently
+      fetch(withApiBase('/api/master-profile'), {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: userIdCandidates[0], userEmail: user?.email || '', profile: normalized })
+      }).catch(() => {})
+
+      if (!savedToDb) {
+        throw new Error('Could not persist to database.')
       }
 
       setMasterProfile(normalized)
       applyMasterProfile(normalized)
       saveMasterProfileBackup(user, normalized)
-      setShowPostSaveHint(true)
-      if (localOnlyMode) {
-        toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
-      } else {
-        toastSuccess('Master Profile saved successfully. Templates will auto-fill from this data.')
-      }
+      toastSuccess('Master Profile saved successfully.')
+      return true
     } catch (error) {
       console.error('Failed to save profile', error)
-      if (isRecoverableProfilePersistenceError(error)) {
-        const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
-        setMasterProfile(normalizedLocal)
-        applyMasterProfile(normalizedLocal)
-        saveMasterProfileBackup(user, normalizedLocal)
-        setShowPostSaveHint(true)
-        toastSuccess('Master Profile saved locally. Templates will auto-fill from this data.')
-      } else {
-        const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
-        setMasterProfile(normalizedLocal)
-        applyMasterProfile(normalizedLocal)
-        saveMasterProfileBackup(user, normalizedLocal)
-        toastError(`${error?.message || 'Failed to save profile'} Saved locally on this device.`)
-      }
+      const normalizedLocal = resumeParser.normalizeMasterProfile(profile)
+      setMasterProfile(normalizedLocal)
+      applyMasterProfile(normalizedLocal)
+      saveMasterProfileBackup(user, normalizedLocal)
+      toastSuccess('Master Profile saved locally on this device.')
+      return true
     } finally {
       setSaving(false)
     }
   }
 
+  const goToNextCard = () => {
+    if (activeCard < totalCards - 1) {
+      setActiveCard(prev => prev + 1)
+      cardContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const goToPreviousCard = () => {
+    if (activeCard > 0) {
+      setActiveCard(prev => prev - 1)
+      cardContainerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  const handleSaveAndContinue = async () => {
+    await saveProfile()
+    navigate('/student/choice')
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 grid place-items-center">
-        <div className="flex items-center gap-3 text-slate-600">
-          <Loader2 className="animate-spin" size={20} /> Loading Master Profile...
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-slate-500">
+          <Loader2 className="animate-spin text-blue-600" size={32} />
+          <span className="font-semibold tracking-wide">Loading Master Profile...</span>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-8">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div className="relative">
-            <Link to="/student/choice" className={`inline-flex items-center gap-2 rounded-lg border bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 ${showPostSaveHint ? 'border-blue-300 ring-2 ring-blue-100' : 'border-slate-300'}`}>
-              <ArrowLeft size={16} /> Back
-            </Link>
-            {showPostSaveHint && (
-              <div className="absolute -top-9 left-0 inline-flex items-center gap-1 rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[10px] font-semibold text-blue-700 shadow-sm whitespace-nowrap">
-                <ArrowRight size={11} className="animate-pulse" /> Next: Back, then continue to build your resume
-              </div>
-            )}
-          </div>
+    <div className="min-h-screen bg-[#f8fafc] text-slate-800 pb-20 font-sans">
+      {/* Top Banner & Header */}
+      <div className="bg-white border-b border-slate-200 sticky top-0 z-20">
+        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+          <Link to="/student" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 hover:text-slate-900 transition-colors">
+            <ArrowLeft size={16} /> Dashboard
+          </Link>
 
-          <div className="flex items-center gap-2">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleReupload}
-              accept=".pdf,.docx,.txt"
-              className="hidden"
-            />
+          <div className="flex items-center gap-3">
+            <input type="file" ref={fileInputRef} onChange={handleReupload} accept=".pdf,.docx,.txt" className="hidden" />
             <button
               type="button"
               disabled={parseStatus !== 'idle'}
               onClick={() => fileInputRef.current?.click()}
-              className="inline-flex items-center gap-2 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100 transition-colors disabled:opacity-50"
             >
-              {parseStatus === 'parsing' ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />} 
-              {parseStatus === 'parsing' ? 'Parsing...' : 'Upload PDF'}
+              {parseStatus === 'parsing' ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}
+              <span className="hidden sm:inline">Upload Resume</span>
             </button>
             <button
               type="button"
               onClick={saveProfile}
               disabled={saving}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800 transition-colors disabled:opacity-60"
             >
-              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Master Profile
+              {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />}
+              <span className="hidden sm:inline">Save</span>
             </button>
           </div>
         </div>
+      </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-5">
-          <h1 className="text-2xl font-bold text-slate-900">Master Profile Editor</h1>
-          <p className="mt-1 text-sm text-slate-600">All templates will auto-fill from this profile. Yellow fields need manual review.</p>
-
-          <div className="mt-4 grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-            <div>
-              <div className="mb-1 flex items-center justify-between text-xs font-semibold text-slate-600">
-                <span>Profile Completeness</span>
-                <span>{completeness}%</span>
-              </div>
-              <div className="h-2 w-full rounded bg-slate-200">
-                <div className="h-2 rounded bg-emerald-500" style={{ width: `${completeness}%` }} />
-              </div>
-            </div>
-            <div className="inline-flex items-center gap-2 rounded-md bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              <AlertTriangle size={14} /> {reviewCount} field(s) need review
-            </div>
+      <div className="max-w-3xl mx-auto px-4 pt-10 pb-20" ref={cardContainerRef}>
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 mb-4 rounded-full bg-blue-50 border border-blue-100 text-blue-700 text-xs font-black uppercase tracking-widest">
+            Step 1 of 3
           </div>
+          <h1 className="text-3xl md:text-4xl font-black text-slate-900 tracking-tight mb-3">Build your Master Profile</h1>
+          <p className="text-slate-500 font-medium text-sm md:text-base">This acts as your central identity. We'll use this to auto-fill your resumes.</p>
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Personal</h2>
-          <div className="grid gap-3 md:grid-cols-2">
-            <input className={inputClass('personal.fullName')} value={profile.personal.fullName} onChange={(e) => updatePersonal('fullName', e.target.value)} placeholder="Full Name" />
-            <input className={inputClass('personal.email')} value={profile.personal.email} onChange={(e) => updatePersonal('email', e.target.value)} placeholder="Email" />
-            <input className={inputClass('personal.phone')} value={profile.personal.phone} onChange={(e) => updatePersonal('phone', e.target.value)} placeholder="Phone" />
-            <input className={inputClass('personal.location')} value={profile.personal.location} onChange={(e) => updatePersonal('location', e.target.value)} placeholder="Location" />
-            <input className={inputClass('personal.linkedInUrl')} value={profile.personal.linkedInUrl} onChange={(e) => updatePersonal('linkedInUrl', e.target.value)} placeholder="LinkedIn URL" />
-            <input className={inputClass('personal.githubUrl')} value={profile.personal.githubUrl} onChange={(e) => updatePersonal('githubUrl', e.target.value)} placeholder="GitHub URL" />
-            <input className={inputClass('personal.portfolioUrl')} value={profile.personal.portfolioUrl} onChange={(e) => updatePersonal('portfolioUrl', e.target.value)} placeholder="Portfolio URL" />
+        {/* Wizard Card Container */}
+        <div className="bg-white rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 overflow-hidden relative">
+          
+          {/* Progress Bar */}
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-slate-100">
+            <div 
+              className="h-full bg-blue-600 transition-all duration-500 ease-out" 
+              style={{ width: `${((activeCard + 1) / totalCards) * 100}%` }}
+            />
           </div>
-        </section>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Summary / Objective</h2>
-          <textarea className={textareaClass('summary')} rows={4} value={profile.summary} onChange={(e) => updateSummary(e.target.value)} placeholder="Professional summary" />
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Education</h2>
-            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, education: [...prev.education, emptyEducation()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
-          </div>
-          <div className="space-y-3">
-            {profile.education.map((edu, index) => (
-              <div key={`edu-${index}`} className={`rounded-lg border p-3 ${isRowReview(`education.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                <div className="mb-3 flex justify-end">
-                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, education: prev.education.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
-                </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input className={inputClass(`education.${index}.degree`)} value={edu.degree} onChange={(e) => updateEducation(index, 'degree', e.target.value)} placeholder="Degree" />
-                  <input className={inputClass(`education.${index}.institution`)} value={edu.institution} onChange={(e) => updateEducation(index, 'institution', e.target.value)} placeholder="Institution" />
-                  <input className={inputClass(`education.${index}.location`)} value={edu.location} onChange={(e) => updateEducation(index, 'location', e.target.value)} placeholder="Location" />
-                  <input className={inputClass(`education.${index}.startYear`)} value={edu.startYear} onChange={(e) => updateEducation(index, 'startYear', e.target.value)} placeholder="Start Year" />
-                  <input className={inputClass(`education.${index}.endYear`)} value={edu.endYear} onChange={(e) => updateEducation(index, 'endYear', e.target.value)} placeholder="End Year" />
-                  <input className={inputClass(`education.${index}.gpa`)} value={edu.gpa} onChange={(e) => updateEducation(index, 'gpa', e.target.value)} placeholder="GPA" />
-                </div>
+          <div className="p-6 md:p-10 pt-10">
+            <div className="flex items-center justify-between mb-8">
+              <div>
+                <span className="text-blue-600 font-black text-xs uppercase tracking-widest mb-1 block">
+                  Card {activeCard + 1} of {totalCards}
+                </span>
+                <h2 className="text-2xl font-black text-slate-900">{activeCardMeta.title}</h2>
+                <p className="text-slate-500 font-medium text-sm mt-1">{activeCardMeta.description}</p>
               </div>
-            ))}
-            {profile.education.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No education added yet.</p>}
-          </div>
-        </section>
+              
+              {reviewCount > 0 && (
+                <div className="hidden sm:inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold">
+                  <AlertTriangle size={14} /> {reviewCount} items to review
+                </div>
+              )}
+            </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Work Experience</h2>
-            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, workExperience: [...prev.workExperience, emptyWork()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
-          </div>
-          <div className="space-y-3">
-            {profile.workExperience.map((item, index) => (
-              <div key={`work-${index}`} className={`rounded-lg border p-3 ${isRowReview(`workExperience.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                <div className="mb-3 flex justify-end">
-                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, workExperience: prev.workExperience.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+            {/* Active Card Content */}
+            <div className="min-h-[300px]">
+              {activeCard === 0 && (
+                <div className="grid gap-4 md:grid-cols-2">
+                  <input className={inputClass('personal.fullName')} value={profile.personal.fullName} onChange={(e) => updatePersonal('fullName', e.target.value)} placeholder="Full Name" />
+                  <input className={inputClass('personal.email')} value={profile.personal.email} onChange={(e) => updatePersonal('email', e.target.value)} placeholder="Email" />
+                  <input className={inputClass('personal.phone')} value={profile.personal.phone} onChange={(e) => updatePersonal('phone', e.target.value)} placeholder="Phone" />
+                  <input className={inputClass('personal.location')} value={profile.personal.location} onChange={(e) => updatePersonal('location', e.target.value)} placeholder="Location" />
+                  <input className={inputClass('personal.linkedInUrl')} value={profile.personal.linkedInUrl} onChange={(e) => updatePersonal('linkedInUrl', e.target.value)} placeholder="LinkedIn URL" />
+                  <input className={inputClass('personal.githubUrl')} value={profile.personal.githubUrl} onChange={(e) => updatePersonal('githubUrl', e.target.value)} placeholder="GitHub URL" />
+                  <input className={inputClass('personal.portfolioUrl')} value={profile.personal.portfolioUrl} onChange={(e) => updatePersonal('portfolioUrl', e.target.value)} placeholder="Portfolio URL (Optional)" />
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input className={inputClass(`workExperience.${index}.company`)} value={item.company} onChange={(e) => updateWork(index, 'company', e.target.value)} placeholder="Company" />
-                  <input className={inputClass(`workExperience.${index}.role`)} value={item.role} onChange={(e) => updateWork(index, 'role', e.target.value)} placeholder="Role" />
-                  <input className={inputClass(`workExperience.${index}.location`)} value={item.location} onChange={(e) => updateWork(index, 'location', e.target.value)} placeholder="Location" />
-                  <input className={inputClass(`workExperience.${index}.startDate`)} value={item.startDate} onChange={(e) => updateWork(index, 'startDate', e.target.value)} placeholder="Start Date" />
-                  <input className={inputClass(`workExperience.${index}.endDate`)} value={item.endDate} onChange={(e) => updateWork(index, 'endDate', e.target.value)} placeholder="End Date" />
-                </div>
-                <div className="mt-3">
-                  <textarea className={textareaClass(`workExperience.${index}.bullets`)} rows={4} value={(item.bullets || []).join('\n')} onChange={(e) => updateWorkBullets(index, e.target.value)} placeholder="Bullet points (one per line)" />
-                </div>
-              </div>
-            ))}
-            {profile.workExperience.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No work experience added yet.</p>}
-          </div>
-        </section>
+              )}
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Projects</h2>
-            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, projects: [...prev.projects, emptyProject()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
-          </div>
-          <div className="space-y-3">
-            {profile.projects.map((item, index) => (
-              <div key={`project-${index}`} className={`rounded-lg border p-3 ${isRowReview(`projects.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                <div className="mb-3 flex justify-end">
-                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, projects: prev.projects.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+              {activeCard === 1 && (
+                <div className="space-y-2">
+                  <textarea className={textareaClass('summary')} rows={6} value={profile.summary} onChange={(e) => updateSummary(e.target.value)} placeholder="I am a software engineer with 3+ years of experience specializing in..." />
+                  <p className="text-xs text-slate-400 font-medium px-2">Keep this concise. This summary acts as an elevator pitch for your resumes.</p>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input className={inputClass(`projects.${index}.projectName`)} value={item.projectName} onChange={(e) => updateProject(index, 'projectName', e.target.value)} placeholder="Project Name" />
-                  <input className={inputClass(`projects.${index}.techStack`)} value={item.techStack} onChange={(e) => updateProject(index, 'techStack', e.target.value)} placeholder="Tech Stack" />
-                  <input className={inputClass(`projects.${index}.githubLink`)} value={item.githubLink} onChange={(e) => updateProject(index, 'githubLink', e.target.value)} placeholder="GitHub Link" />
-                  <input className={inputClass(`projects.${index}.liveLink`)} value={item.liveLink} onChange={(e) => updateProject(index, 'liveLink', e.target.value)} placeholder="Live Link" />
-                </div>
-                <div className="mt-3">
-                  <textarea className={textareaClass(`projects.${index}.description`)} rows={3} value={item.description} onChange={(e) => updateProject(index, 'description', e.target.value)} placeholder="Project Description" />
-                </div>
-              </div>
-            ))}
-            {profile.projects.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No projects added yet.</p>}
-          </div>
-        </section>
+              )}
 
-        <section className={`rounded-xl border p-5 ${isReview('skills') ? 'border-amber-400 bg-amber-50/40' : 'border-slate-200 bg-white'}`}>
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Skills (Categorized)</h2>
-          <div className="grid gap-4 md:grid-cols-2">
-            {['languages', 'frameworks', 'tools', 'databases', 'cloud', 'other'].map((category) => (
-              <div key={category} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                <h3 className="mb-2 text-sm font-semibold capitalize text-slate-800">{category}</h3>
-                <div className="mb-2 flex gap-2">
-                  <input
-                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500"
-                    value={skillDraft[category]}
-                    onChange={(e) => setSkillDraft((prev) => ({ ...prev, [category]: e.target.value }))}
-                    placeholder="Type skill(s), comma separated"
-                  />
-                  <button type="button" onClick={() => addSkillCategory(category)} className="rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Add</button>
+              {activeCard === 2 && (
+                <div className="space-y-4">
+                  {profile.education.map((edu, index) => (
+                    <div key={`edu-${index}`} className={`rounded-2xl border p-5 ${isRowReview(`education.${index}.`) ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700">Institution {index + 1}</h4>
+                        <button type="button" onClick={() => setProfile(prev => ({ ...prev, education: prev.education.filter((_, i) => i !== index) }))} className="text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <input className={inputClass(`education.${index}.degree`)} value={edu.degree} onChange={(e) => updateEducation(index, 'degree', e.target.value)} placeholder="Degree (e.g. B.S. Computer Science)" />
+                        <input className={inputClass(`education.${index}.institution`)} value={edu.institution} onChange={(e) => updateEducation(index, 'institution', e.target.value)} placeholder="Institution Name" />
+                        <input className={inputClass(`education.${index}.location`)} value={edu.location} onChange={(e) => updateEducation(index, 'location', e.target.value)} placeholder="Location" />
+                        <input className={inputClass(`education.${index}.gpa`)} value={edu.gpa} onChange={(e) => updateEducation(index, 'gpa', e.target.value)} placeholder="GPA (Optional)" />
+                        <input className={inputClass(`education.${index}.startYear`)} value={edu.startYear} onChange={(e) => updateEducation(index, 'startYear', e.target.value)} placeholder="Start Year" />
+                        <input className={inputClass(`education.${index}.endYear`)} value={edu.endYear} onChange={(e) => updateEducation(index, 'endYear', e.target.value)} placeholder="End Year" />
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setProfile(prev => ({ ...prev, education: [...prev.education, emptyEducation()] }))} className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+                    <Plus size={18} /> Add Education
+                  </button>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  {(profile.skills[category] || []).map((item, index) => (
-                    <span key={`${category}-${index}`} className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-semibold text-slate-700 border border-slate-300">
-                      {item}
-                      <button type="button" onClick={() => removeSkillCategoryItem(category, index)} className="text-rose-600">x</button>
-                    </span>
+              )}
+
+              {activeCard === 3 && (
+                <div className="space-y-4">
+                  {profile.workExperience.map((item, index) => (
+                    <div key={`work-${index}`} className={`rounded-2xl border p-5 ${isRowReview(`workExperience.${index}.`) ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700">Role {index + 1}</h4>
+                        <button type="button" onClick={() => setProfile(prev => ({ ...prev, workExperience: prev.workExperience.filter((_, i) => i !== index) }))} className="text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 mb-3">
+                        <input className={inputClass(`workExperience.${index}.company`)} value={item.company} onChange={(e) => updateWork(index, 'company', e.target.value)} placeholder="Company Name" />
+                        <input className={inputClass(`workExperience.${index}.role`)} value={item.role} onChange={(e) => updateWork(index, 'role', e.target.value)} placeholder="Job Title" />
+                        <input className={inputClass(`workExperience.${index}.location`)} value={item.location} onChange={(e) => updateWork(index, 'location', e.target.value)} placeholder="Location" />
+                        <div className="flex gap-2">
+                          <input className={inputClass(`workExperience.${index}.startDate`)} value={item.startDate} onChange={(e) => updateWork(index, 'startDate', e.target.value)} placeholder="Start Date" />
+                          <input className={inputClass(`workExperience.${index}.endDate`)} value={item.endDate} onChange={(e) => updateWork(index, 'endDate', e.target.value)} placeholder="End Date" />
+                        </div>
+                      </div>
+                      <textarea className={textareaClass(`workExperience.${index}.bullets`)} rows={5} value={(item.bullets || []).join('\n')} onChange={(e) => updateWorkBullets(index, e.target.value)} placeholder="Describe your achievements (one per line)..." />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setProfile(prev => ({ ...prev, workExperience: [...prev.workExperience, emptyWork()] }))} className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+                    <Plus size={18} /> Add Work Experience
+                  </button>
+                </div>
+              )}
+
+              {activeCard === 4 && (
+                <div className="space-y-4">
+                  {profile.projects.map((item, index) => (
+                    <div key={`project-${index}`} className={`rounded-2xl border p-5 ${isRowReview(`projects.${index}.`) ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700">Project {index + 1}</h4>
+                        <button type="button" onClick={() => setProfile(prev => ({ ...prev, projects: prev.projects.filter((_, i) => i !== index) }))} className="text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2 mb-3">
+                        <input className={inputClass(`projects.${index}.projectName`)} value={item.projectName} onChange={(e) => updateProject(index, 'projectName', e.target.value)} placeholder="Project Name" />
+                        <input className={inputClass(`projects.${index}.techStack`)} value={item.techStack} onChange={(e) => updateProject(index, 'techStack', e.target.value)} placeholder="Tech Stack (e.g. React, Node.js)" />
+                        <input className={inputClass(`projects.${index}.githubLink`)} value={item.githubLink} onChange={(e) => updateProject(index, 'githubLink', e.target.value)} placeholder="GitHub URL" />
+                        <input className={inputClass(`projects.${index}.liveLink`)} value={item.liveLink} onChange={(e) => updateProject(index, 'liveLink', e.target.value)} placeholder="Live Demo URL" />
+                      </div>
+                      <textarea className={textareaClass(`projects.${index}.description`)} rows={3} value={item.description} onChange={(e) => updateProject(index, 'description', e.target.value)} placeholder="Short description of the project and your contributions..." />
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setProfile(prev => ({ ...prev, projects: [...prev.projects, emptyProject()] }))} className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+                    <Plus size={18} /> Add Project
+                  </button>
+                </div>
+              )}
+
+              {activeCard === 5 && (
+                <div className="grid gap-5 md:grid-cols-2">
+                  {['languages', 'frameworks', 'tools', 'databases', 'cloud', 'other'].map((category) => (
+                    <div key={category} className="rounded-2xl border border-slate-200 bg-slate-50/50 p-4">
+                      <h3 className="mb-3 text-sm font-black capitalize text-slate-700">{category}</h3>
+                      <div className="mb-3 flex gap-2">
+                        <input
+                          className="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500"
+                          value={skillDraft[category]}
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkillCategory(category) } }}
+                          onChange={(e) => setSkillDraft(prev => ({ ...prev, [category]: e.target.value }))}
+                          placeholder="Type skill and press Enter"
+                        />
+                        <button type="button" onClick={() => addSkillCategory(category)} className="rounded-lg bg-slate-200 px-3 text-sm font-bold text-slate-700 hover:bg-slate-300 transition-colors">Add</button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {(profile.skills[category] || []).map((item, index) => (
+                          <span key={`${category}-${index}`} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1.5 text-xs font-bold text-slate-700 border border-slate-200 shadow-sm">
+                            {item}
+                            <button type="button" onClick={() => removeSkillCategoryItem(category, index)} className="text-slate-400 hover:text-rose-500"><X size={12} /></button>
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
-            ))}
-          </div>
-        </section>
+              )}
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Certifications</h2>
-            <button type="button" onClick={() => setProfile((prev) => ({ ...prev, certifications: [...prev.certifications, emptyCertification()] }))} className="inline-flex items-center gap-2 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"><Plus size={14} /> Add</button>
-          </div>
-          <div className="space-y-3">
-            {profile.certifications.map((item, index) => (
-              <div key={`cert-${index}`} className={`rounded-lg border p-3 ${isRowReview(`certifications.${index}.`) ? 'border-amber-400 bg-amber-50/50' : 'border-slate-200 bg-slate-50'}`}>
-                <div className="mb-3 flex justify-end">
-                  <button type="button" onClick={() => setProfile((prev) => ({ ...prev, certifications: prev.certifications.filter((_, i) => i !== index) }))} className="inline-flex items-center gap-1 text-xs font-semibold text-rose-600"><Trash2 size={12} /> Remove</button>
+              {activeCard === 6 && (
+                <div className="space-y-4">
+                  {profile.certifications.map((item, index) => (
+                    <div key={`cert-${index}`} className={`rounded-2xl border p-5 ${isRowReview(`certifications.${index}.`) ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 bg-slate-50/50'}`}>
+                      <div className="flex justify-between items-center mb-4">
+                        <h4 className="font-bold text-slate-700">Certification {index + 1}</h4>
+                        <button type="button" onClick={() => setProfile(prev => ({ ...prev, certifications: prev.certifications.filter((_, i) => i !== index) }))} className="text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={16} /></button>
+                      </div>
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <input className={inputClass(`certifications.${index}.name`)} value={item.name} onChange={(e) => updateCertification(index, 'name', e.target.value)} placeholder="Certification Name" />
+                        <input className={inputClass(`certifications.${index}.issuer`)} value={item.issuer} onChange={(e) => updateCertification(index, 'issuer', e.target.value)} placeholder="Issuing Organization" />
+                        <input className={inputClass(`certifications.${index}.date`)} value={item.date} onChange={(e) => updateCertification(index, 'date', e.target.value)} placeholder="Issue Date" />
+                        <input className={inputClass(`certifications.${index}.link`)} value={item.link} onChange={(e) => updateCertification(index, 'link', e.target.value)} placeholder="Credential URL" />
+                      </div>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => setProfile(prev => ({ ...prev, certifications: [...prev.certifications, emptyCertification()] }))} className="w-full py-4 rounded-2xl border-2 border-dashed border-slate-200 text-slate-500 font-bold hover:bg-slate-50 hover:border-slate-300 transition-all flex items-center justify-center gap-2">
+                    <Plus size={18} /> Add Certification
+                  </button>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <input className={inputClass(`certifications.${index}.name`)} value={item.name} onChange={(e) => updateCertification(index, 'name', e.target.value)} placeholder="Certification Name" />
-                  <input className={inputClass(`certifications.${index}.issuer`)} value={item.issuer} onChange={(e) => updateCertification(index, 'issuer', e.target.value)} placeholder="Issuer" />
-                  <input className={inputClass(`certifications.${index}.date`)} value={item.date} onChange={(e) => updateCertification(index, 'date', e.target.value)} placeholder="Date" />
-                  <input className={inputClass(`certifications.${index}.link`)} value={item.link} onChange={(e) => updateCertification(index, 'link', e.target.value)} placeholder="Link" />
+              )}
+
+              {activeCard === 7 && (
+                <div className="space-y-4">
+                  <div className="flex gap-2 mb-2">
+                    <input 
+                      className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none focus:border-blue-500" 
+                      value={achievementDraft} 
+                      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAchievement() } }}
+                      onChange={(e) => setAchievementDraft(e.target.value)} 
+                      placeholder="e.g. Won 1st place in Hackathon 2024..." 
+                    />
+                    <button type="button" onClick={addAchievement} className="rounded-xl bg-slate-900 px-6 text-sm font-bold text-white hover:bg-slate-800 transition-colors">Add</button>
+                  </div>
+                  
+                  {profile.achievements.length > 0 ? (
+                    <ul className="space-y-2">
+                      {profile.achievements.map((item, index) => (
+                        <li key={`ach-${index}`} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
+                          <span className="flex-1">{item}</span>
+                          <button type="button" onClick={() => removeAchievement(index)} className="text-slate-400 hover:text-rose-500 ml-4"><Trash2 size={16} /></button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-medium">
+                      No extra achievements added. You can skip this if you want!
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
-            {profile.certifications.length === 0 && <p className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">No certifications added yet.</p>}
-          </div>
-        </section>
+              )}
+            </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold text-slate-900">Achievements / Extra-curricular (Optional)</h2>
-          <div className="mb-3 flex gap-2">
-            <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500" value={achievementDraft} onChange={(e) => setAchievementDraft(e.target.value)} placeholder="Add achievement and press Add" />
-            <button type="button" onClick={addAchievement} className="rounded-md border border-slate-300 px-3 text-sm font-semibold text-slate-700 hover:bg-slate-100">Add</button>
           </div>
-          <ul className="space-y-2">
-            {profile.achievements.map((item, index) => (
-              <li key={`ach-${index}`} className="flex items-center justify-between rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                <span>{item}</span>
-                <button type="button" onClick={() => removeAchievement(index)} className="text-rose-600"><Trash2 size={14} /></button>
-              </li>
-            ))}
-          </ul>
-        </section>
 
-        <div className="flex justify-end pb-4">
-          <button
-            type="button"
-            onClick={saveProfile}
-            disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-60"
-          >
-            {saving ? <Loader2 className="animate-spin" size={16} /> : <Save size={16} />} Save Master Profile
-          </button>
+          {/* Wizard Footer Controls */}
+          <div className="bg-slate-50 border-t border-slate-100 p-6 md:px-10 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={goToPreviousCard}
+              disabled={activeCard === 0}
+              className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-colors ${activeCard === 0 ? 'text-slate-300 cursor-not-allowed' : 'text-slate-600 hover:bg-slate-200 bg-slate-100'}`}
+            >
+              <ArrowLeft size={16} /> <span className="hidden sm:inline">Previous</span>
+            </button>
+
+            {activeCard < totalCards - 1 ? (
+              <button
+                type="button"
+                onClick={goToNextCard}
+                className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-bold text-white hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/20 transition-all"
+              >
+                Continue <ArrowRight size={16} />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSaveAndContinue}
+                disabled={saving}
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-2.5 text-sm font-bold text-white hover:bg-slate-800 shadow-xl shadow-slate-900/20 transition-all disabled:opacity-70"
+              >
+                {saving ? <Loader2 className="animate-spin" size={16} /> : <CheckCircle2 size={16} />}
+                Complete & Build Resume
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

@@ -31,5 +31,16 @@ export default defineConfig({
     minify: 'esbuild',
     target: 'esnext',
     reportCompressedSize: false,
+    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'pdfjs-vendor': ['pdfjs-dist'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'motion-vendor': ['framer-motion']
+        }
+      },
+    },
   },
 })

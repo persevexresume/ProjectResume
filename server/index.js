@@ -890,7 +890,24 @@ Ensure the paragraphs are professional, engaging, and directly connect the user'
     }
 });
 
-// ==================== SCHEDULER ====================
+// ==================== SCHEDULER (KEEP-ALIVE) ====================
+
+// Render Free Tier sleeps after 15 minutes of inactivity.
+// This cron job pings the /health endpoint every 14 minutes to keep it awake.
+cron.schedule('*/14 * * * *', async () => {
+    const url = process.env.RENDER_EXTERNAL_URL || process.env.SERVER_URL || `http://localhost:${PORT}`;
+    console.log(`[Keep-Alive] Pinging ${url}/health to prevent sleep...`);
+    try {
+        const response = await fetch(`${url}/health`);
+        if (response.ok) {
+            console.log('[Keep-Alive] Ping successful.');
+        } else {
+            console.log(`[Keep-Alive] Ping failed with status: ${response.status}`);
+        }
+    } catch (error) {
+        console.error('[Keep-Alive] Ping error:', error.message);
+    }
+});
 
 // NOTE: Analytics cron job disabled due to memory constraints on serverless platforms
 // When enabled, this should use batch processing and proper error handling

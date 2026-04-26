@@ -226,10 +226,10 @@ const parseProjects = (lines) => {
       !clean.includes('  ') &&
       !/^https?:\/\//i.test(clean) &&
       !/github\.com|vercel\.app|netlify\.app/i.test(clean) &&
-      (strongProjectSignal || /\s[-:|]\s/.test(clean))
+      (strongProjectSignal || /\s[:|-]\s/.test(clean))
     ) {
       if (currentEntry) entries.push(currentEntry)
-      const splitBySeparator = clean.split(/\s[-:|]\s/)
+      const splitBySeparator = clean.split(/\s[:|-]\s/)
       const candidateName = (splitBySeparator[0] || clean).trim()
       const candidateDesc = splitBySeparator.length > 1 ? splitBySeparator.slice(1).join(' - ').trim() : ''
       currentEntry = { id: Date.now() + Math.random(), name: candidateName, description: candidateDesc, link: '' }
@@ -240,7 +240,7 @@ const parseProjects = (lines) => {
       }
       currentEntry.description += (currentEntry.description ? ' ' : '') + clean
     } else if (strongProjectSignal) {
-      const splitBySeparator = clean.split(/\s[-:|]\s/)
+      const splitBySeparator = clean.split(/\s[:|-]\s/)
       const candidateName = (splitBySeparator[0] || clean).trim()
       const candidateDesc = splitBySeparator.length > 1 ? splitBySeparator.slice(1).join(' - ').trim() : ''
       const urlMatch = clean.match(/https?:\/\/[^\s]+/i)
@@ -377,7 +377,7 @@ const parseCertifications = (lines) => {
     }
 
     const next = stripBulletPrefix(sourceLines[i + 1] || '')
-    const splitBySep = clean.split(/\s[-:|]\s/)
+    const splitBySep = clean.split(/\s[:|-]\s/)
     const hasKeyword = /\b(certification|certificate|certified|credential|license|badge)\b/i.test(clean)
     const certName = (splitBySep[0] || clean).trim()
     const possibleIssuer = splitBySep.length > 1 ? splitBySep.slice(1).join(' - ').trim() : ''

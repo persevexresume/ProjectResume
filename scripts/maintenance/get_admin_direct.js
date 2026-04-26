@@ -1,10 +1,8 @@
-
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
-// Read .env file manually
-const envPath = path.join(__dirname, 'server', '.env');
+const envPath = path.resolve(__dirname, '../../server/.env');
 const envContent = fs.readFileSync(envPath, 'utf8');
 
 const getEnvVar = (name) => {
@@ -25,8 +23,8 @@ const url = new URL(`${supabaseUrl}/rest/v1/admins?select=*`);
 const options = {
     method: 'GET',
     headers: {
-        'apikey': supabaseServiceKey,
-        'Authorization': `Bearer ${supabaseServiceKey}`,
+        apikey: supabaseServiceKey,
+        Authorization: `Bearer ${supabaseServiceKey}`,
         'Content-Type': 'application/json'
     }
 };

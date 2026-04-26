@@ -367,7 +367,7 @@ ${senderFirstName} ${senderLastName}`;
                                 <motion.div 
                                     initial={{ height: 0, opacity: 0 }}
                                     animate={{ height: 'auto', opacity: 1 }}
-                                    style={{ marginTop: '1.5rem', pt: '1.5rem', borderTop: '1px solid #ccfbf1' }}
+                                    style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid #ccfbf1' }}
                                 >
                                     <div style={{ display: 'grid', gap: '1.25rem', marginTop: '1.5rem' }}>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
@@ -638,7 +638,7 @@ ${senderFirstName} ${senderLastName}`;
 }
 
 const SectionTitle = ({ title }) => (
-    <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', tracking: '0.01em', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+    <h3 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#1e293b', textTransform: 'uppercase', letterSpacing: '0.01em', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
         <div style={{ width: '4px', height: '14px', background: '#3b82f6', borderRadius: '4px' }} />
         {title}
     </h3>

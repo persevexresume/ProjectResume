@@ -1229,7 +1229,7 @@ const ExperienceSection = ({ experience, setExp }) => {
     return (
         <div className="flex flex-col gap-3">
             {safeExperience.map((item, idx) => (
-                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', shadow: '0 1px 2px rgba(0,0,0,0.02)', borderRadius: '12px', transition: 'all 0.2s', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group">
+                <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', background: '#ffffff', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.02)', borderRadius: '12px', transition: 'all 0.2s', cursor: 'pointer' }} onClick={() => setEditingIdx(idx)} className="hover:border-blue-300 hover:shadow-md group">
                     <div>
                         <h4 style={{ margin: 0, fontWeight: 800, color: '#0f172a', fontSize: '0.95rem' }}>{item.role || '(Not specified)'}</h4>
                         <p style={{ margin: '0.2rem 0 0', fontWeight: 600, color: '#64748b', fontSize: '0.8rem' }}>{item.company} {item.startDate && `• ${item.startDate} - ${item.endDate}`}</p>

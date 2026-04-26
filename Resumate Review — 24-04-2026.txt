@@ -1,0 +1,51 @@
+**Resumate Review — 24-04-2026**
+
+---
+
+### 1. Master Profile Section — Design & UX
+
+* The Master Profile section requires redesign.
+* Current design is not satisfactory.
+* User experience (UX) needs improvement.
+* The section should be structured in a **card-based format**:
+
+  * One set of questions per card.
+  * A **“Continue” button** to navigate to the next card/section.
+
+---
+
+### 2. Master Profile Section — Errors
+
+* A **404 error** is still occurring:
+
+  * Triggered when pressing options/actions within the Master Profile section.
+
+---
+
+### 3. Navigation Flow Issue
+
+* After clicking **“Start Building”** from the home page:
+
+  * User is redirected to the Master Profile section.
+  * There is **confusion in navigation**:
+
+    * No clarity on where to go next.
+    * No clear starting point for creating the resume.
+
+---
+
+### 4. Input Field Issue
+
+* While editing:
+
+  * The **spacebar is not functioning**.
+  * Issue observed while entering the **professional role**.
+
+---
+
+### 5. Form Load Behavior
+
+* Form loading behavior is incorrect:
+
+  * On load, the form shifts upward.
+  * User is required to manually scroll down after load.

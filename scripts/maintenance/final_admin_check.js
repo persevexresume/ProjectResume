@@ -1,8 +1,8 @@
-
-const { createClient } = require('./server/node_modules/@supabase/supabase-js');
-const dotenv = require('./server/node_modules/dotenv');
+const { createClient } = require('@supabase/supabase-js');
+const dotenv = require('dotenv');
 const path = require('path');
-dotenv.config({ path: path.join(__dirname, 'server', '.env') });
+
+dotenv.config({ path: path.resolve(__dirname, '../../server/.env') });
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_KEY;
@@ -19,7 +19,7 @@ async function getAdmins() {
         const { data, error } = await supabase
             .from('admins')
             .select('*');
-        
+
         if (error) {
             console.error('Error:', error.message);
         } else {
