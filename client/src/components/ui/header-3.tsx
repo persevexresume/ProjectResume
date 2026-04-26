@@ -55,6 +55,8 @@ type LinkItem = {
 
 export function Header() {
     const [open, setOpen] = React.useState(false);
+    const [profileOpen, setProfileOpen] = React.useState(false);
+    const profileCloseTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
     const scrolled = useScroll(10);
     const { user, clearUser } = useStore();
     const location = useLocation();
@@ -259,29 +261,40 @@ export function Header() {
                                 </MovingBorder>
                             </>
                         ) : (
-                            <div className="relative group">
+                            <div
+                                className="relative"
+                                onMouseEnter={() => {
+                                    if (profileCloseTimer.current) clearTimeout(profileCloseTimer.current);
+                                    setProfileOpen(true);
+                                }}
+                                onMouseLeave={() => {
+                                    profileCloseTimer.current = setTimeout(() => setProfileOpen(false), 120);
+                                }}
+                            >
                                 <button
                                     type="button"
                                     className="w-10 h-10 flex items-center justify-center text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 rounded-full transition-all shadow-sm"
                                 >
                                     <UserCircle size={20} />
                                 </button>
-                                <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl opacity-0 pointer-events-none translate-y-1 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 transition-all z-50">
-                                    <Link
-                                        to="/master-profile"
-                                        className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
-                                    >
-                                        <UserCircle size={16} className="text-indigo-600" />
-                                        Profile
-                                    </Link>
-                                    <button
-                                        onClick={handleLogout}
-                                        className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 mt-1 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
-                                    >
-                                        <LogOut size={16} className="text-rose-500" />
-                                        Sign Out
-                                    </button>
-                                </div>
+                                {profileOpen && (
+                                    <div className="absolute right-0 top-full mt-2 min-w-[180px] rounded-2xl border border-slate-200 bg-white p-2 shadow-xl z-50">
+                                        <Link
+                                            to="/master-profile"
+                                            className="flex items-center gap-2 rounded-xl px-3 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-50 transition-colors"
+                                        >
+                                            <UserCircle size={16} className="text-indigo-600" />
+                                            Profile
+                                        </Link>
+                                        <button
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-2 rounded-xl px-3 py-2.5 mt-1 text-sm font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                                        >
+                                            <LogOut size={16} className="text-rose-500" />
+                                            Sign Out
+                                        </button>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>
