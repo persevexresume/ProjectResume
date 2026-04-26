@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { FileText, LogOut } from 'lucide-react';
 import useStore from '../store/useStore';
 import { cn } from '../lib/utils';
@@ -10,6 +10,8 @@ export default function Navbar() {
     const { user, setUser } = useStore();
     const [scrolled, setScrolled] = useState(false);
     const [activeSection, setActiveSection] = useState('/');
+    const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+    const closeTimerRef = useRef(null);
 
     useEffect(() => {
         const handleScroll = () => {
@@ -197,21 +199,32 @@ export default function Navbar() {
                                     <p className="text-xs font-black text-slate-900 leading-none">{user?.name || 'User'}</p>
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">{user.role === 'admin' ? 'Administrator' : 'Premium Student'}</p>
                                 </div>
-                                <div className="relative group">
+                                <div
+                                    className="relative"
+                                    onMouseEnter={() => {
+                                        clearTimeout(closeTimerRef.current);
+                                        setProfileMenuOpen(true);
+                                    }}
+                                    onMouseLeave={() => {
+                                        closeTimerRef.current = setTimeout(() => setProfileMenuOpen(false), 120);
+                                    }}
+                                >
                                     <div className="w-10 h-10 md:w-11 md:h-11 bg-gradient-to-tr from-indigo-500 to-violet-500 rounded-xl flex items-center justify-center text-white font-black shadow-lg cursor-pointer hover:shadow-xl transition-all">
                                         {user?.name?.charAt(0).toUpperCase() || 'U'}
                                     </div>
-                                    <div className="absolute right-0 top-full pt-4 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all">
-                                        <div className="bg-white border border-slate-200 rounded-2xl p-2 w-48 shadow-2xl">
-                                            <button
-                                                onClick={handleLogout}
-                                                className="w-full flex items-center gap-2 p-3 rounded-xl hover:bg-rose-50 text-sm font-bold text-rose-600 transition-all"
-                                            >
-                                                <LogOut size={16} />
-                                                Sign Out
-                                            </button>
+                                    {profileMenuOpen && (
+                                        <div className="absolute right-0 top-full pt-2">
+                                            <div className="bg-white border border-slate-200 rounded-2xl p-2 w-48 shadow-2xl">
+                                                <button
+                                                    onClick={handleLogout}
+                                                    className="w-full flex items-center gap-2 p-3 rounded-xl hover:bg-rose-50 text-sm font-bold text-rose-600 transition-all"
+                                                >
+                                                    <LogOut size={16} />
+                                                    Sign Out
+                                                </button>
+                                            </div>
                                         </div>
-                                    </div>
+                                    )}
                                 </div>
                             </div>
                         ) : (
