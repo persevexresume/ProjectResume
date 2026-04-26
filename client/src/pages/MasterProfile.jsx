@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, AlertTriangle, Loader2, Plus, Trash2, Upload, Save, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, AlertTriangle, Loader2, Plus, Trash2, Upload, Save, CheckCircle2, X } from 'lucide-react'
 import useStore from '../store/useStore'
 import { supabase } from '../supabase'
 import { getDbUserId, getDbUserIdCandidates } from '../lib/userIdentity'
