@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import useStore from '../store/useStore'
 import {
     CheckCircle2,
     Zap,
@@ -42,6 +43,7 @@ const FloatingCard = ({ children, style, delay = 0 }) => (
 export default function Home() {
     const [openFaq, setOpenFaq] = useState(null);
     const navigate = useNavigate();
+    const { user } = useStore();
 
     return (
         <motion.div
@@ -60,7 +62,7 @@ export default function Home() {
                 subtitle="Only 2% of resumes win. We make sure yours is one of them. Engineered with Neural Precision and ATS-optimized architectures for elite roles."
                 ctaButton={{
                     label: 'Start Building Now',
-                    onClick: () => navigate('/master-profile')
+                    onClick: () => user ? navigate('/student') : navigate('/signin')
                 }}
                 featureIcons={[
                     {
